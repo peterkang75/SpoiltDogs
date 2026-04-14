@@ -8,8 +8,6 @@ import { registerAdminRoutes } from "./adminRoutes";
 import { registerWooCommerceRoutes } from "./woocommerceRoutes";
 import { serveStatic } from "./static";
 import { createServer } from "http";
-import { runMigrations } from "stripe-replit-sync";
-import { getStripeSync } from "./stripeClient";
 import { WebhookHandlers } from "./webhookHandlers";
 import { setupChat } from "./chat";
 import { seedProducts } from "./storage";
@@ -35,45 +33,11 @@ export function log(message: string, source = "express") {
   console.log(`${formattedTime} [${source}] ${message}`);
 }
 
-async function initStripe() {
-  const databaseUrl = process.env.DATABASE_URL;
-  if (!databaseUrl) {
-    console.warn("DATABASE_URL not set — Stripe integration skipped");
-    return;
-  }
-
-  try {
-    log("Initializing Stripe schema...", "stripe");
-    await runMigrations({ databaseUrl, schema: "stripe" });
-    log("Stripe schema ready", "stripe");
-
-    const stripeSync = await getStripeSync();
-
-    const domains = process.env.REPLIT_DOMAINS;
-    if (domains) {
-      const webhookBaseUrl = `https://${domains.split(",")[0]}`;
-      try {
-        const result = await stripeSync.findOrCreateManagedWebhook(
-          `${webhookBaseUrl}/api/stripe/webhook`
-        );
-        log(`Webhook configured: ${result?.webhook?.url || webhookBaseUrl + "/api/stripe/webhook"}`, "stripe");
-      } catch (whErr: any) {
-        console.warn("Webhook setup warning (non-fatal):", whErr.message);
-      }
-    } else {
-      log("REPLIT_DOMAINS not set — webhook setup skipped", "stripe");
-    }
-
-    stripeSync
-      .syncBackfill()
-      .then(() => log("Stripe data synced", "stripe"))
-      .catch((err: any) => console.error("Error syncing Stripe data:", err));
-  } catch (error) {
-    console.error("Failed to initialize Stripe:", error);
-  }
+if (process.env.STRIPE_SECRET_KEY) {
+  log("Stripe configured via env vars", "stripe");
+} else {
+  log("STRIPE_SECRET_KEY not set — payment routes will fail until configured", "stripe");
 }
-
-initStripe().catch((err) => console.error("Stripe init failed:", err));
 
 app.post(
   "/api/stripe/webhook",
