@@ -1,9 +1,22 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import path from "path";
+import { execSync } from "child_process";
 import runtimeErrorOverlay from "@replit/vite-plugin-runtime-error-modal";
 
+const buildVersion =
+  process.env.RAILWAY_GIT_COMMIT_SHA?.slice(0, 7) ||
+  (() => {
+    try { return execSync("git rev-parse --short HEAD").toString().trim(); }
+    catch { return "dev"; }
+  })();
+const buildDate = new Date().toISOString();
+
 export default defineConfig({
+  define: {
+    __BUILD_VERSION__: JSON.stringify(buildVersion),
+    __BUILD_DATE__: JSON.stringify(buildDate),
+  },
   plugins: [
     react(),
     runtimeErrorOverlay(),

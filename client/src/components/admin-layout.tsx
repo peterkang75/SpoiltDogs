@@ -199,6 +199,19 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
         )}
       </div>
 
+      {/* Build version */}
+      <div className={`pb-3 ${collapsed && !forMobile ? "px-1.5" : "px-3"}`}>
+        {!(collapsed && !forMobile) && (
+          <div
+            className="text-[10px] text-white/30 font-mono leading-tight px-3"
+            title={`Built ${__BUILD_DATE__}`}
+            data-testid="sidebar-build-version"
+          >
+            build {__BUILD_VERSION__}
+          </div>
+        )}
+      </div>
+
       {/* Collapse toggle button (desktop only) */}
       {!forMobile && (
         <button
