@@ -140,7 +140,16 @@ function mapWcProductToOurs(body: any): {
   return { product, sourcingCostAud, shippingCostAud, suggestedSellPrice, synceeProductId };
 }
 
-async function saveWcProduct(body: any): Promise<{ id: string; [key: string]: any }> {
+function detectSupplierName(userAgent?: string): string {
+  const ua = (userAgent || "").toLowerCase();
+  if (ua.includes("autods")) return "AutoDS";
+  if (ua.includes("python-rest-api")) return "AutoDS"; // AutoDS uses WooCommerce-Python-REST-API client
+  if (ua.includes("syncee")) return "Syncee";
+  if (ua.includes("guzzle")) return "Syncee"; // Syncee's PHP client
+  return "Unknown";
+}
+
+async function saveWcProduct(body: any, supplierName = "Syncee"): Promise<{ id: string; [key: string]: any }> {
   const { product, sourcingCostAud, shippingCostAud, suggestedSellPrice, synceeProductId } = mapWcProductToOurs(body);
 
   // Deduplication — if this SKU/supplier_product_id already exists, update instead of create
@@ -166,17 +175,17 @@ async function saveWcProduct(body: any): Promise<{ id: string; [key: string]: an
 
   await storage.createSourcing({
     productId: created.id,
-    supplierName: "Syncee",
+    supplierName,
     supplierProductId: synceeProductId,
     supplierUrl: body._syncee_url || null,
     sourcingCostAud: Math.round(sourcingCostAud * 100),
     shippingCostAud: Math.round(shippingCostAud * 100),
     tier: suggestedSellPrice >= 50 ? "premium" : "smart_choice",
     sourcingStatus: "researching",
-    notes: `Auto-imported via Syncee WooCommerce emulation. Suggested retail: $${suggestedSellPrice.toFixed(2)} AUD`,
+    notes: `Auto-imported via ${supplierName} (WooCommerce emulation). Suggested retail: $${suggestedSellPrice.toFixed(2)} AUD`,
   });
 
-  console.log(`[WC-Emulator] Product imported: "${created.name}" — cost $${sourcingCostAud.toFixed(2)} AUD → sell $${suggestedSellPrice.toFixed(2)} AUD`);
+  console.log(`[WC-Emulator] Product imported from ${supplierName}: "${created.name}" — cost $${sourcingCostAud.toFixed(2)} AUD → sell $${suggestedSellPrice.toFixed(2)} AUD`);
 
   return toWcFormat(created, sourcingCostAud, suggestedSellPrice, synceeProductId, body.images);
 }
@@ -432,7 +441,8 @@ export function registerWooCommerceRoutes(app: Express) {
     }
 
     try {
-      const wcProduct = await saveWcProduct(body);
+      const supplier = detectSupplierName(req.headers["user-agent"] as string);
+      const wcProduct = await saveWcProduct(body, supplier);
       res.status(201).json(wcProduct);
     } catch (err: any) {
       console.error("[WC-Emulator] POST /products error:", err);
@@ -451,9 +461,10 @@ export function registerWooCommerceRoutes(app: Express) {
     const deleted: string[] = [];
     const errors: any[] = [];
 
+    const batchSupplier = detectSupplierName(req.headers["user-agent"] as string);
     for (const item of toCreate) {
       try {
-        const wcProduct = await saveWcProduct(item);
+        const wcProduct = await saveWcProduct(item, batchSupplier);
         created.push(wcProduct);
       } catch (err: any) {
         errors.push({ item: item.name, error: err.message });
