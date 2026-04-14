@@ -1,0 +1,61 @@
+modules = ["nodejs-20", "web", "postgresql-16"]
+run = "npm run dev"
+hidden = [".config", ".git", "generated-icon.png", "node_modules", "dist"]
+
+[nix]
+channel = "stable-24_05"
+
+[[ports]]
+localPort = 5000
+externalPort = 80
+
+[[ports]]
+localPort = 5904
+externalPort = 3000
+
+[env]
+PORT = "5000"
+
+[deployment]
+deploymentTarget = "vm"
+run = ["npm", "run", "start"]
+build = ["npm", "run", "build"]
+publicDir = "dist/public"
+
+[workflows]
+runButton = "Project"
+
+[[workflows.workflow]]
+name = "Project"
+mode = "parallel"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "Start application"
+
+[[workflows.workflow]]
+name = "Start application"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "npm run dev"
+waitForPort = 5000
+
+[agent]
+integrations = ["javascript_openai_ai_integrations:2.0.0", "stripe:2.0.0"]
+
+[userenv]
+
+[userenv.development]
+PRODUCTION_API_URL = "https://spoiltdogs.com.au"
+
+[userenv.shared]
+VITE_SUPABASE_URL = "https://ssqzvozouagsslczmaxj.supabase.co"
+VITE_SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNzcXp2b3pvdWFnc3NsY3ptYXhqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI2NTAyMjksImV4cCI6MjA4ODIyNjIyOX0.wEhgnrpdeOmjscsrpXlrbMvXPcKXmMrKYki-OwpGMqQ"
+WC_CONSUMER_KEY = "ck_ff47ac93e857d3e9f11ebd93e2774ecf9d0ea1b3"
+WC_CONSUMER_SECRET = "cs_1af7c5eeff3c2d87adb83f38edd8a195d01661d8"
+
+[userenv.production]
+STORE_URL = "https://spoiltdogs.com.au"

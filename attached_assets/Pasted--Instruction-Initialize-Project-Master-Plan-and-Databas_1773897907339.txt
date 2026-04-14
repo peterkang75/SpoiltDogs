@@ -1,0 +1,41 @@
+### [Instruction: Initialize Project Master Plan and Database Schema for Marketing Automation]
+
+Replit, based on our current progress and strategic direction, please create (or update) a `plan.md` file in the root directory. This will serve as our "Single Source of Truth" for the entire development lifecycle.
+
+**1. Update `plan.md` with the following structure:**
+---
+# 🐾 Spoilt Dogs Full-Stack Development Master Plan (Updated: 2026-03-19)
+
+## 🎯 Project Objective
+- Build an AI-driven D2C pet store targeting the Australian premium market.
+- **Core Principle**: Maintain "Data Sovereignty" by storing all Brand Prompts (System Instructions) in our own Supabase DB to ensure brand consistency and easy AI model switching (e.g., Gemini to GPT-4).
+
+## 🏗️ System Architecture
+- **Core Stack**: React 18 + Vite + Express 5 + Supabase (PostgreSQL / Auth).
+- **Automation Hub**: Make.com (Webhook-based orchestration).
+- **AI Engine**: Gemini 3 Flash API (Content & Image Generation).
+- **Distribution**: Meta Graph API (Instagram, Facebook, Threads).
+
+## 🔄 Roadmap & Priority
+### [Phase 1] Marketing Data Command Center (Current Focus 📍)
+- [ ] Design `marketing_prompts` table: Store brand voice, section-specific guidelines (Premium/Smart/Global), and design rules.
+- [ ] Enhance `marketing_queue` table: Store AI-generated content, approval status (`pending`, `approved`, `rejected`), and scheduled posting times.
+
+### [Phase 2] Admin Control Center (Core Operations)
+- [ ] Implement Product Management UI (Transition from seed-based to UI-based CRUD).
+- [ ] Build Marketing Approval Dashboard: UI for reviewing and approving AI-generated posts.
+
+### [Phase 3] Integration & Automation
+- [ ] Connect Webhooks to Make.com for [Product Registration/Approval] triggers.
+- [ ] Integrate Gemini API for automated copywriting and visual generation.
+- [ ] Test Meta Graph API for automated SNS publishing.
+
+### [Phase 4] Infrastructure Finalization
+- [ ] Verify Resend email domain (spoiltdogs.com.au) and finalize Stripe Webhook integration.
+---
+
+**2. Next Action: Execute [Phase 1]**
+Please proceed with the following technical tasks:
+- Update `shared/schema.ts` to include definitions for `marketing_prompts` and `marketing_queue`.
+- Ensure the `marketing_prompts` table is structured to store "System Instructions" that can be injected into any AI model.
+- Provide the updated schema code and a plan for database migration.

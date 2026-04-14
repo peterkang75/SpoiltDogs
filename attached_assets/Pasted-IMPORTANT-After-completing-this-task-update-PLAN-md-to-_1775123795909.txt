@@ -1,0 +1,141 @@
+IMPORTANT: After completing this task, update PLAN.md to reflect all changes made.
+
+Fix slow motion issue and add video length selector.
+
+## Task 1: Fix slow motion in convertCaptionToVideoPrompt() in server/services/claudeMarketingService.ts
+
+Update the system prompt to always enforce normal speed:
+
+system: `You are an AI video prompt engineer.
+Convert Instagram captions into concise video generation prompts for Veo 2 image-to-video model.
+
+Rules:
+- Focus on MOTION and MOVEMENT only
+- Describe what the dog is physically doing
+- ALWAYS start with: "Real-time speed, normal motion, not slow motion."
+- ALWAYS include: handheld camera, natural realistic movement
+- ALWAYS end with: "Normal playback speed. No cinematic slow motion."
+- Keep under 100 words
+- No marketing language, no emojis
+- Output ONLY the prompt, nothing else`
+
+## Task 2: Update generateVideo() in server/services/falService.ts
+
+In Step 2 video conversion, append speed enforcement to videoMotionPrompt:
+
+const finalVideoPrompt = videoMotionPrompt + 
+  " Real-time speed. Normal motion. Not slow motion. Natural dog movement speed.";
+
+Use finalVideoPrompt for all video model cases (kling, kling-3, veo2).
+
+## Task 3: Add duration parameter to generateVideo()
+
+Update function signature:
+export async function generateVideo({
+  prompt,
+  caption,
+  model = "veo2-img2vid",
+  referenceImageUrls = [],
+  aspectRatio = "9:16",
+  duration = "8",
+  gukdungProfile,
+  imageGuidelines,
+}: {
+  ...
+  duration?: string;
+  ...
+})
+
+Update each video model case to use duration parameter:
+
+kling / kling-3:
+input: {
+  image_url: generatedImageUrl,
+  prompt: finalVideoPrompt,
+  duration: duration, // "5" or "10"
+  aspect_ratio: aspectRatio,
+}
+
+veo2:
+input: {
+  image_url: generatedImageUrl,
+  prompt: finalVideoPrompt,
+  aspect_ratio: aspectRatio,
+  duration: duration + "s", // "5s", "8s"
+}
+
+## Task 4: Update server/adminRoutes.ts — generate-image endpoint
+
+Accept duration from request body:
+const { model: modelOverride, duration = "8" } = req.body;
+
+Pass to generateVideo():
+const result = await generateVideo({
+  prompt: enhancedPrompt,
+  caption: item.caption || "",
+  model: videoModel,
+  referenceImageUrls: referenceImages,
+  aspectRatio: "9:16",
+  duration,
+  gukdungProfile,
+  imageGuidelines,
+});
+
+## Task 5: Add duration selector to QueueCard in client/src/pages/admin-marketing.tsx
+
+Add VIDEO_DURATION_OPTIONS constant at top of file:
+const VIDEO_DURATION_OPTIONS = [
+  { value: "5", label: "5초", description: "짧고 임팩트" },
+  { value: "8", label: "8초", description: "기본 추천 ⭐" },
+  { value: "10", label: "10초", description: "스토리텔링" },
+];
+
+Add duration state to QueueCard:
+const [selectedDuration, setSelectedDuration] = useState("8");
+
+Add duration selector UI between model selector and generate button:
+<div className="space-y-1.5">
+  <p className="text-xs text-gray-500">영상 길이</p>
+  <div className="flex gap-2">
+    {VIDEO_DURATION_OPTIONS.map((opt) => (
+      <button
+        key={opt.value}
+        onClick={() => setSelectedDuration(opt.value)}
+        className={`flex-1 py-1.5 px-2 rounded-lg text-xs font-medium border transition-colors ${
+          selectedDuration === opt.value
+            ? "border-green-600 bg-green-50 text-green-700"
+            : "border-gray-200 text-gray-500 hover:border-gray-300"
+        }`}
+      >
+        <div>{opt.label}</div>
+        <div className="text-xs opacity-70">{opt.description}</div>
+      </button>
+    ))}
+  </div>
+</div>
+
+Update onGenerateImage call to pass duration:
+onGenerateImage(item.id, selectedImageModel, selectedDuration)
+
+Update generateImageMut mutationFn signature:
+mutationFn: async ({ id, model, duration }: { id: string; model: string; duration: string }) =>
+
+Update fetch body:
+body: JSON.stringify({ model, duration }),
+
+Update onGenerateImage prop type in QueueCard:
+onGenerateImage: (id: string, model: string, duration: string) => void
+
+Update all onGenerateImage calls in parent to pass selectedDuration.
+
+## Note on Kling duration
+Kling only supports "5" or "10" seconds.
+If duration is "8" and model is kling or kling-3, use "10" instead:
+const klingDuration = duration === "5" ? "5" : "10";
+
+## Important notes:
+- Do not change shared/schema.ts
+- Default duration is "8" seconds
+- Veo 3 is fixed at 8 seconds — ignore duration for veo3
+- The speed fix must be applied to ALL video models
+- Test: generate 8-second video → verify normal playback speed

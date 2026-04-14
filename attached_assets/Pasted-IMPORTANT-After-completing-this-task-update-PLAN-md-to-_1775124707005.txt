@@ -1,0 +1,196 @@
+IMPORTANT: After completing this task, update PLAN.md to reflect all changes made.
+
+Replace technical model selector with simple quality selector for video generation in client/src/pages/admin-marketing.tsx.
+
+## Task 1: Replace IMAGE_MODEL_OPTIONS for video with VIDEO_QUALITY_OPTIONS
+
+Add this constant at top of file:
+const VIDEO_QUALITY_OPTIONS = [
+  {
+    value: "fast",
+    label: "⚡ 빠름",
+    description: "Kling 1.6 · ~$1.00",
+    model: "kling",
+    forTypes: ["reel", "tiktok"],
+  },
+  {
+    value: "recommended",
+    label: "⭐ 추천",
+    description: "Kling 3.0 · ~$1.50",
+    model: "kling-3",
+    forTypes: ["reel", "tiktok"],
+  },
+  {
+    value: "high",
+    label: "✨ 고품질",
+    description: "Veo 2 · ~$3.00",
+    model: "veo2",
+    forTypes: ["reel", "tiktok"],
+  },
+];
+
+Keep IMAGE_MODEL_OPTIONS only for photo/image types:
+const IMAGE_MODEL_OPTIONS = [
+  {
+    value: "nano-banana-2",
+    label: "🍌 Nano Banana 2",
+    description: "Gemini 3.1 · 기본 추천",
+    forTypes: ["feed_image", "story_image", "facebook_post"],
+  },
+  {
+    value: "nano-banana-pro",
+    label: "🍌✨ Nano Banana Pro",
+    description: "Gemini 3 Pro · 최고 품질 · $0.15/장",
+    forTypes: ["feed_image", "story_image", "facebook_post"],
+  },
+  {
+    value: "ideogram",
+    label: "📝 Ideogram V3",
+    description: "텍스트 포함 · 카드뉴스 전용",
+    forTypes: ["card_news"],
+  },
+];
+
+## Task 2: Update QueueCard state
+
+Replace selectedImageModel with two separate states:
+const [selectedVideoQuality, setSelectedVideoQuality] = useState("recommended");
+const [selectedImageModel, setSelectedImageModel] = useState("nano-banana-2");
+
+Update useEffect:
+useEffect(() => {
+  const isVideo = item.contentType === "reel" || item.contentType === "tiktok";
+  if (!isVideo) {
+    if (item.contentType === "card_news") setSelectedImageModel("ideogram");
+    else setSelectedImageModel("nano-banana-2");
+  }
+  // video default is already "recommended"
+}, [item.contentType]);
+
+## Task 3: Update QueueCard UI
+
+For VIDEO types (reel, tiktok) — show quality selector:
+const isVideo = item.contentType === "reel" || item.contentType === "tiktok";
+
+{isVideo ? (
+  <div className="space-y-3 mt-3">
+    {/* Quality selector */}
+    <div>
+      <p className="text-xs text-gray-500 mb-1.5">영상 품질</p>
+      <div className="flex gap-2">
+        {VIDEO_QUALITY_OPTIONS.map((opt) => (
+          <button
+            key={opt.value}
+            onClick={() => setSelectedVideoQuality(opt.value)}
+            className={`flex-1 py-2 px-2 rounded-lg text-xs font-medium border transition-colors ${
+              selectedVideoQuality === opt.value
+                ? "border-green-600 bg-green-50 text-green-700"
+                : "border-gray-200 text-gray-500 hover:border-gray-300"
+            }`}
+          >
+            <div>{opt.label}</div>
+            <div className="text-xs opacity-60 mt-0.5">{opt.description}</div>
+          </button>
+        ))}
+      </div>
+    </div>
+
+    {/* Duration selector */}
+    <div>
+      <p className="text-xs text-gray-500 mb-1.5">영상 길이</p>
+      <div className="flex gap-2">
+        {VIDEO_DURATION_OPTIONS.map((opt) => (
+          <button
+            key={opt.value}
+            onClick={() => setSelectedDuration(opt.value)}
+            className={`flex-1 py-1.5 px-2 rounded-lg text-xs font-medium border transition-colors ${
+              selectedDuration === opt.value
+                ? "border-green-600 bg-green-50 text-green-700"
+                : "border-gray-200 text-gray-500 hover:border-gray-300"
+            }`}
+          >
+            <div>{opt.label}</div>
+            <div className="text-xs opacity-60">{opt.description}</div>
+          </button>
+        ))}
+      </div>
+    </div>
+
+    {/* Generate button */}
+    <Button
+      onClick={() => {
+        const qualityOption = VIDEO_QUALITY_OPTIONS.find(q => q.value === selectedVideoQuality);
+        onGenerateImage(item.id, qualityOption?.model || "kling-3", selectedDuration);
+      }}
+      disabled={isGeneratingImage}
+      className="w-full gap-2 text-sm"
+      style={{ backgroundColor: "#4B9073", color: "white" }}
+    >
+      {isGeneratingImage ? (
+        <><Loader2 className="h-3.5 w-3.5 animate-spin" />영상 생성 중...</>
+      ) : (
+        <><Film className="h-3.5 w-3.5" />영상 생성</>
+      )}
+    </Button>
+  </div>
+) : (
+  <div className="space-y-2 mt-3">
+    {/* Image model selector */}
+    <Select value={selectedImageModel} onValueChange={setSelectedImageModel}>
+      <SelectTrigger className="w-full text-xs h-8">
+        <SelectValue placeholder="AI 모델 선택" />
+      </SelectTrigger>
+      <SelectContent>
+        {IMAGE_MODEL_OPTIONS
+          .filter(m => m.forTypes.includes(item.contentType || "feed_image"))
+          .map(m => (
+            <SelectItem key={m.value} value={m.value}>
+              <div>
+                <span className="font-medium">{m.label}</span>
+                <span className="text-gray-400 text-xs ml-2">{m.description}</span>
+              </div>
+            </SelectItem>
+          ))}
+      </SelectContent>
+    </Select>
+
+    {/* Generate button */}
+    <Button
+      onClick={() => onGenerateImage(item.id, selectedImageModel, "0")}
+      disabled={isGeneratingImage}
+      className="w-full gap-2 text-sm"
+      style={{ backgroundColor: "#4B9073", color: "white" }}
+    >
+      {isGeneratingImage ? (
+        <><Loader2 className="h-3.5 w-3.5 animate-spin" />생성 중...</>
+      ) : (
+        <><ImageIcon className="h-3.5 w-3.5" />이미지 생성</>
+      )}
+    </Button>
+  </div>
+)}
+
+## Task 4: Update VIDEO_DURATION_OPTIONS default to "8"
+
+const VIDEO_DURATION_OPTIONS = [
+  { value: "5", label: "5초", description: "짧고 임팩트" },
+  { value: "8", label: "8초", description: "추천 ⭐" },
+  { value: "10", label: "10초", description: "스토리텔링" },
+];
+
+const [selectedDuration, setSelectedDuration] = useState("8");
+
+## Task 5: Update server/services/falService.ts default video model
+
+Change default from veo2-img2vid to kling-3-img2vid in generateVideo():
+model = "kling-3-img2vid"
+
+This fixes the slow motion issue since Kling handles natural speed better than Veo 2 image-to-video.
+
+## Important notes:
+- Do not change shared/schema.ts
+- Default video quality: "recommended" (Kling 3.0)
+- Default duration: "8" seconds
+- Image generation still uses model selector (nano-banana-2 / nano-banana-pro / ideogram)
+- Video generation uses quality selector (fast/recommended/high) which maps to model internally
+- Test: open reel queue item → verify 3 quality buttons + 3 duration buttons appear → generate with "추천" + "8초"

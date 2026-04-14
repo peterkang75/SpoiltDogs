@@ -1,0 +1,133 @@
+We are starting Phase 2.5 — Brand Studio. This is a new admin section where all brand knowledge, Gukdung's profile, and content guidelines are stored in our own database. This replaces storing prompts in Make.com.
+
+## Step 1: Database Schema
+
+Add the following tables to `shared/schema.ts`:
+
+New table `brand_context`:
+- id: uuid primary key default random
+- type: text not null — "gukdung_profile" | "brand_voice" | "campaign_memory" | "post_guideline"
+- title: text not null
+- content: text not null
+- isActive: boolean default true not null
+- createdAt: timestamp defaultNow
+- updatedAt: timestamp defaultNow
+
+New table `gukdung_images`:
+- id: uuid primary key default random
+- imageUrl: text not null
+- description: text nullable
+- tags: text nullable — comma-separated e.g. "beach,birthday,indoor"
+- isTrainingData: boolean default false not null
+- loraModelId: text nullable
+- createdAt: timestamp defaultNow
+
+Add these columns to existing `marketing_queue` table:
+- imageUrl: text nullable
+- videoUrl: text nullable
+- contentType: text nullable — "photo" | "reel" | "tiktok" | "card"
+- scheduledAt: timestamp nullable
+- postedAt: timestamp nullable
+- postId: text nullable
+- imagePrompt: text nullable
+
+After schema changes, run: npm run db:push
+
+---
+
+## Step 2: Storage Methods
+
+Add to `server/storage.ts`:
+
+Brand Context CRUD:
+- getBrandContextItems() — return all brand_context rows
+- getBrandContextByType(type: string) — filter by type
+- createBrandContextItem(data) — insert new row
+- updateBrandContextItem(id, data) — update by id
+- deleteBrandContextItem(id) — delete by id
+
+Gukdung Images CRUD:
+- getGukdungImages() — return all gukdung_images rows
+- createGukdungImage(data) — insert new row
+- updateGukdungImage(id, data) — update by id
+- deleteGukdungImage(id) — delete by id
+
+---
+
+## Step 3: API Routes
+
+Add to `server/adminRoutes.ts`, all protected by requireAdmin middleware:
+
+GET    /api/admin/brand/context         — list all brand_context items
+POST   /api/admin/brand/context         — create brand_context item
+PATCH  /api/admin/brand/context/:id     — update brand_context item
+DELETE /api/admin/brand/context/:id     — delete brand_context item
+
+GET    /api/admin/brand/images          — list all gukdung_images
+POST   /api/admin/brand/images          — create gukdung_image record
+PATCH  /api/admin/brand/images/:id      — update gukdung_image record
+DELETE /api/admin/brand/images/:id      — delete gukdung_image record
+
+---
+
+## Step 4: Brand Studio UI Page
+
+Create `client/src/pages/admin-brand-studio.tsx`
+
+Use the same brand palette as admin-marketing.tsx:
+- Background: #FCF9F1
+- Header background: #1a3a2e
+- Accent/buttons: #4B9073
+- Gold highlight: #FFD54F
+- Terracotta: #F37052
+
+Page layout:
+- Sticky dark header with back button (→ /admin/crm) and page title "브랜드 스튜디오"
+- 4 tabs using shadcn Tabs component:
+
+TAB 1 — "Gukdung 프로필"
+- Display and edit brand_context items where type = "gukdung_profile"
+- Each item shown as a card with title + content textarea
+- Add / Edit / Delete buttons
+- Pre-populate with one default item titled "Gukdung 기본 프로필" with placeholder content:
+  "품종: [입력], 나이: [입력], 성격: [입력], 좋아하는 것: [입력], 싫어하는 것: [입력]"
+
+TAB 2 — "브랜드 보이스"
+- Display and edit brand_context items where type = "brand_voice"
+- Same card UI as Tab 1
+- Pre-populate with one default item titled "톤앤매너 가이드" with placeholder:
+  "Warm, witty, premium Australian tone. Use emojis naturally. Never sound corporate."
+
+TAB 3 — "이미지 라이브러리"
+- Display gukdung_images as a grid (3 columns on desktop, 2 on mobile)
+- Each image card shows: image thumbnail, description, tags, isTrainingData badge
+- Add image button: opens dialog with fields for imageUrl, description, tags, isTrainingData toggle
+- Edit / Delete per image
+- Show count of training images (e.g. "학습용 사진: 12장")
+- LoRA 학습 버튼 (disabled for now, shows "준비 중" tooltip)
+
+TAB 4 — "캠페인 메모리"
+- Display and edit brand_context items where type = "campaign_memory" or "post_guideline"
+- Same card UI
+- Add button with type selector dropdown
+
+---
+
+## Step 5: Navigation
+
+Add Brand Studio link to the admin marketing header in `client/src/pages/admin-marketing.tsx`:
+- Add a button next to the existing CRM back button
+- Label: "브랜드 스튜디오" with a Palette icon (lucide-react)
+- Navigates to /admin/brand-studio
+
+Register route in `client/src/App.tsx`:
+- Add: <Route path="/admin/brand-studio" component={AdminBrandStudio} />
+
+---
+
+## Important notes:
+- Do not break any existing functionality
+- Use the same shadcn/ui components already in the project
+- All text labels in Korean
+- Loading skeletons for all data fetching states
+- Toast notifications for all CRUD operations (same pattern as admin-marketing.tsx)

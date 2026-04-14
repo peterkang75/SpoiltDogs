@@ -1,0 +1,134 @@
+IMPORTANT: After completing this task, update PLAN.md to reflect all changes made.
+
+Add file attachment (photo/video) to the Freeform Post generation dialog in client/src/pages/admin-marketing.tsx.
+
+## Goal
+When creating a Freeform Post, admin can optionally attach photos or videos.
+- If files are attached → uploaded to Supabase Storage first, then URLs passed to Claude
+- Claude uses the actual uploaded content context to write a more accurate caption
+- FAL.AI image generation is skipped if a real photo is attached (use the real photo instead)
+
+## Step 1: Update Freeform Post dialog UI
+
+Add a file attachment section between "추가 지시사항" and the info text:
+
+Label: "사진 / 영상 첨부 (선택)"
+Sub-label (small gray): "첨부된 파일이 있으면 AI 생성 이미지 대신 우선 사용됩니다"
+
+File drop zone:
+- Dashed border, rounded-lg, p-4
+- Icon: Paperclip from lucide-react
+- Text: "파일을 드래그하거나 클릭해서 선택"
+- Sub: "JPG, PNG, MP4 · 최대 50MB · 여러 파일 가능"
+- Accept: "image/*,video/*"
+- Multiple: true
+
+Selected files preview (show below drop zone when files selected):
+- Horizontal scroll list of chips
+- Each chip: filename + file size + X remove button
+- Show count badge: "3개 첨부됨"
+
+Add state variables:
+- attachedFiles: File[] (default [])
+
+Reset attachedFiles in onSuccess.
+
+## Step 2: Update handleFreeformGenerate
+
+If attachedFiles.length > 0:
+1. First upload files to /api/admin/brand/images/upload (reuse existing endpoint)
+   - Use FormData with field "files"
+   - Pass isTrainingData: "false"
+   - Get back array of imageUrls from response
+2. Then call generateMut with additional field:
+   attachedImageUrls: uploadedUrls (string[])
+
+If no files attached:
+- Call generateMut normally without attachedImageUrls
+
+Show upload progress state in button:
+- "파일 업로드 중..." while uploading files
+- "생성 중..." while Claude generating
+
+## Step 3: Update POST /api/admin/marketing/generate in server/adminRoutes.ts
+
+Accept new field: attachedImageUrls: string[] (optional)
+
+Pass to claudeMarketingService:
+```typescript
+const result = await generateMarketingContent({
+  topic: topic.trim(),
+  platform: selectedFormat?.platform ?? platform ?? "instagram",
+  contentType: selectedFormat?.contentType ?? contentType ?? "feed_image",
+  promptText,
+  additionalInstructions: additionalInstructions ?? "",
+  attachedImageUrls: attachedImageUrls ?? [],
+});
+```
+
+Also save to queue item:
+- If attachedImageUrls[0] exists → save as imageUrl in the queue item
+  (real photo takes priority over AI-generated image)
+
+## Step 4: Update server/services/claudeMarketingService.ts
+
+Add attachedImageUrls to function signature:
+```typescript
+export async function generateMarketingContent({
+  topic,
+  platform,
+  contentType = "feed_image",
+  promptText,
+  additionalInstructions = "",
+  attachedImageUrls = [],
+}: {
+  ...
+  attachedImageUrls?: string[];
+})
+```
+
+If attachedImageUrls.length > 0, add to user message:
+```typescript
+const attachmentContext = attachedImageUrls.length > 0
+  ? `\n\nAttached media (${attachedImageUrls.length} file(s)): ${attachedImageUrls.join(", ")}\nWrite the caption based on this actual content — describe what's happening in the attached photo/video.`
+  : "";
+
+const userMessage = `Create a ${platform} post about: ${topic}${attachmentContext}${additionalInstructions ? `\n\nAdditional instructions: ${additionalInstructions}` : ""}`;
+```
+
+Also update the imagePrompt instruction:
+- If attachedImageUrls provided → set imagePrompt to empty string "" (no AI image needed, real photo is used)
+- If no attachedImageUrls → generate imagePrompt as usual
+
+## Step 5: Update queue item save in adminRoutes.ts
+```typescript
+const item = await storage.createMarketingQueueItem({
+  platform: ...,
+  contentType: ...,
+  caption: result.caption,
+  hashtags: result.hashtags,
+  imagePrompt: result.imagePrompt,
+  imageUrl: attachedImageUrls?.[0] || null,  // use real photo if attached
+  topic: topic.trim(),
+  status: "pending",
+});
+```
+
+## Step 6: Update QueueCard display
+
+If item.imageUrl exists AND item.imagePrompt is empty or null:
+- Show the attached image with label "첨부된 사진" instead of "이미지 생성" button
+- Do not show image generation button (real photo already attached)
+
+If item.imageUrl exists AND item.imagePrompt has content:
+- Show generated image preview
+
+If item.imageUrl is null AND item.imagePrompt has content:
+- Show "이미지 생성" button as before
+
+## Important notes:
+- Do not change shared/schema.ts
+- Attached files go to "uploads" bucket in Supabase Storage (not training-images)
+- The upload reuses the existing /api/admin/brand/images/upload endpoint
+- If upload fails, still proceed with generation (just without the attachment context)
+- Test: attach a photo → generate → verify imageUrl is pre-filled in queue item

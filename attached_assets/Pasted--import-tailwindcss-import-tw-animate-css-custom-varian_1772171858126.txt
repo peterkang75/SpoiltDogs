@@ -1,0 +1,114 @@
+@import 'tailwindcss';
+@import 'tw-animate-css';
+
+@custom-variant dark (&:is(.dark *));
+
+:root {
+  /* SpoiltDog Brand Palette */
+  --background: #FAF7F2;
+  --foreground: #2D2A26;
+  --card: #FFFFFF;
+  --card-foreground: #2D2A26;
+  --popover: #FFFFFF;
+  --popover-foreground: #2D2A26;
+  --primary: #5B8A72;
+  --primary-foreground: #FAF7F2;
+  --secondary: #EDE8DF;
+  --secondary-foreground: #2D2A26;
+  --muted: #F0ECE4;
+  --muted-foreground: #6B6560;
+  --accent: #C4886B;
+  --accent-foreground: #FAF7F2;
+  --destructive: #C4886B;
+  --destructive-foreground: #FAF7F2;
+  --border: #5B8A72;
+  --input: #EDE8DF;
+  --ring: #5B8A72;
+  --chart-1: #5B8A72;
+  --chart-2: #C4886B;
+  --chart-3: #8BAAB5;
+  --chart-4: #EDE8DF;
+  --chart-5: #2D2A26;
+  --radius: 0.75rem;
+
+  /* Custom brand colors */
+  --sage: #5B8A72;
+  --sage-light: #E8F0EB;
+  --cream: #FAF7F2;
+  --terracotta: #C4886B;
+  --terracotta-light: #F5E6DD;
+  --dusty-blue: #8BAAB5;
+  --dusty-blue-light: #E4EEF1;
+  --dark: #2D2A26;
+}
+
+@theme inline {
+  --font-sans: var(--font-inter), 'Inter', sans-serif;
+  --font-serif: var(--font-fraunces), 'Fraunces', serif;
+  --font-mono: 'Geist Mono', 'Geist Mono Fallback';
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --color-sage: var(--sage);
+  --color-sage-light: var(--sage-light);
+  --color-cream: var(--cream);
+  --color-terracotta: var(--terracotta);
+  --color-terracotta-light: var(--terracotta-light);
+  --color-dusty-blue: var(--dusty-blue);
+  --color-dusty-blue-light: var(--dusty-blue-light);
+  --color-dark: var(--dark);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+/* Marquee animation */
+@keyframes marquee {
+  0% { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
+
+.animate-marquee {
+  animation: marquee 20s linear infinite;
+}
+
+/* Starburst badge rotation */
+@keyframes spin-slow {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.animate-spin-slow {
+  animation: spin-slow 12s linear infinite;
+}

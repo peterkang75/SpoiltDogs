@@ -1,0 +1,241 @@
+IMPORTANT: After completing this task, update PLAN.md to reflect all changes made.
+
+Add a social media preview modal to the QueueCard in client/src/pages/admin-marketing.tsx.
+
+## Goal
+When a queue item has an imageUrl, show a "미리보기" button that opens a modal showing exactly how the post will look on Instagram mobile.
+
+## Step 1: Create InstagramPreview component inside admin-marketing.tsx
+
+Add this component at the bottom of the file (before export):
+
+function InstagramPreview({
+  item,
+  onClose,
+}: {
+  item: MarketingQueue;
+  onClose: () => void;
+}) {
+  const isVideo = item.contentType === "reel" || item.contentType === "tiktok";
+  const isStory = item.contentType === "story_image";
+  const caption = item.caption || "";
+  const hashtags = item.hashtags || "";
+
+  // Split caption into main text and inline hashtags
+  const fullText = caption + (hashtags ? "\n\n" + hashtags : "");
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm"
+      onClick={onClose}
+    >
+      <div
+        className="relative flex flex-col items-center gap-4"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Close button */}
+        <button
+          onClick={onClose}
+          className="absolute -top-10 right-0 text-white/80 hover:text-white text-sm flex items-center gap-1"
+        >
+          <X className="h-4 w-4" /> 닫기
+        </button>
+
+        {/* Platform label */}
+        <div className="text-white/60 text-xs uppercase tracking-widest">
+          {item.platform === "instagram" ? "Instagram 미리보기" :
+           item.platform === "facebook" ? "Facebook 미리보기" :
+           item.platform === "tiktok" ? "TikTok 미리보기" : "미리보기"}
+        </div>
+
+        {/* iPhone frame */}
+        <div
+          className="relative bg-white rounded-[44px] overflow-hidden shadow-2xl border-4 border-gray-800"
+          style={{ width: 375, height: 812 }}
+        >
+          {/* Status bar */}
+          <div className="bg-white flex justify-between items-center px-6 pt-3 pb-1">
+            <span className="text-xs font-semibold">9:41</span>
+            <div className="w-24 h-5 bg-black rounded-full mx-auto absolute left-1/2 -translate-x-1/2 top-2" style={{ width: 120, height: 28 }} />
+            <div className="flex items-center gap-1">
+              <div className="w-4 h-3 border border-black rounded-sm relative">
+                <div className="absolute inset-0.5 bg-black rounded-sm" style={{ width: "70%" }} />
+              </div>
+            </div>
+          </div>
+
+          {/* Instagram UI */}
+          <div className="overflow-y-auto h-full bg-white" style={{ paddingBottom: 80 }}>
+
+            {/* Instagram Header */}
+            <div className="flex items-center justify-between px-4 py-2 border-b border-gray-100">
+              <span className="font-bold text-base" style={{ fontFamily: "Georgia, serif" }}>Instagram</span>
+              <div className="flex items-center gap-4">
+                <Heart className="h-6 w-6" />
+                <MessageCircle className="h-6 w-6" />
+              </div>
+            </div>
+
+            {/* Story bar */}
+            <div className="flex gap-3 px-4 py-3 overflow-x-auto border-b border-gray-100">
+              {["spoiltdogs", "gukdung", "australia", "pets"].map((name, i) => (
+                <div key={i} className="flex flex-col items-center gap-1 shrink-0">
+                  <div className="w-14 h-14 rounded-full bg-gradient-to-tr from-yellow-400 via-pink-500 to-purple-600 p-0.5">
+                    <div className="w-full h-full rounded-full bg-gray-200 border-2 border-white" />
+                  </div>
+                  <span className="text-xs text-gray-600 truncate w-14 text-center">{name}</span>
+                </div>
+              ))}
+            </div>
+
+            {/* Post */}
+            <div className="border-b border-gray-100 pb-2">
+
+              {/* Post header */}
+              <div className="flex items-center justify-between px-3 py-2">
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-yellow-400 via-pink-500 to-purple-600 p-0.5">
+                    <div className="w-full h-full rounded-full bg-amber-100 border border-white flex items-center justify-center">
+                      <span className="text-xs">🐾</span>
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-xs font-semibold">spoiltdogs.com.au</div>
+                    <div className="text-xs text-gray-400">Sydney, Australia</div>
+                  </div>
+                </div>
+                <span className="text-gray-400 text-lg">···</span>
+              </div>
+
+              {/* Post image */}
+              {item.imageUrl ? (
+                <div
+                  className="w-full bg-gray-100 relative overflow-hidden"
+                  style={{ aspectRatio: isStory ? "9/16" : "1/1", maxHeight: isStory ? 500 : 375 }}
+                >
+                  <img
+                    src={item.imageUrl}
+                    alt="Post"
+                    className="w-full h-full object-cover"
+                  />
+                  {isVideo && (
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <div className="w-16 h-16 rounded-full bg-black/40 flex items-center justify-center">
+                        <Play className="h-8 w-8 text-white fill-white ml-1" />
+                      </div>
+                    </div>
+                  )}
+                  {/* Reel indicator */}
+                  {isVideo && (
+                    <div className="absolute top-3 right-3">
+                      <Film className="h-5 w-5 text-white drop-shadow" />
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div
+                  className="w-full bg-gradient-to-br from-amber-50 to-green-50 flex items-center justify-center"
+                  style={{ aspectRatio: "1/1", height: 375 }}
+                >
+                  <div className="text-center text-gray-400">
+                    <ImageIcon className="h-12 w-12 mx-auto mb-2 opacity-30" />
+                    <p className="text-sm">이미지 생성 후 미리보기 가능</p>
+                  </div>
+                </div>
+              )}
+
+              {/* Action buttons */}
+              <div className="flex items-center justify-between px-3 py-2">
+                <div className="flex items-center gap-4">
+                  <Heart className="h-6 w-6" />
+                  <MessageCircle className="h-6 w-6" />
+                  <Send className="h-6 w-6 -rotate-12" />
+                </div>
+                <Bookmark className="h-6 w-6" />
+              </div>
+
+              {/* Likes */}
+              <div className="px-3">
+                <span className="text-xs font-semibold">좋아요 0개</span>
+              </div>
+
+              {/* Caption */}
+              <div className="px-3 pt-1 pb-2">
+                <span className="text-xs font-semibold mr-1">spoiltdogs.com.au</span>
+                <span className="text-xs text-gray-800 whitespace-pre-line">
+                  {caption.length > 150 ? caption.slice(0, 150) + "... 더 보기" : caption}
+                </span>
+                {hashtags && (
+                  <div className="mt-1">
+                    <span className="text-xs text-blue-500">
+                      {hashtags.length > 100 ? hashtags.slice(0, 100) + "..." : hashtags}
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              {/* Timestamp */}
+              <div className="px-3">
+                <span className="text-xs text-gray-400">방금 전</span>
+              </div>
+            </div>
+
+            {/* Another fake post for realism */}
+            <div className="px-3 py-4 text-center text-gray-300 text-xs">
+              — 피드 끝 —
+            </div>
+          </div>
+
+          {/* Instagram bottom nav */}
+          <div className="absolute bottom-0 left-0 right-0 bg-white border-t border-gray-200 flex justify-around items-center py-2 px-4">
+            <Home className="h-6 w-6" />
+            <Search className="h-6 w-6 text-gray-400" />
+            <div className="w-6 h-6 rounded-md bg-gray-200" />
+            <Film className="h-6 w-6 text-gray-400" />
+            <div className="w-7 h-7 rounded-full bg-amber-100 border border-gray-300" />
+          </div>
+        </div>
+
+        {/* Tip */}
+        <p className="text-white/40 text-xs">실제 게시 시 보이는 화면과 유사합니다</p>
+      </div>
+    </div>
+  );
+}
+
+## Step 2: Update QueueCard to add preview button and state
+
+Add to QueueCard:
+- State: const [showPreview, setShowPreview] = useState(false);
+- Add "미리보기" button next to the image (show always when imageUrl exists OR even without image):
+
+In the top row buttons area, add:
+<Button
+  variant="outline"
+  size="sm"
+  onClick={() => setShowPreview(true)}
+  className="gap-1.5 h-8 text-xs rounded-full"
+>
+  <Eye className="h-3.5 w-3.5" />
+  미리보기
+</Button>
+
+At the bottom of QueueCard return, add:
+{showPreview && (
+  <InstagramPreview item={item} onClose={() => setShowPreview(false)} />
+)}
+
+## Step 3: Add required imports to admin-marketing.tsx
+
+Add to lucide-react imports:
+Eye, Heart, MessageCircle, Send, Bookmark, Play, Home, Search, ImageIcon, Film, X
+
+(Some may already be imported — only add missing ones)
+
+## Important notes:
+- Do not change shared/schema.ts
+- Preview button visible on ALL queue cards (even without image — shows placeholder)
+- The iPhone frame is fixed size (375x812) — standard iPhone dimensions
+- Keep all existing approve/reject/delete/rewrite/generate functionality
+- The preview modal closes when clicking outside or the X button
+- Import Play from lucide-react (or use a triangle shape if not available)

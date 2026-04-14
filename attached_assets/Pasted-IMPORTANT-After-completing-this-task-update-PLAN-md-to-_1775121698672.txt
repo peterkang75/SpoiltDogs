@@ -1,0 +1,236 @@
+IMPORTANT: After completing this task, update PLAN.md to reflect all changes made.
+
+Implement a 2-step video generation pipeline for reel/tiktok content:
+Step 1: Generate accurate Gukdung image using Nano Banana 2/edit (with reference photos)
+Step 2: Convert that image to video using Veo 2 image-to-video
+
+## Task 1: Update server/services/falService.ts
+
+Add a new dedicated function for video generation:
+
+export async function generateVideo({
+  prompt,
+  model = "veo2-img2vid",
+  referenceImageUrls = [],
+  aspectRatio = "9:16",
+}: {
+  prompt: string;
+  model?: string;
+  referenceImageUrls?: string[];
+  aspectRatio?: string;
+}): Promise<{ videoUrl: string; thumbnailUrl?: string }> {
+
+  // Step 1: Generate accurate Gukdung image using Nano Banana 2/edit
+  console.log("[Video] Step 1: Generating Gukdung image with Nano Banana 2...");
+  
+  const imageInput: any = {
+    prompt: `${prompt}. Single frame, still image, photorealistic.`,
+    aspect_ratio: aspectRatio,
+    output_format: "png",
+    safety_tolerance: "4",
+    resolution: "1K",
+  };
+
+  if (referenceImageUrls.length > 0) {
+    imageInput.image_urls = referenceImageUrls.slice(0, 5);
+  }
+
+  const imageResult = await fal.run(
+    referenceImageUrls.length > 0 ? "fal-ai/nano-banana-2/edit" : "fal-ai/nano-banana-2",
+    { input: imageInput }
+  ) as any;
+
+  const generatedImageUrl = imageResult.images?.[0]?.url || "";
+  if (!generatedImageUrl) throw new Error("Step 1 failed: No image generated");
+  console.log("[Video] Step 1 complete. Image URL:", generatedImageUrl);
+
+  // Step 2: Convert image to video
+  console.log("[Video] Step 2: Converting image to video with", model, "...");
+
+  let videoUrl = "";
+
+  if (model === "veo2-img2vid") {
+    const videoResult = await fal.run("fal-ai/veo2/image-to-video", {
+      input: {
+        image_url: generatedImageUrl,
+        prompt: prompt,
+        aspect_ratio: aspectRatio,
+        duration: "5s",
+      },
+    }) as any;
+    videoUrl = videoResult.video?.url || "";
+  } else if (model === "kling-3-img2vid") {
+    const videoResult = await fal.run("fal-ai/kling-video/v2.5-turbo/pro/image-to-video", {
+      input: {
+        image_url: generatedImageUrl,
+        prompt: prompt,
+        duration: "5",
+        aspect_ratio: aspectRatio,
+      },
+    }) as any;
+    videoUrl = videoResult.video?.url || "";
+  } else if (model === "kling-img2vid") {
+    const videoResult = await fal.run("fal-ai/kling-video/v1.6/pro/image-to-video", {
+      input: {
+        image_url: generatedImageUrl,
+        prompt: prompt,
+        duration: "5",
+        aspect_ratio: aspectRatio,
+      },
+    }) as any;
+    videoUrl = videoResult.video?.url || "";
+  }
+
+  if (!videoUrl) throw new Error("Step 2 failed: No video generated");
+  console.log("[Video] Step 2 complete. Video URL:", videoUrl);
+
+  // Save both to Supabase Storage
+  const { saveImageFromUrl, saveVideoFromUrl } = await import("./storageService");
+
+  const imgFilename = `img_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+  const thumbnailUrl = await saveImageFromUrl(generatedImageUrl, imgFilename);
+
+  const vidFilename = `video_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+  const permanentVideoUrl = await saveVideoFromUrl(videoUrl, vidFilename);
+
+  return { videoUrl: permanentVideoUrl, thumbnailUrl };
+}
+
+Also wrap the entire function in try-catch for credit errors:
+try {
+  // ... all the above code
+} catch (error: any) {
+  const errorBody = error?.body?.detail || error?.message || "";
+  if (
+    error?.status === 403 ||
+    errorBody.includes("Exhausted balance") ||
+    errorBody.includes("locked") ||
+    errorBody.includes("balance")
+  ) {
+    throw new Error("CREDIT_EXHAUSTED:FAL.AI");
+  }
+  throw error;
+}
+
+## Task 2: Update server/adminRoutes.ts — generate-image endpoint
+
+In POST /api/admin/marketing/queue/:id/generate-image:
+
+For reel/tiktok content types, use generateVideo() instead of generateImage():
+
+const contentType = item.contentType || "feed_image";
+const isVideo = contentType === "reel" || contentType === "tiktok";
+
+if (isVideo) {
+  // 2-step pipeline: Nano Banana → Veo 2 image-to-video
+  const videoModelMap: Record<string, string> = {
+    "kling": "kling-img2vid",
+    "kling-3": "kling-3-img2vid",
+    "veo2": "veo2-img2vid",
+    "veo3": "veo2-img2vid", // veo3 text-to-video → use veo2 img2vid instead
+  };
+  const videoModel = videoModelMap[selectedModel] || "veo2-img2vid";
+
+  const { generateVideo } = await import("./services/falService");
+  const result = await generateVideo({
+    prompt: enhancedPrompt,
+    model: videoModel,
+    referenceImageUrls: referenceImages,
+    aspectRatio: "9:16",
+  });
+
+  const updated = await storage.updateMarketingQueueItem(id, {
+    videoUrl: result.videoUrl,
+    imageUrl: result.thumbnailUrl || null,
+  });
+
+  return res.json({ success: true, videoUrl: result.videoUrl, thumbnailUrl: result.thumbnailUrl, item: updated });
+
+} else {
+  // existing image generation code
+  const { generateImage } = await import("./services/falService");
+  const result = await generateImage({ ... });
+  ...
+}
+
+## Task 3: Update IMAGE_MODEL_OPTIONS in admin-marketing.tsx
+
+Update video model labels to reflect the new 2-step pipeline:
+
+{
+  value: "kling",
+  label: "🎬 Kling 1.6",
+  description: "Nano Banana → Kling 1.6 변환 · ~$1.00/영상",
+  forTypes: ["reel", "tiktok"],
+},
+{
+  value: "kling-3",
+  label: "🎬✨ Kling 3.0",
+  description: "Nano Banana → Kling 3.0 변환 · ~$1.50/영상 ⭐추천",
+  forTypes: ["reel", "tiktok"],
+},
+{
+  value: "veo2",
+  label: "🎥 Veo 2",
+  description: "Nano Banana → Veo 2 변환 · ~$3.00/영상",
+  forTypes: ["reel", "tiktok"],
+},
+{
+  value: "veo3",
+  label: "🎥✨ Veo 3 (고품질)",
+  description: "Nano Banana → Veo 2 변환 · 최고품질 · ~$3.00/영상",
+  forTypes: ["reel", "tiktok"],
+},
+
+## Task 4: Update QueueCard to show thumbnail + video
+
+When videoUrl exists, show both:
+1. Thumbnail image (item.imageUrl) if available — small preview above the video
+2. Video player (item.videoUrl)
+
+Update the display logic in QueueCard:
+{item.videoUrl ? (
+  <div className="space-y-2 mt-3">
+    {item.imageUrl && (
+      <div>
+        <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">THUMBNAIL (STEP 1)</p>
+        <img src={item.imageUrl} className="w-full rounded-lg max-h-32 object-cover" alt="Thumbnail" />
+      </div>
+    )}
+    <div>
+      <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">GENERATED VIDEO (STEP 2)</p>
+      <video src={item.videoUrl} controls className="w-full rounded-lg max-h-64" />
+    </div>
+  </div>
+) : item.imageUrl ? (
+  <div className="mt-3">
+    <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">GENERATED IMAGE</p>
+    <img src={item.imageUrl} className="w-full rounded-lg max-h-64 object-cover" alt="Generated" />
+  </div>
+) : null}
+
+## Task 5: Update Instagram preview modal
+
+In InstagramPreview component, show video if videoUrl exists:
+{item.videoUrl ? (
+  <video
+    src={item.videoUrl}
+    autoPlay
+    muted
+    loop
+    playsInline
+    className="w-full h-full object-cover"
+    style={{ maxHeight: isStory ? 500 : 375 }}
+  />
+) : item.imageUrl ? (
+  <img src={item.imageUrl} alt="Post" className="w-full h-full object-cover" />
+) : (
+  // placeholder
+)}
+
+## Important notes:
+- Do not change shared/schema.ts
+- The 2-step pipeline takes longer (30-90 seconds total) — this is expected
+- Log each step clearly: "[Video] Step 1: ..." and "[Video] Step 2: ..."
+- The thumbnail (Step 1 image) should be saved so admin can see what image was used
+- Test: create a reel post → approve → select Kling 3.0 → click 영상 생성 → verify Gukdung appears in video

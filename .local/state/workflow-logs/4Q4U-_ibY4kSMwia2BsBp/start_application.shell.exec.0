@@ -1,0 +1,273 @@
+
+> rest-express@1.0.0 dev
+> NODE_ENV=development tsx server/index.ts
+
+[1G[0K10:49:05 AM [stripe] Initializing Stripe schema...
+[WC-Emulator] WooCommerce API emulation active
+[WC-Emulator] Store URL: https://acf5977d-c600-4de4-a88e-defcbf36c1e9-00-1jtvv9myxvvdf.worf.replit.dev
+[WC-Emulator] Consumer Key: ck_ff47ac93e857d3e9f11ebd93e2774ecf9d0ea1b3
+[WC-Emulator] OAuth endpoint: /wc-auth/v1/authorize
+[Cleanup] Storage cleanup completed
+10:49:05 AM [stripe] Stripe schema ready
+10:49:05 AM [express] serving on port 5000
+Failed to initialize Stripe: Error: Stripe connection not found — configure Stripe integration in Replit
+    at getCredentials [90m(/home/runner/workspace/[39mserver/stripeClient.ts:46:9[90m)[39m
+[90m    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)[39m
+    at async getStripeSecretKey [90m(/home/runner/workspace/[39mserver/stripeClient.ts:62:25[90m)[39m
+    at async getStripeSync [90m(/home/runner/workspace/[39mserver/stripeClient.ts:71:23[90m)[39m
+    at async initStripe [90m(/home/runner/workspace/[39mserver/index.ts:48:24[90m)[39m
+Browserslist: browsers data (caniuse-lite) is 6 months old. Please run:
+  npx update-browserslist-db@latest
+  Why you should do it regularly: https://github.com/browserslist/update-db#readme
+
+A PostCSS plugin did not pass the `from` option to `postcss.parse`. This may cause imported assets to be incorrectly transformed. If you've recently added a PostCSS plugin that raised this warning, please contact the package author to fix the issue.
+[Storage] Could not create bucket "generated-videos": The object exceeded the maximum allowed size
+10:49:14 AM [express] GET /api/products 304 in 3ms :: []
+10:49:14 AM [express] GET /api/products/featured 304 in 2ms :: []
+10:49:15 AM [express] GET /api/products 304 in 1ms :: []
+10:49:15 AM [express] GET /api/products/featured 304 in 1ms :: []
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m10:50:33 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/pages/admin-brand-studio.tsx, /src/index.css[22m
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m10:50:39 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/pages/admin-brand-studio.tsx, /src/index.css[22m [33m(x2)[39m
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m10:50:57 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/pages/admin-brand-studio.tsx, /src/index.css[22m [33m(x3)[39m
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m10:51:11 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/pages/admin-brand-studio.tsx, /src/index.css[22m [33m(x4)[39m
+[replit-cartographer] Error processing /home/runner/workspace/client/src/pages/admin-brand-studio.tsx: SyntaxError: Identifier 'BrandContext' has already been declared. (91:14)
+    at toParseError [90m(/home/runner/workspace/[39mnode_modules/[4m@babel/parser[24m/src/parse-error.ts:95:45[90m)[39m
+    at raise [90m(/home/runner/workspace/[39mnode_modules/[4m@babel/parser[24m/src/tokenizer/index.ts:1503:19[90m)[39m
+    at declareName [90m(/home/runner/workspace/[39mnode_modules/[4m@babel/parser[24m/src/plugins/typescript/scope.ts:72:21[90m)[39m
+    at declareNameFromIdentifier [90m(/home/runner/workspace/[39mnode_modules/[4m@babel/parser[24m/src/parser/lval.ts:818:16[90m)[39m
+    at checkIdentifier [90m(/home/runner/workspace/[39mnode_modules/[4m@babel/parser[24m/src/parser/lval.ts:813:12[90m)[39m
+    at checkLVal [90m(/home/runner/workspace/[39mnode_modules/[4m@babel/parser[24m/src/parser/lval.ts:713:12[90m)[39m
+    at finishImportSpecifier [90m(/home/runner/workspace/[39mnode_modules/[4m@babel/parser[24m/src/parser/statement.ts:3223:10[90m)[39m
+    at parseImportSpecifier [90m(/home/runner/workspace/[39mnode_modules/[4m@babel/parser[24m/src/parser/statement.ts:3480:17[90m)[39m
+    at parseImportSpecifier [90m(/home/runner/workspace/[39mnode_modules/[4m@babel/parser[24m/src/plugins/typescript/index.ts:4359:20[90m)[39m
+    at parseNamedImportSpecifiers [90m(/home/runner/workspace/[39mnode_modules/[4m@babel/parser[24m/src/parser/statement.ts:3441:36[90m)[39m
+    at parseImportSpecifiersAndAfter [90m(/home/runner/workspace/[39mnode_modules/[4m@babel/parser[24m/src/parser/statement.ts:3173:37[90m)[39m
+    at parseImport [90m(/home/runner/workspace/[39mnode_modules/[4m@babel/parser[24m/src/plugins/typescript/index.ts:3005:30[90m)[39m
+    at parseStatementContent [90m(/home/runner/workspace/[39mnode_modules/[4m@babel/parser[24m/src/parser/statement.ts:642:25[90m)[39m
+    at parseStatementContent [90m(/home/runner/workspace/[39mnode_modules/[4m@babel/parser[24m/src/plugins/typescript/index.ts:3185:20[90m)[39m
+    at parseStatementLike [90m(/home/runner/workspace/[39mnode_modules/[4m@babel/parser[24m/src/parser/statement.ts:477:17[90m)[39m
+    at parseModuleItem [90m(/home/runner/workspace/[39mnode_modules/[4m@babel/parser[24m/src/parser/statement.ts:414:17[90m)[39m
+    at parseBlockOrModuleBlockBody [90m(/home/runner/workspace/[39mnode_modules/[4m@babel/parser[24m/src/parser/statement.ts:1438:16[90m)[39m
+    at parseBlockBody [90m(/home/runner/workspace/[39mnode_modules/[4m@babel/parser[24m/src/parser/statement.ts:1412:10[90m)[39m
+    at parseProgram [90m(/home/runner/workspace/[39mnode_modules/[4m@babel/parser[24m/src/parser/statement.ts:229:10[90m)[39m
+    at parseTopLevel [90m(/home/runner/workspace/[39mnode_modules/[4m@babel/parser[24m/src/parser/statement.ts:203:25[90m)[39m
+    at parse [90m(/home/runner/workspace/[39mnode_modules/[4m@babel/parser[24m/src/parser/index.ts:93:10[90m)[39m
+    at parse [90m(/home/runner/workspace/[39mnode_modules/[4m@babel/parser[24m/src/plugins/typescript/index.ts:4309:20[90m)[39m
+    at parse [90m(/home/runner/workspace/[39mnode_modules/[4m@babel/parser[24m/src/index.ts:92:38[90m)[39m
+    at TransformPluginContext.handler [90m(/home/runner/workspace/[39mnode_modules/[4m@replit/vite-plugin-cartographer[24m/dist/index.mjs:74:23[90m)[39m
+    at EnvironmentPluginContainer.transform [90m(/home/runner/workspace/[39mnode_modules/[4mvite[24m/dist/node/chunks/config.js:28796:51[90m)[39m
+    at loadAndTransform [90m(/home/runner/workspace/[39mnode_modules/[4mvite[24m/dist/node/chunks/config.js:22669:48[90m)[39m
+    at async viteTransformMiddleware [90m(/home/runner/workspace/[39mnode_modules/[4mvite[24m/dist/node/chunks/config.js:24541:20[90m)[39m {
+  code: [32m'BABEL_PARSER_SYNTAX_ERROR'[39m,
+  reasonCode: [32m'VarRedeclaration'[39m,
+  loc: Position { line: [33m91[39m, column: [33m14[39m, index: [33m2337[39m },
+  pos: [33m2337[39m,
+  syntaxPlugin: [90mundefined[39m
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m10:51:12 AM[22m [31m[1m[vite][22m[39m [31mInternal server error: /home/runner/workspace/client/src/pages/admin-brand-studio.tsx: Identifier 'BrandContext' has already been declared. (91:14)
+
+[0m [90m 89 |[31m }[33m;[31m
+ [90m 90 |[31m
+[31m[1m>[22m[31m[90m 91 |[31m [36mimport[31m type { [33mBrandContext[31m[33m,[31m [33mGukdungImage[31m } [36mfrom[31m [32m"@shared/schema"[31m[33m;[31m
+ [90m    |[31m               [31m[1m^[22m[31m
+ [90m 92 |[31m
+ [90m 93 |[31m [36mconst[31m [33mCONTEXT_TYPE_META[31m[33m:[31m [33mRecord[31m[33m<[31m[33mstring[31m[33m,[31m { label[33m:[31m string[33m;[31m tab[33m:[31m string }[33m>[31m [33m=[31m {
+ [90m 94 |[31m   gukdung_profile[33m:[31m { label[33m:[31m [32m"Gukdung 프로필"[31m[33m,[31m tab[33m:[31m [32m"profile"[31m }[33m,[31m[0m[39m
+  Plugin: [35mvite:react-babel[39m
+  File: [36m/home/runner/workspace/client/src/pages/admin-brand-studio.tsx[39m:91:14
+[33m  89 |  };
+  90 |  
+  91 |  import type { BrandContext, GukdungImage } from "@shared/schema";
+     |                ^
+  92 |  
+  93 |  const CONTEXT_TYPE_META: Record<string, { label: string; tab: string }> = {[39m
+      at toParseError (/home/runner/workspace/node_modules/@babel/parser/src/parse-error.ts:95:45)
+      at raise (/home/runner/workspace/node_modules/@babel/parser/src/tokenizer/index.ts:1503:19)
+      at declareName (/home/runner/workspace/node_modules/@babel/parser/src/plugins/typescript/scope.ts:72:21)
+      at declareNameFromIdentifier (/home/runner/workspace/node_modules/@babel/parser/src/parser/lval.ts:818:16)
+      at checkIdentifier (/home/runner/workspace/node_modules/@babel/parser/src/parser/lval.ts:813:12)
+      at checkLVal (/home/runner/workspace/node_modules/@babel/parser/src/parser/lval.ts:713:12)
+      at finishImportSpecifier (/home/runner/workspace/node_modules/@babel/parser/src/parser/statement.ts:3223:10)
+      at parseImportSpecifier (/home/runner/workspace/node_modules/@babel/parser/src/parser/statement.ts:3480:17)
+      at parseImportSpecifier (/home/runner/workspace/node_modules/@babel/parser/src/plugins/typescript/index.ts:4359:20)
+      at parseNamedImportSpecifiers (/home/runner/workspace/node_modules/@babel/parser/src/parser/statement.ts:3441:36)
+      at parseImportSpecifiersAndAfter (/home/runner/workspace/node_modules/@babel/parser/src/parser/statement.ts:3173:37)
+      at parseImport (/home/runner/workspace/node_modules/@babel/parser/src/plugins/typescript/index.ts:3005:30)
+      at parseStatementContent (/home/runner/workspace/node_modules/@babel/parser/src/parser/statement.ts:642:25)
+      at parseStatementContent (/home/runner/workspace/node_modules/@babel/parser/src/plugins/typescript/index.ts:3185:20)
+      at parseStatementLike (/home/runner/workspace/node_modules/@babel/parser/src/parser/statement.ts:477:17)
+      at parseModuleItem (/home/runner/workspace/node_modules/@babel/parser/src/parser/statement.ts:414:17)
+      at parseBlockOrModuleBlockBody (/home/runner/workspace/node_modules/@babel/parser/src/parser/statement.ts:1438:16)
+      at parseBlockBody (/home/runner/workspace/node_modules/@babel/parser/src/parser/statement.ts:1412:10)
+      at parseProgram (/home/runner/workspace/node_modules/@babel/parser/src/parser/statement.ts:229:10)
+      at parseTopLevel (/home/runner/workspace/node_modules/@babel/parser/src/parser/statement.ts:203:25)
+      at parse (/home/runner/workspace/node_modules/@babel/parser/src/parser/index.ts:93:10)
+      at parse (/home/runner/workspace/node_modules/@babel/parser/src/plugins/typescript/index.ts:4309:20)
+      at parse (/home/runner/workspace/node_modules/@babel/parser/src/index.ts:92:38)
+      at parser (/home/runner/workspace/node_modules/@babel/core/src/parser/index.ts:28:19)
+      at parser.next (<anonymous>)
+      at normalizeFile (/home/runner/workspace/node_modules/@babel/core/src/transformation/normalize-file.ts:49:24)
+      at normalizeFile.next (<anonymous>)
+      at run (/home/runner/workspace/node_modules/@babel/core/src/transformation/index.ts:40:36)
+      at run.next (<anonymous>)
+      at transform (/home/runner/workspace/node_modules/@babel/core/src/transform.ts:29:20)
+      at transform.next (<anonymous>)
+      at step (/home/runner/workspace/node_modules/gensync/index.js:261:32)
+      at /home/runner/workspace/node_modules/gensync/index.js:273:13
+      at async.call.result.err.err (/home/runner/workspace/node_modules/gensync/index.js:223:11)
+      at /home/runner/workspace/node_modules/gensync/index.js:189:28
+      at <anonymous> (/home/runner/workspace/node_modules/@babel/core/src/gensync-utils/async.ts:90:7)
+      at /home/runner/workspace/node_modules/gensync/index.js:113:33
+      at step (/home/runner/workspace/node_modules/gensync/index.js:287:14)
+      at /home/runner/workspace/node_modules/gensync/index.js:273:13
+      at async.call.result.err.err (/home/runner/workspace/node_modules/gensync/index.js:223:11)
+[1G[0K⠙[1G[0K

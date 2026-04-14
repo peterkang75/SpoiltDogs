@@ -1,0 +1,137 @@
+### 2.5-B. Brand Studio UI (/admin/brand-studio)
+
+- [ ] `/admin/brand-studio` 페이지 생성
+- [ ] **Gukdung 프로필 탭**
+  - 품종, 나이, 성격, 좋아하는 것, 싫어하는 것 입력
+  - 주요 에피소드/스토리 목록 (CRUD)
+- [ ] **브랜드 보이스 탭**
+  - 톤앤매너 설명
+  - 필수 해시태그 목록
+  - 금지어/금지 표현
+  - 포스트 구조 가이드라인
+- [ ] **Gukdung 이미지 라이브러리 탭**
+  - 사진 업로드 (현재 15장+)
+  - 각 사진별 설명/태그 입력
+  - LoRA 학습 트리거 버튼
+  - 학습된 모델 ID 표시 및 저장
+- [ ] **캠페인 메모리 탭**
+  - 과거 잘 된 포스트 기록
+  - 시즌별 캠페인 메모
+  - 참고하지 말아야 할 사례
+
+### 2.5-C. Claude API 직접 호출 전환
+
+- [ ] `server/services/claudeMarketingService.ts` 구현
+  - Supabase에서 brand_context 전체 조회
+  - Gukdung 프로필 + 브랜드 보이스 + 캠페인 메모리 조합
+  - Claude API 직접 호출 (Make.com 우회)
+  - 결과: caption + hashtags + imagePrompt 분리 저장
+- [ ] `POST /api/admin/marketing/generate` 엔드포인트 수정
+  - 기존: Make.com 웹훅 트리거
+  - 변경: claudeMarketingService 직접 호출
+- [ ] Make.com Claude 모듈 제거 (배달 역할만 남김)
+- [ ] 환경변수: `ANTHROPIC_API_KEY` (직접 호출용)
+
+### 2.5-D. FAL.AI LoRA 연동 — Gukdung 이미지 생성
+
+- [ ] FAL.AI 계정 생성 + API 키 발급
+- [ ] 환경변수: `FAL_API_KEY`
+- [ ] `server/services/falService.ts` 구현
+  - `trainLoRA()`: Gukdung 사진 업로드 → LoRA 모델 학습 트리거
+  - `generateImage()`: imagePrompt + LoRA 모델 ID → 이미지 생성
+  - `generateVideo()`: Kling 3.0으로 영상 생성
+  - 모델별 라우팅:
+    - 일반 포토 → Flux 2 Pro + LoRA ($0.055/장)
+    - 카드뉴스/텍스트 → Ideogram V3 ($0.04/장)
+    - 릴스/틱톡 → Kling 3.0 ($0.10/초)
+- [ ] 승인 후 이미지 생성 플로우:
+  - 큐 카드 승인 클릭 → contentType 선택 → FAL.AI 이미지 생성 → 큐에 imageUrl 저장
+
+### 2.5-E. 큐 카드 UI 개선
+
+- [ ] **재작성(Rewrite)** 버튼 추가
+  - 클릭 시: 같은 topic + platform으로 Claude 재생성
+  - 기존 항목 status → "rejected", 새 항목 생성
+- [ ] **카피 인라인 편집** 기능
+  - caption 텍스트 직접 수정 후 저장
+- [ ] **이미지 생성** 버튼 (승인 후 활성화)
+  - contentType 선택 → FAL.AI 호출 → 생성된 이미지 미리보기
+
+---
+
+## ADD new Phase 2.6 — Content Scheduler (우리 사이트)
+
+> 발행 일정을 우리 사이트에서 완전히 컨트롤
+
+- [ ] 큐 카드에 **스케줄 설정** UI
+  - 날짜/시간 선택 → scheduledAt DB 저장
+  - "즉시 발행" / "예약 발행" 토글
+- [ ] `/admin/brand-studio` 또는 `/admin/marketing`에 **캘린더 뷰** 탭
+  - 월간/주간 캘린더에 예약 포스트 시각화
+  - 플랫폼별 색상 구분 (Instagram 핑크 / Facebook 파랑 / TikTok 검정)
+- [ ] 서버 내장 스케줄러 (`server/scheduler.ts`)
+  - 1분마다 실행: scheduledAt이 현재 시간 이내인 approved 항목 조회
+  - 발행 트리거 → Make.com 웹훅으로 전달
+
+---
+
+## ADD new Phase 2.7 — Social Media Publishing
+
+> Meta Graph API / TikTok API 직접 연동. Make.com은 중계만.
+
+### Meta Graph API (Instagram + Facebook)
+- [ ] Meta Developer App 설정
+  - 환경변수: `META_ACCESS_TOKEN`, `META_IG_USER_ID`, `META_FB_PAGE_ID`
+- [ ] `server/services/metaService.ts`
+  - `postInstagramPhoto()`: 이미지 + 캡션 발행
+  - `postInstagramReel()`: 영상 발행
+  - `postFacebookPage()`: Facebook 페이지 발행
+  - `getPostInsights()`: 좋아요, 도달수, 댓글수 수집
+
+### TikTok API
+- [ ] 환경변수: `TIKTOK_ACCESS_TOKEN`
+- [ ] `server/services/tiktokService.ts`
+  - `postVideo()`: 영상 + 캡션 발행
+
+### Make.com 역할 최소화
+- 우리 스케줄러 → Make.com 웹훅 (발행 신호만 전달)
+- Make.com → Meta Graph API / TikTok API 호출
+- 결과 postId → 우리 서버로 콜백 저장
+
+### 발행 상태 UI
+- [ ] 큐 카드 상태: pending → approved → scheduled → posted
+- [ ] 발행된 포스트 바로가기 링크
+- [ ] 성과 지표 표시 (좋아요, 도달수, 댓글수)
+
+---
+
+## UPDATE: Status Summary Table
+
+| Phase | 내용 | 상태 |
+|---|---|---|
+| Phase 0 | Foundation | ✅ 완료 |
+| Phase 1 | Product Sourcing & Syncee 연동 | ✅ 완료 |
+| Phase 2 | Marketing Command Center (기본 파이프라인) | ✅ 완료 |
+| Phase 2.5 | Brand Studio + Claude/FAL.AI 직접 연동 | 🔲 다음 작업 |
+| Phase 2.6 | Content Scheduler (우리 사이트) | 🔲 대기 |
+| Phase 2.7 | Social Media Publishing (Meta/TikTok API) | 🔲 대기 |
+| Phase 3 | Subscribe & Save 구독 모델 | 🔲 대기 |
+| Phase 4 | Full Automation 고도화 | 🔲 대기 |
+| Phase 5 | Infrastructure Finalization | 🔲 대기 |
+
+---
+
+## UPDATE: Environment Variables Section
+
+Add these new variables:
+
+| 변수명 | 용도 | 상태 |
+|---|---|---|
+| `ANTHROPIC_API_KEY` | Claude API 직접 호출 (Brand Studio) | 미설정 |
+| `FAL_API_KEY` | FAL.AI 이미지/영상 생성 + LoRA 학습 | 미설정 |
+| `META_ACCESS_TOKEN` | Meta Graph API (Instagram/Facebook 발행) | 미설정 |
+| `META_IG_USER_ID` | Instagram Business 계정 ID | 미설정 |
+| `META_FB_PAGE_ID` | Facebook 페이지 ID | 미설정 |
+| `TIKTOK_ACCESS_TOKEN` | TikTok for Developers API | 미설정 |
+
+Please save all changes to PLAN.md now.

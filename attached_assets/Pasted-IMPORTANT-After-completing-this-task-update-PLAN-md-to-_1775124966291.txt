@@ -1,0 +1,176 @@
+IMPORTANT: After completing this task, update PLAN.md to reflect all changes made.
+
+Implement 2-step card news generation pipeline:
+Step 1: Generate accurate Gukdung image with Nano Banana 2/edit
+Step 2: Add text overlay using Ideogram V3 Edit
+
+## Task 1: Add generateCardNews() in server/services/falService.ts
+
+export async function generateCardNews({
+  prompt,
+  textContent,
+  referenceImageUrls = [],
+  aspectRatio = "1:1",
+}: {
+  prompt: string;
+  textContent: string;
+  referenceImageUrls?: string[];
+  aspectRatio?: string;
+}): Promise<{ imageUrl: string; thumbnailUrl?: string }> {
+  try {
+    // Step 1: Generate Gukdung image with Nano Banana 2/edit
+    console.log("[CardNews] Step 1: Generating Gukdung image...");
+
+    const imageInput: any = {
+      prompt: `${prompt}. Clean background suitable for text overlay. No text in image.`,
+      aspect_ratio: aspectRatio,
+      output_format: "png",
+      safety_tolerance: "4",
+      resolution: "1K",
+    };
+
+    if (referenceImageUrls.length > 0) {
+      imageInput.image_urls = referenceImageUrls.slice(0, 5);
+    }
+
+    const imageResult = await fal.run(
+      referenceImageUrls.length > 0 ? "fal-ai/nano-banana-2/edit" : "fal-ai/nano-banana-2",
+      { input: imageInput }
+    ) as any;
+
+    const generatedImageUrl = imageResult.images?.[0]?.url || "";
+    if (!generatedImageUrl) throw new Error("Step 1 failed: No image generated");
+    console.log("[CardNews] Step 1 complete:", generatedImageUrl);
+
+    // Step 2: Add text overlay with Ideogram V3 Edit
+    console.log("[CardNews] Step 2: Adding text overlay with Ideogram...");
+
+    const ideogramResult = await fal.run("fal-ai/ideogram/v3/edit", {
+      input: {
+        image_url: generatedImageUrl,
+        prompt: `Add elegant text overlay on this image. Text: "${textContent}". 
+          Clean typography, readable font, premium pet boutique aesthetic. 
+          Text should be clearly visible but not overwhelming the main subject.
+          Maintain the dog in the image exactly as is.`,
+        aspect_ratio: aspectRatio === "9:16" ? "ASPECT_9_16" : "ASPECT_1_1",
+        style: "DESIGN",
+      },
+    }) as any;
+
+    const finalImageUrl = ideogramResult.images?.[0]?.url || "";
+    if (!finalImageUrl) throw new Error("Step 2 failed: No image from Ideogram");
+    console.log("[CardNews] Step 2 complete:", finalImageUrl);
+
+    // Save to Supabase Storage
+    const { saveImageFromUrl } = await import("./storageService");
+
+    const thumbFilename = `thumb_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+    const thumbnailUrl = await saveImageFromUrl(generatedImageUrl, thumbFilename);
+
+    const finalFilename = `card_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+    const permanentUrl = await saveImageFromUrl(finalImageUrl, finalFilename);
+
+    return { imageUrl: permanentUrl, thumbnailUrl };
+
+  } catch (error: any) {
+    const errorBody = error?.body?.detail || error?.message || "";
+    if (
+      error?.status === 403 ||
+      errorBody.includes("Exhausted balance") ||
+      errorBody.includes("locked") ||
+      errorBody.includes("balance")
+    ) {
+      throw new Error("CREDIT_EXHAUSTED:FAL.AI");
+    }
+    throw error;
+  }
+}
+
+## Task 2: Update server/adminRoutes.ts — generate-image endpoint
+
+In POST /api/admin/marketing/queue/:id/generate-image:
+
+Add card_news case before the isVideo check:
+
+const isCardNews = contentType === "card_news";
+const isVideo = contentType === "reel" || contentType === "tiktok";
+
+if (isCardNews) {
+  // Extract text content from caption for overlay
+  const textContent = item.caption
+    ? item.caption.split("\n")[0].slice(0, 80) // Use first line of caption as overlay text
+    : item.topic || "";
+
+  const { generateCardNews } = await import("./services/falService");
+  const result = await generateCardNews({
+    prompt: item.imagePrompt || item.caption || "",
+    textContent,
+    referenceImageUrls: referenceImages,
+    aspectRatio: "1:1",
+  });
+
+  const updated = await storage.updateMarketingQueueItem(id, {
+    imageUrl: result.imageUrl,
+  });
+
+  return res.json({
+    success: true,
+    imageUrl: result.imageUrl,
+    thumbnailUrl: result.thumbnailUrl,
+    item: updated,
+  });
+}
+
+## Task 3: Update QueueCard in admin-marketing.tsx
+
+For card_news contentType, show a note explaining the 2-step process:
+
+In the image model selector section, when contentType === "card_news":
+
+<div className="space-y-2 mt-3">
+  <div className="bg-blue-50 border border-blue-100 rounded-lg p-2.5">
+    <p className="text-xs font-medium text-blue-700 mb-0.5">🃏 카드뉴스 2단계 생성</p>
+    <p className="text-xs text-blue-600">
+      1단계: Nano Banana 2로 국둥이 이미지 생성<br/>
+      2단계: Ideogram으로 텍스트 오버레이 합성
+    </p>
+  </div>
+  <Button
+    onClick={() => onGenerateImage(item.id, "card_news_pipeline", "0")}
+    disabled={isGeneratingImage}
+    className="w-full gap-2 text-sm"
+    style={{ backgroundColor: "#4B9073", color: "white" }}
+  >
+    {isGeneratingImage ? (
+      <><Loader2 className="h-3.5 w-3.5 animate-spin" />카드뉴스 생성 중...</>
+    ) : (
+      <><ImageIcon className="h-3.5 w-3.5" />카드뉴스 생성</>
+    )}
+  </Button>
+</div>
+
+Handle "card_news_pipeline" in the parent's onGenerateImage → pass model as "ideogram" to server (server will detect card_news contentType and use the pipeline).
+
+## Task 4: Update QueueCard thumbnail display for card news
+
+When item has thumbnailUrl (Step 1 result), show it alongside final image:
+
+Actually store thumbnailUrl in a way we can display it.
+For simplicity: when generating card news, save thumbnailUrl to a temporary display state in the mutation onSuccess:
+
+In generateImageMut onSuccess:
+if (data.thumbnailUrl) {
+  // Show toast with step completion
+  toast({
+    title: "카드뉴스 생성 완료",
+    description: "국둥이 이미지 + 텍스트 합성 완료",
+  });
+}
+
+## Important notes:
+- Do not change shared/schema.ts
+- Card news pipeline: Nano Banana 2/edit (Step 1) + Ideogram V3 Edit (Step 2)
+- Text content for overlay = first line of caption (max 80 chars)
+- Keep existing single-step ideogram as fallback if edit endpoint fails
+- Log each step: "[CardNews] Step 1: ..." and "[CardNews] Step 2: ..."
+- Test: create card_news post → approve → click 카드뉴스 생성 → verify Gukdung appears with text overlay

@@ -1,0 +1,130 @@
+IMPORTANT: After completing this task, update PLAN.md to reflect all changes made.
+
+Update the image upload in Brand Studio (client/src/pages/admin-brand-studio.tsx) and add a server upload endpoint.
+
+## Goal
+Replace the "이미지 URL" text input with a file upload that:
+- Accepts multiple files at once (drag & drop + click to select)
+- Uploads directly to Supabase Storage
+- Shows upload progress per file
+- Saves the permanent Supabase URL to gukdung_images table
+
+## Step 1: Add upload endpoint to server/adminRoutes.ts
+
+Add POST /api/admin/brand/images/upload endpoint:
+```typescript
+import multer from "multer";
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } });
+
+app.post("/api/admin/brand/images/upload", requireAdmin, upload.array("files", 20), async (req, res) => {
+  try {
+    const { createClient } = await import("@supabase/supabase-js");
+    const supabase = createClient(
+      process.env.SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!
+    );
+
+    const files = req.files as Express.Multer.File[];
+    if (!files || files.length === 0) {
+      return res.status(400).json({ error: "No files uploaded" });
+    }
+
+    const { description, tags, isTrainingData } = req.body;
+    const results = [];
+
+    for (const file of files) {
+      const filename = `gukdung_${Date.now()}_${Math.random().toString(36).slice(2)}.${file.originalname.split(".").pop()}`;
+
+      // Upload to Supabase Storage
+      const { error: uploadError } = await supabase.storage
+        .from("training-images")
+        .upload(filename, file.buffer, {
+          contentType: file.mimetype,
+          upsert: false,
+        });
+
+      if (uploadError) {
+        console.error("Storage upload error:", uploadError);
+        continue;
+      }
+
+      // Get public URL
+      const { data: urlData } = supabase.storage
+        .from("training-images")
+        .getPublicUrl(filename);
+
+      // Save to DB
+      const image = await storage.createGukdungImage({
+        imageUrl: urlData.publicUrl,
+        description: description || null,
+        tags: tags || null,
+        isTrainingData: isTrainingData === "true" || isTrainingData === true,
+        loraModelId: null,
+      });
+
+      results.push(image);
+    }
+
+    res.json({ success: true, uploaded: results.length, images: results });
+  } catch (error: any) {
+    console.error("Image upload error:", error);
+    res.status(500).json({ error: error.message || "Upload failed" });
+  }
+});
+```
+
+Also install multer if not already installed: npm install multer @types/multer
+
+## Step 2: Create Supabase training-images bucket on server start
+
+In server/services/storageService.ts, make sure ensureBucketsExist() includes "training-images" bucket with public: true.
+
+## Step 3: Update the 사진 추가 dialog in admin-brand-studio.tsx
+
+Replace the current dialog (which has an imageUrl text input) with a new multi-file upload dialog:
+
+New dialog UI:
+- Title: "Gukdung 사진 추가"
+- File drop zone:
+  - Dashed border, rounded, centered content
+  - Icon: ImagePlus from lucide-react
+  - Text: "사진을 드래그하거나 클릭해서 선택"
+  - Sub-text: "JPG, PNG, WEBP · 최대 20MB · 여러 장 동시 업로드 가능"
+  - Accept: image/*
+  - Multiple: true
+  - On file select: show preview grid of selected files (thumbnail + filename)
+- Selected files preview:
+  - Grid of small thumbnails (4 columns)
+  - Each shows: image preview, filename, X button to remove
+  - Show count: "3장 선택됨"
+- Fields (apply to ALL selected files):
+  - 설명 / 상황 메모: text input (optional)
+  - 태그: text input (optional, comma separated)
+  - LoRA 학습용 사진으로 지정: toggle (default ON)
+- Upload button: "업로드 ({n}장)"
+  - Disabled if no files selected
+  - Shows progress: "업로드 중... (2/3)"
+  - On complete: toast "3장 업로드 완료!", close dialog, refresh image list
+
+Upload logic:
+- Use FormData to send files to POST /api/admin/brand/images/upload
+- Send all files in one request using files[] field
+- Show per-file progress if possible, otherwise show overall progress
+- Handle partial success (some files fail, others succeed)
+
+State variables needed:
+- selectedFiles: File[]
+- uploadProgress: number (0-100)
+- isUploading: boolean
+
+## Step 4: Update "사진 추가" button
+
+The existing button opens the old URL dialog.
+Change it to open the new file upload dialog.
+Keep the edit functionality for existing images (description, tags, isTrainingData) as a separate edit dialog accessed by clicking the edit icon on each image card.
+
+## Important notes:
+- Do not change shared/schema.ts
+- Keep all existing image card display, edit, delete functionality
+- The LoRA 학습 button functionality stays the same
+- Test: select 3 images → upload → verify they appear in the grid with Supabase URLs

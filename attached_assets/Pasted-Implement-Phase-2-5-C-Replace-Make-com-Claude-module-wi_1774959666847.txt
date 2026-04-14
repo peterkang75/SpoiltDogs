@@ -1,0 +1,196 @@
+Implement Phase 2.5-C: Replace Make.com Claude module with direct Claude API call from our server.
+
+## Goal
+When admin clicks "Generate" in the Freeform Post dialog, instead of sending to Make.com which then calls Claude, our server should:
+1. Fetch all active brand_context items from DB (Gukdung profile + brand voice + campaign memory)
+2. Call Claude API directly using ANTHROPIC_API_KEY
+3. Save the result to marketing_queue
+4. Make.com is no longer needed for content generation (only for SNS delivery later)
+
+## Step 1: Create `server/services/claudeMarketingService.ts`
+
+This service assembles brand context from DB and calls Claude API directly.
+```typescript
+import Anthropic from "@anthropic-ai/sdk";
+import { storage } from "../storage";
+
+const anthropic = new Anthropic({
+  apiKey: process.env.ANTHROPIC_API_KEY,
+});
+
+export async function generateMarketingContent({
+  topic,
+  platform,
+  promptText,
+}: {
+  topic: string;
+  platform: string;
+  promptText?: string;
+}): Promise<{
+  caption: string;
+  hashtags: string;
+  imagePrompt: string;
+}> {
+  // 1. Fetch all active brand context from DB
+  const brandContextItems = await storage.getBrandContextItems();
+  const activeItems = brandContextItems.filter((item) => item.isActive);
+
+  const gukdungProfile = activeItems
+    .filter((i) => i.type === "gukdung_profile")
+    .map((i) => `[${i.title}]\n${i.content}`)
+    .join("\n\n");
+
+  const brandVoice = activeItems
+    .filter((i) => i.type === "brand_voice")
+    .map((i) => `[${i.title}]\n${i.content}`)
+    .join("\n\n");
+
+  const campaignMemory = activeItems
+    .filter((i) => i.type === "campaign_memory")
+    .map((i) => `[${i.title}]\n${i.content}`)
+    .join("\n\n");
+
+  const postGuideline = activeItems
+    .filter((i) => i.type === "post_guideline")
+    .map((i) => `[${i.title}]\n${i.content}`)
+    .join("\n\n");
+
+  // 2. Build system prompt from brand context
+  const systemPrompt = `You are the senior copywriter for "Spoilt Dogs", a premium Australian pet boutique.
+
+== BRAND VOICE ==
+${brandVoice || "Warm, witty, premium Australian tone. Use emojis naturally."}
+
+== GUKDUNG PROFILE ==
+${gukdungProfile || "Gukdung is the brand dog — loveable, spoilt, and full of personality."}
+
+${campaignMemory ? `== CAMPAIGN MEMORY ==\n${campaignMemory}` : ""}
+${postGuideline ? `== POST GUIDELINES ==\n${postGuideline}` : ""}
+${promptText ? `== ADDITIONAL TONE INSTRUCTION ==\n${promptText}` : ""}
+
+You must respond ONLY with a valid JSON object. No markdown, no explanation, no code blocks. Start directly with {
+{
+  "caption": "the full post caption with emojis",
+  "hashtags": "#tag1 #tag2 #tag3",
+  "imagePrompt": "detailed English prompt for AI image generation featuring Gukdung in the scene"
+}`;
+
+  const userMessage = `Create a ${platform} post about: ${topic}`;
+
+  // 3. Call Claude API directly
+  const message = await anthropic.messages.create({
+    model: "claude-sonnet-4-5",
+    max_tokens: 1024,
+    messages: [{ role: "user", content: userMessage }],
+    system: systemPrompt,
+  });
+
+  // 4. Parse response
+  const responseText = message.content
+    .filter((block) => block.type === "text")
+    .map((block) => (block as any).text)
+    .join("");
+
+  // Extract JSON from response
+  const jsonMatch = responseText.match(/\{[\s\S]*\}/);
+  if (!jsonMatch) {
+    return {
+      caption: responseText,
+      hashtags: "",
+      imagePrompt: "",
+    };
+  }
+
+  try {
+    const parsed = JSON.parse(jsonMatch[0]);
+    return {
+      caption: parsed.caption || responseText,
+      hashtags: parsed.hashtags || "",
+      imagePrompt: parsed.imagePrompt || "",
+    };
+  } catch {
+    return {
+      caption: responseText,
+      hashtags: "",
+      imagePrompt: "",
+    };
+  }
+}
+```
+
+## Step 2: Update `POST /api/admin/marketing/generate` in `server/adminRoutes.ts`
+
+Replace the current Make.com webhook trigger logic with a direct Claude call:
+```typescript
+app.post("/api/admin/marketing/generate", requireAdmin, async (req, res) => {
+  const { topic, prompt_id, platform } = req.body;
+
+  if (!topic || typeof topic !== "string") {
+    res.status(400).json({ error: "topic is required" });
+    return;
+  }
+
+  try {
+    // Get prompt text from DB if prompt_id provided
+    let promptText = "";
+    if (prompt_id) {
+      const prompt = await storage.getMarketingPrompt(prompt_id);
+      if (prompt) promptText = prompt.systemInstruction ?? "";
+    }
+
+    // Call Claude directly using brand context from DB
+    const { generateMarketingContent } = await import("./services/claudeMarketingService");
+    const result = await generateMarketingContent({
+      topic: topic.trim(),
+      platform: platform ?? "instagram",
+      promptText,
+    });
+
+    // Save result to marketing_queue
+    const item = await storage.createMarketingQueueItem({
+      platform: platform ?? "instagram",
+      contentType: "post",
+      caption: result.caption,
+      hashtags: result.hashtags,
+      imagePrompt: result.imagePrompt,
+      topic: topic.trim(),
+      status: "pending",
+    });
+
+    res.json({ success: true, item });
+  } catch (error: any) {
+    console.error("Marketing generate error:", error);
+    res.status(500).json({ error: error.message || "Content generation failed" });
+  }
+});
+```
+
+## Step 3: Update `client/src/pages/admin-marketing.tsx`
+
+Update the `generateMut` mutation's `onSuccess` handler:
+
+The current flow waits for Make.com to POST back to our queue. With direct Claude calls, the result is returned immediately in the response.
+
+Update `onSuccess` in `generateMut`:
+- The response now includes `{ success: true, item }` where `item` is the newly created queue item
+- On success: immediately invalidate queue cache, show success toast, close dialog
+- Remove the polling interval logic (no longer needed since result is immediate)
+- Remove the timer-based progress bar
+- Replace with a simple loading spinner while the request is in progress (Claude usually responds in 3-5 seconds)
+
+The updated generate button behavior:
+- Click Generate → button shows spinner + "생성 중..." 
+- Wait 3-5 seconds (direct Claude call)
+- Success → toast "콘텐츠가 생성되었습니다!" → dialog closes → queue refreshes with new item
+
+## Step 4: Install Anthropic SDK if not already installed
+
+Run: npm install @anthropic-ai/sdk
+
+Check package.json first — if @anthropic-ai/sdk is already there, skip this step.
+
+## Important notes:
+- Do not remove the MAKE_WEBHOOK_URL or Make.com related code entirely yet — keep it for future SNS delivery use
+- The marketing_queue table should already have topic and imagePrompt columns from Phase 2.5 schema migration — verify these exist
+- If marketing_queue is missing topic column, add it to the schema and run db:push
+- Test by clicking Generate in /admin/marketing and verifying a new queue item appears immediately with caption, hashtags, and imagePrompt all populated

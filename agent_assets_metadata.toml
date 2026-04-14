@@ -1,0 +1,8 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "-YAYKRl_Rs-wI_djXbMAr"
+uri = "file://our-story.pdf"
+type = "pdf"
+title = "SpoiltDogs — Our Story"

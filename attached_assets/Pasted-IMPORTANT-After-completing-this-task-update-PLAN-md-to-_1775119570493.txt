@@ -1,0 +1,151 @@
+IMPORTANT: After completing this task, update PLAN.md to reflect all changes made.
+
+Add a user-friendly credit exhaustion error handler for FAL.AI video generation (Veo models).
+
+## Task 1: Update server/services/falService.ts
+
+In the veo2 and veo3 generation blocks, wrap the fal.run() call with specific error detection:
+
+For both veo2 and veo3 cases, catch errors and check if it's a balance/credit error:
+
+try {
+  const result = await fal.run("fal-ai/veo3", { ... }) as any;
+  ...
+} catch (error: any) {
+  const errorBody = error?.body?.detail || error?.message || "";
+  if (
+    error?.status === 403 ||
+    errorBody.includes("Exhausted balance") ||
+    errorBody.includes("locked") ||
+    errorBody.includes("balance")
+  ) {
+    throw new Error("CREDIT_EXHAUSTED:fal.ai");
+  }
+  throw error;
+}
+
+Do the same for kling, kling-3, veo2, veo3 cases — all video models.
+
+## Task 2: Update server/adminRoutes.ts
+
+In POST /api/admin/marketing/queue/:id/generate-image:
+
+Catch the CREDIT_EXHAUSTED error and return a specific response:
+
+} catch (error: any) {
+  const msg = error?.message || "";
+  if (msg.startsWith("CREDIT_EXHAUSTED:")) {
+    const service = msg.split(":")[1] || "FAL.AI";
+    return res.status(402).json({
+      error: "CREDIT_EXHAUSTED",
+      service,
+      message: `${service} 크레딧이 부족합니다. 충전 후 다시 시도해주세요.`,
+      chargeUrl: "https://fal.ai/dashboard/billing",
+    });
+  }
+  console.error("FAL.AI generate image error:", error);
+  res.status(500).json({ error: error.message || "Image generation failed" });
+}
+
+## Task 3: Update client/src/pages/admin-marketing.tsx
+
+Add credit exhaustion dialog state and component:
+
+Add state:
+const [creditAlert, setCreditAlert] = useState<{
+  open: boolean;
+  service: string;
+  chargeUrl: string;
+} | null>(null);
+
+Update generateImageMut onError:
+onError: async (err: Error) => {
+  // Try to parse the error response
+  try {
+    const response = (err as any).response;
+    if (response) {
+      const data = await response.json();
+      if (data.error === "CREDIT_EXHAUSTED") {
+        setCreditAlert({
+          open: true,
+          service: data.service || "FAL.AI",
+          chargeUrl: data.chargeUrl || "https://fal.ai/dashboard/billing",
+        });
+        return;
+      }
+    }
+  } catch {}
+  toast({
+    title: "이미지/영상 생성 실패",
+    description: err.message,
+    variant: "destructive",
+  });
+},
+
+Also update apiRequest call in generateImageMut to preserve the response:
+mutationFn: async ({ id, model }: { id: string; model: string }) => {
+  const response = await fetch(`/api/admin/marketing/queue/${id}/generate-image`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+    body: JSON.stringify({ model }),
+  });
+  if (!response.ok) {
+    const data = await response.json();
+    const err = new Error(data.message || "Generation failed") as any;
+    err.response = { json: () => Promise.resolve(data) };
+    throw err;
+  }
+  return response.json();
+},
+
+Add CreditAlert dialog at bottom of AdminMarketing return (before closing div):
+{creditAlert && (
+  <AlertDialog open={creditAlert.open} onOpenChange={(open) => !open && setCreditAlert(null)}>
+    <AlertDialogContent>
+      <AlertDialogHeader>
+        <AlertDialogTitle className="flex items-center gap-2">
+          <span>💳</span> 크레딧 부족
+        </AlertDialogTitle>
+        <AlertDialogDescription className="space-y-3">
+          <p>
+            <strong>{creditAlert.service}</strong> 크레딧이 부족해서 영상/이미지를 생성할 수 없습니다.
+          </p>
+          <p className="text-sm text-gray-500">
+            아래 링크에서 크레딧을 충전한 후 다시 시도해주세요.
+          </p>
+          
+            href={creditAlert.chargeUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-2 text-sm font-medium text-blue-600 hover:text-blue-800 underline"
+          >
+            🔗 {creditAlert.chargeUrl}
+          </a>
+        </AlertDialogDescription>
+      </AlertDialogHeader>
+      <AlertDialogFooter>
+        <AlertDialogCancel onClick={() => setCreditAlert(null)}>
+          닫기
+        </AlertDialogCancel>
+        <AlertDialogAction
+          onClick={() => {
+            window.open(creditAlert.chargeUrl, "_blank");
+            setCreditAlert(null);
+          }}
+          style={{ backgroundColor: "#4B9073", color: "white" }}
+        >
+          충전하러 가기
+        </AlertDialogAction>
+      </AlertDialogFooter>
+    </AlertDialogContent>
+  </AlertDialog>
+)}
+
+## Important notes:
+- Do not change shared/schema.ts
+- HTTP 402 status code is the standard "Payment Required" code — use it for credit errors
+- The CREDIT_EXHAUSTED pattern should be reusable for future services (Claude API, Anthropic, etc.)
+- Apply the same error catch pattern to ALL video models: kling, kling-3, veo2, veo3
+- Also apply to image models (nano-banana, ideogram) in falService.ts for future use
+- Test: temporarily use an invalid FAL_API_KEY to trigger the error → verify the dialog appears

@@ -1,0 +1,93 @@
+IMPORTANT: After completing this task, update PLAN.md to reflect all changes made.
+
+Fix the LoRA training in server/adminRoutes.ts and server/services/falService.ts.
+
+## Problem
+FAL.AI flux-lora-fast-training endpoint requires a single ZIP file URL containing all training images.
+Currently we send individual image URLs which causes "Unprocessable Entity" error.
+
+## Fix: server/services/falService.ts — update trainLoRA()
+
+Replace the current trainLoRA function with this:
+```typescript
+import JSZip from "jszip";
+
+export async function trainLoRA({
+  imageUrls,
+  triggerWord = "GUKDUNG",
+}: {
+  imageUrls: string[];
+  triggerWord?: string;
+}): Promise<{ loraModelId: string }> {
+
+  // Step 1: Download all images and create a ZIP file
+  const zip = new JSZip();
+  const folder = zip.folder("images")!;
+
+  for (let i = 0; i < imageUrls.length; i++) {
+    const url = imageUrls[i];
+    try {
+      const response = await fetch(url);
+      const buffer = await response.arrayBuffer();
+      const ext = url.split(".").pop()?.split("?")[0] || "jpg";
+      folder.file(`image_${String(i + 1).padStart(3, "0")}.${ext}`, buffer);
+    } catch (err) {
+      console.warn(`[LoRA] Failed to download image ${i + 1}:`, url);
+    }
+  }
+
+  // Step 2: Generate ZIP buffer
+  const zipBuffer = await zip.generateAsync({ type: "nodebuffer" });
+
+  // Step 3: Upload ZIP to Supabase Storage
+  const { createClient } = await import("@supabase/supabase-js");
+  const supabase = createClient(
+    process.env.SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  );
+
+  const zipFilename = `lora_training_${Date.now()}.zip`;
+  const { error: uploadError } = await supabase.storage
+    .from("training-images")
+    .upload(zipFilename, zipBuffer, {
+      contentType: "application/zip",
+      upsert: false,
+    });
+
+  if (uploadError) throw new Error(`ZIP upload failed: ${uploadError.message}`);
+
+  const { data: urlData } = supabase.storage
+    .from("training-images")
+    .getPublicUrl(zipFilename);
+
+  const zipUrl = urlData.publicUrl;
+  console.log(`[LoRA] ZIP uploaded: ${zipUrl} (${imageUrls.length} images)`);
+
+  // Step 4: Submit LoRA training job to FAL.AI
+  const result = await fal.run("fal-ai/flux-lora-fast-training", {
+    input: {
+      images_data_url: zipUrl,
+      trigger_word: triggerWord,
+      steps: 1000,
+      multiresolution_training: true,
+    },
+  }) as any;
+
+  const loraModelId = result.diffusers_lora_file?.url || result.lora_file?.url || "";
+  if (!loraModelId) throw new Error("LoRA training completed but no model URL returned");
+
+  console.log(`[LoRA] Training complete. Model ID: ${loraModelId}`);
+  return { loraModelId };
+}
+```
+
+## Install required package
+Run: npm install jszip @types/jszip
+
+## Important notes:
+- Do not change shared/schema.ts
+- The ZIP must contain only image files (jpg, png, webp)
+- FAL.AI training takes 5-15 minutes — the current implementation waits for completion (synchronous)
+- Consider adding a timeout or making it async if needed
+- After fix, test by clicking LoRA 학습 button in Brand Studio
+- Success: toast shows "LoRA 학습 완료! 모델 ID: https://..."

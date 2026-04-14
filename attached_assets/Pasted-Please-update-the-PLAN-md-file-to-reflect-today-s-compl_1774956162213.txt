@@ -1,0 +1,132 @@
+Please update the PLAN.md file to reflect today's completed work and upcoming phases.
+
+## Add to Phase 2 (Marketing Command Center) — mark as COMPLETED
+
+### Make.com Integration — Completed 2026-03-31
+
+**Make.com Scenario (Integration Webhooks):**
+- Flow: Custom Webhook → Anthropic Claude (Sonnet 4.6) → HTTP module → our server
+- Claude module: Korean prompt instructing copywriting for Spoilt Dogs brand
+  - Input variables: topic, prompt_text, platform (from webhook payload)
+  - Output: Full social media post with caption + hashtags + emojis
+- HTTP module settings:
+  - URL: https://spoiltdogs.com.au/api/admin/marketing/queue
+  - Method: POST
+  - Header: x-api-key: {ADMIN_PASSWORD}
+  - Body fields: caption (mapped to Claude Text Response), topic, platform, status: "pending"
+- Data Structure "Spoiltdogs": topic (text), caption (text), platform (text), status (text)
+
+**Issues resolved during integration:**
+- 401 Unauthorized: required admin session login on production before testing
+- generated_content field empty: Claude prompt was confused by JSON formatting instructions → reverted to simple Korean prompt
+- "caption:" prefix appearing: removed hardcoded text from HTTP body field, left only the variable chip
+- extractJsonFromClaudeOutput() helper function added to adminRoutes.ts for robust JSON parsing
+
+**Progress bar added to Freeform Post dialog (admin-marketing.tsx):**
+- Timer-based progress bar: 0% → 90% over 30 seconds
+- Polling-based completion detection: checks queue every 2 seconds for new items
+- On new item detected: jumps to 100%, shows success toast, closes dialog automatically
+- Labels update during progress: "Make.com에 전송 중..." → "Claude가 콘텐츠를 작성하고 있습니다..." → "거의 다 됐어요..."
+
+---
+
+## Add new Phase 2.5 — Content Approval & Rewrite Flow (NEXT)
+
+> 승인된 카피를 기반으로 이미지/영상 제작 단계로 진입하는 워크플로우
+
+### 2.5-A. Queue Card UI 개선
+- [ ] 큐 카드에 **재작성(Rewrite)** 버튼 추가
+  - 클릭 시: 같은 topic + platform으로 Make.com 웹훅 재트리거
+  - 기존 항목은 status → "rejected" 처리 후 새 항목 생성
+- [ ] 큐 카드에 **카피 인라인 편집** 기능 추가
+  - 승인 전 caption 텍스트 직접 수정 가능
+  - 수정 후 저장 → PATCH /api/admin/marketing/queue/:id
+
+### 2.5-B. 비주얼 제작 단계 진입 (승인 후)
+- [ ] 승인(Approve) 클릭 시 → "비주얼 제작" 다이얼로그 자동 오픈
+  - 콘텐츠 타입 선택: Photo / Reel / TikTok Video
+  - imagePrompt 자동 제안 (caption 기반으로 AI가 생성)
+  - FAL.AI 모델 선택:
+    - Photo → Flux 2 Pro ($0.055/장)
+    - Card/Text Image → Ideogram V3 ($0.04/장)
+    - Reel/Video → Kling 3.0 ($0.10/초)
+- [ ] Make.com에 비주얼 생성 웹훅 트리거
+  - payload: { type: "visual", caption, imagePrompt, contentType, platform, queueId }
+- [ ] FAL.AI API 연동 (server/services/falService.ts)
+  - 환경변수: FAL_API_KEY
+  - 생성된 이미지/영상 URL을 marketing_queue.imageUrl / videoUrl 컬럼에 저장
+- [ ] DB 스키마 추가 (marketing_queue 테이블):
+  - imageUrl text — FAL.AI 생성 이미지 URL
+  - videoUrl text — FAL.AI 생성 영상 URL
+  - contentType text — "photo" | "reel" | "tiktok" | "card"
+  - scheduledAt timestamp — 예약 발행 시각
+  - postedAt timestamp — 실제 발행 완료 시각
+  - postId text — Meta/TikTok 게시물 ID (발행 후 저장)
+
+---
+
+## Add new Phase 2.6 — Content Scheduler
+
+> 콘텐츠 발행 일정 관리
+
+- [ ] 큐 카드에 **스케줄 설정** 버튼 추가
+  - 날짜/시간 선택 → scheduledAt DB 저장
+  - "즉시 발행" / "예약 발행" 선택 옵션
+- [ ] 어드민 마케팅 페이지에 **캘린더 뷰** 탭 추가
+  - 월간/주간 캘린더에 예약된 포스트 시각화
+  - 드래그로 일정 변경 가능
+- [ ] Make.com 스케줄러 시나리오
+  - 매 15분마다 실행: GET /api/admin/marketing/queue?status=approved&scheduledAt=now
+  - scheduledAt이 현재 시간 이내인 항목 → 자동 발행 트리거
+
+---
+
+## Add new Phase 2.7 — Social Media Publishing
+
+> Instagram / Facebook / TikTok 자동 발행
+
+### Instagram & Facebook (Meta Graph API)
+- [ ] Meta Developer App 설정
+  - Instagram Business Account 연결
+  - Facebook Page 연결
+  - 환경변수: META_ACCESS_TOKEN, META_IG_USER_ID, META_FB_PAGE_ID
+- [ ] server/services/metaService.ts 구현
+  - postInstagramPhoto(): 이미지 + 캡션 + 해시태그 발행
+  - postInstagramReel(): 영상 발행
+  - postFacebookPage(): Facebook 페이지 발행
+  - getPostInsights(): 좋아요, 도달수, 댓글수 수집
+- [ ] Make.com 발행 시나리오
+  - 승인된 항목 수신 → Meta Graph API 호출 → postId 저장 → status "posted" 업데이트
+- [ ] 발행 결과를 marketing_queue에 저장
+  - postId, postedAt, platform 업데이트
+
+### TikTok
+- [ ] TikTok for Developers API 설정
+  - 환경변수: TIKTOK_ACCESS_TOKEN
+- [ ] server/services/tiktokService.ts 구현
+  - postVideo(): 영상 + 캡션 발행
+- [ ] Make.com TikTok 발행 시나리오 연결
+
+### 발행 상태 표시 (어드민 UI)
+- [ ] 큐 카드에 발행 상태 배지 추가
+  - pending → approved → scheduled → posted
+- [ ] 발행된 포스트 링크 (Instagram/Facebook/TikTok 바로가기)
+- [ ] 성과 지표 표시 (좋아요, 도달수, 댓글수)
+
+---
+
+## Updated Status Summary
+
+| Phase | 내용 | 상태 |
+|---|---|---|
+| Phase 0 | Foundation | ✅ 완료 |
+| Phase 1 | Product Sourcing & Syncee 연동 | ✅ 완료 |
+| Phase 2 | Marketing Command Center (기본) | ✅ 완료 |
+| Phase 2.5 | Content Approval & Visual Creation | 🔲 다음 작업 |
+| Phase 2.6 | Content Scheduler | 🔲 대기 |
+| Phase 2.7 | Social Media Publishing | 🔲 대기 |
+| Phase 3 | Subscribe & Save 구독 모델 | 🔲 대기 |
+| Phase 4 | Full Automation (Gemini, CJ API) | 🔲 대기 |
+| Phase 5 | Infrastructure Finalization | 🔲 대기 |
+
+Please update the existing PLAN.md file with all the above information. Preserve all existing content and add/update the relevant sections. Do not delete any existing documentation.

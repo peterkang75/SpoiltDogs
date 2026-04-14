@@ -1,0 +1,164 @@
+IMPORTANT: After completing this task, update PLAN.md to reflect all changes made.
+
+Add a caption-to-video-prompt conversion step using Claude API before video generation.
+
+## Task 1: Add convertCaptionToVideoPrompt() in server/services/claudeMarketingService.ts
+
+Add this new function at the bottom of the file:
+
+export async function convertCaptionToVideoPrompt({
+  caption,
+  gukdungProfile,
+  imageGuidelines,
+}: {
+  caption: string;
+  gukdungProfile?: string;
+  imageGuidelines?: string;
+}): Promise<string> {
+  const anthropic = new Anthropic({
+    apiKey: process.env.ANTHROPIC_API_KEY,
+  });
+
+  const message = await anthropic.messages.create({
+    model: "claude-sonnet-4-5",
+    max_tokens: 300,
+    system: `You are an AI video prompt engineer. 
+Convert Instagram captions into concise video generation prompts for Veo 2 image-to-video model.
+
+Rules:
+- Focus on MOTION and MOVEMENT only
+- Describe what the dog is physically doing
+- Always include: natural speed, no slow motion, handheld camera, realistic movement
+- Keep under 100 words
+- No marketing language, no emojis
+- Output ONLY the prompt, nothing else
+
+${gukdungProfile ? `Dog profile: ${gukdungProfile}` : ""}
+${imageGuidelines ? `Visual style: ${imageGuidelines}` : ""}`,
+    messages: [
+      {
+        role: "user",
+        content: `Convert this Instagram caption into a video motion prompt:\n\n${caption}`,
+      },
+    ],
+  });
+
+  const text = message.content
+    .filter((block) => block.type === "text")
+    .map((block) => (block as any).text)
+    .join("");
+
+  return text.trim();
+}
+
+## Task 2: Update generateVideo() in server/services/falService.ts
+
+At the start of generateVideo(), add caption-to-video conversion:
+
+export async function generateVideo({
+  prompt,
+  caption,
+  model = "veo2-img2vid",
+  referenceImageUrls = [],
+  aspectRatio = "9:16",
+  gukdungProfile,
+  imageGuidelines,
+}: {
+  prompt: string;
+  caption?: string;
+  model?: string;
+  referenceImageUrls?: string[];
+  aspectRatio?: string;
+  gukdungProfile?: string;
+  imageGuidelines?: string;
+}): Promise<{ videoUrl: string; thumbnailUrl?: string; videoPrompt?: string }> {
+
+  // Convert caption to video motion prompt
+  let videoMotionPrompt = prompt;
+  if (caption) {
+    try {
+      const { convertCaptionToVideoPrompt } = await import("./claudeMarketingService");
+      videoMotionPrompt = await convertCaptionToVideoPrompt({
+        caption,
+        gukdungProfile,
+        imageGuidelines,
+      });
+      console.log("[Video] Motion prompt generated:", videoMotionPrompt);
+    } catch (err) {
+      console.warn("[Video] Caption conversion failed, using original prompt:", err);
+      videoMotionPrompt = prompt;
+    }
+  }
+
+  // Step 1: Generate Gukdung image with Nano Banana 2
+  // ... (existing step 1 code, use prompt for image generation)
+
+  // Step 2: Convert to video using videoMotionPrompt (not original prompt)
+  // In each video model case, use videoMotionPrompt instead of prompt
+  // e.g.:
+  // prompt: videoMotionPrompt,  ← use this for video step
+
+  return { videoUrl: permanentVideoUrl, thumbnailUrl, videoPrompt: videoMotionPrompt };
+}
+
+## Task 3: Update server/adminRoutes.ts — generate-image endpoint
+
+In the isVideo branch, pass caption and context to generateVideo():
+
+// Get Gukdung profile and image guidelines for video prompt
+const brandContext = await storage.getBrandContextItems();
+const gukdungProfile = brandContext
+  .filter(i => i.isActive && i.type === "gukdung_profile")
+  .map(i => i.content).join("\n");
+const imageGuidelines = brandContext
+  .filter(i => i.isActive && i.type === "image_guideline")
+  .map(i => i.content).join("\n");
+
+const { generateVideo } = await import("./services/falService");
+const result = await generateVideo({
+  prompt: enhancedPrompt,
+  caption: item.caption || "",
+  model: videoModel,
+  referenceImageUrls: referenceImages,
+  aspectRatio: "9:16",
+  gukdungProfile,
+  imageGuidelines,
+});
+
+// Save videoPrompt to imagePrompt field for display
+const updated = await storage.updateMarketingQueueItem(id, {
+  videoUrl: result.videoUrl,
+  imageUrl: result.thumbnailUrl || null,
+  imagePrompt: result.videoPrompt || item.imagePrompt,
+});
+
+return res.json({
+  success: true,
+  videoUrl: result.videoUrl,
+  thumbnailUrl: result.thumbnailUrl,
+  videoPrompt: result.videoPrompt,
+  item: updated,
+});
+
+## Task 4: Update QueueCard in admin-marketing.tsx
+
+When item has videoUrl, show the video motion prompt used:
+Change the IMAGE PROMPT label to VIDEO MOTION PROMPT when videoUrl exists:
+
+{item.videoUrl && item.imagePrompt && (
+  <div>
+    <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-0.5">
+      VIDEO MOTION PROMPT
+    </p>
+    <p className="text-xs text-gray-500 leading-relaxed">{item.imagePrompt}</p>
+  </div>
+)}
+
+## Important notes:
+- Do not change shared/schema.ts
+- The caption-to-video conversion uses Claude API (~$0.001 per conversion)
+- Step 1 image generation uses the original imagePrompt (visual description)
+- Step 2 video conversion uses the Claude-converted motion prompt from caption
+- If conversion fails, fall back to original prompt gracefully
+- Log the generated video motion prompt for debugging
+- Test: generate a reel → check console for "[Video] Motion prompt generated:" log → verify video is more natural

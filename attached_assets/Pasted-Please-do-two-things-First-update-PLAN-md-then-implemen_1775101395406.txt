@@ -1,0 +1,354 @@
+Please do two things: First update PLAN.md, then implement the code changes.
+
+## PART 1: Update PLAN.md
+
+Add the following to the appropriate sections:
+
+### Add to Phase 2.5-E (큐 카드 UI 개선) — update checklist:
+- [ ] 카피 인라인 편집 기능 (caption 직접 수정 후 PATCH 저장) — 다음 세션
+
+### Add new Phase 2.5-F checklist items (게시 형태 통합 선택):
+- [x] 콘텐츠 타입 선택 기능 추가 (Freeform 다이얼로그)
+- [x] 추가 지시사항 입력창 추가 (매번 그때그때 요구사항 반영)
+- [ ] 게시 형태 통합 선택으로 개편 (콘텐츠 타입 + 플랫폼을 하나로 통합)
+  - 인스타 피드 사진 → Flux Pro 1:1
+  - 인스타 스토리 사진 → Flux Pro 9:16
+  - 인스타 릴스 영상 → Kling 9:16
+  - 페이스북 포스트 → Flux Pro 1:1
+  - 틱톡 영상 → Kling 9:16
+  - 카드뉴스 → Ideogram 1:1
+  - 선택 한 번으로 게시 위치 + 결과물 형태 + AI 모델 자동 결정
+  - 이미지면 "이미지 생성" 버튼, 영상이면 "영상 생성" 버튼 자동 변경
+- [ ] 파일 업로드 기능 (Phase 2.5 2단계)
+  - 사진/영상 직접 업로드 → Supabase Storage 저장
+  - 업로드 파일 우선 사용, 부족할 때 AI 생성으로 보완
+  - Claude Vision API 연동 — 업로드 사진 보고 캡션 자동 생성
+
+### Add new section under Phase 2.5 — Supabase Storage 전략:
+Storage 설계 원칙:
+- 생성된 이미지/영상은 Supabase Storage에 영구 저장 (FAL.AI 임시 URL 의존 금지)
+- 버킷 구조:
+  - generated-images/ — AI 생성 이미지
+  - generated-videos/ — AI 생성 영상
+  - uploads/ — 어드민 직접 업로드 파일
+  - training-images/ — Gukdung LoRA 학습용 사진 (영구 보관)
+- 자동 삭제 정책 (스케줄러로 구현):
+  - posted 상태 콘텐츠 → 발행 후 30일 뒤 Supabase Storage에서 삭제 (SNS에 이미 게시됨)
+  - rejected 상태 콘텐츠 → 반려 후 7일 뒤 자동 삭제
+  - training-images/ 버킷 → 영구 보관 (삭제 정책 제외)
+- 비용 계획:
+  - Free 플랜 (1GB) — 시작 단계
+  - Pro 플랜 ($25/월, 100GB) — 영상 콘텐츠 본격 생성 시 업그레이드
+  - 자동 삭제 정책으로 Pro 플랜 100GB 내에서 장기 운영 가능
+
+### Add to Environment Variables section:
+| SUPABASE_STORAGE_BUCKET_IMAGES | generated-images 버킷명 | 미설정 |
+| SUPABASE_STORAGE_BUCKET_VIDEOS | generated-videos 버킷명 | 미설정 |
+| SUPABASE_STORAGE_BUCKET_UPLOADS | uploads 버킷명 | 미설정 |
+| SUPABASE_STORAGE_BUCKET_TRAINING | training-images 버킷명 | 미설정 |
+
+### Update SNS 전략 메모 (새 섹션 추가):
+인스타그램 콘텐츠 전략 (시작 단계 기준):
+- 팔로워 초기 단계: 릴스에 집중 (팔로워 0명도 노출 가능)
+- 콘텐츠 우선순위: 릴스 > 피드 이미지 > 카드뉴스 > 스토리
+- Gukdung 실제 촬영 영상이 AI 생성보다 바이럴 효과 높음
+- AI 생성 이미지: 촬영 없는 날 피드 채우기, 상품 홍보, 시즌 이벤트 용도
+- AI 카피/해시태그 자동 생성: 현재 완성, 매 포스트 활용
+
+---
+
+## PART 2: Implement Code Changes
+
+### Goal
+1. Refactor the post creation dialog to use a single "게시 형태" selector that combines content type + platform + AI model into one choice
+2. Save generated images/videos to Supabase Storage instead of using temporary FAL.AI URLs
+3. Implement auto-delete policy for old content from Supabase Storage
+
+---
+
+### Step 1: Create Supabase Storage buckets via server
+
+Add to `server/services/storageService.ts` (new file):
+```typescript
+import { createClient } from "@supabase/supabase-js";
+
+const supabase = createClient(
+  process.env.SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+);
+
+const BUCKETS = {
+  images: "generated-images",
+  videos: "generated-videos",
+  uploads: "uploads",
+  training: "training-images",
+};
+
+export async function ensureBucketsExist() {
+  for (const [key, name] of Object.entries(BUCKETS)) {
+    const { data, error } = await supabase.storage.getBucket(name);
+    if (error && error.message.includes("not found")) {
+      await supabase.storage.createBucket(name, {
+        public: true,
+        fileSizeLimit: key === "videos" ? 524288000 : 52428800, // 500MB for videos, 50MB for images
+      });
+      console.log(`[Storage] Created bucket: ${name}`);
+    }
+  }
+}
+
+export async function saveImageFromUrl(imageUrl: string, filename: string): Promise<string> {
+  const response = await fetch(imageUrl);
+  const buffer = await response.arrayBuffer();
+  const uint8Array = new Uint8Array(buffer);
+
+  const { data, error } = await supabase.storage
+    .from(BUCKETS.images)
+    .upload(`${filename}.jpg`, uint8Array, {
+      contentType: "image/jpeg",
+      upsert: true,
+    });
+
+  if (error) throw new Error(`Storage upload failed: ${error.message}`);
+
+  const { data: urlData } = supabase.storage
+    .from(BUCKETS.images)
+    .getPublicUrl(`${filename}.jpg`);
+
+  return urlData.publicUrl;
+}
+
+export async function saveVideoFromUrl(videoUrl: string, filename: string): Promise<string> {
+  const response = await fetch(videoUrl);
+  const buffer = await response.arrayBuffer();
+  const uint8Array = new Uint8Array(buffer);
+
+  const { data, error } = await supabase.storage
+    .from(BUCKETS.videos)
+    .upload(`${filename}.mp4`, uint8Array, {
+      contentType: "video/mp4",
+      upsert: true,
+    });
+
+  if (error) throw new Error(`Storage upload failed: ${error.message}`);
+
+  const { data: urlData } = supabase.storage
+    .from(BUCKETS.videos)
+    .getPublicUrl(`${filename}.mp4`);
+
+  return urlData.publicUrl;
+}
+
+export async function deleteFromStorage(url: string) {
+  try {
+    const urlObj = new URL(url);
+    const pathParts = urlObj.pathname.split("/storage/v1/object/public/");
+    if (pathParts.length < 2) return;
+
+    const fullPath = pathParts[1];
+    const [bucket, ...fileParts] = fullPath.split("/");
+    const filePath = fileParts.join("/");
+
+    await supabase.storage.from(bucket).remove([filePath]);
+    console.log(`[Storage] Deleted: ${fullPath}`);
+  } catch (err) {
+    console.error("[Storage] Delete failed:", err);
+  }
+}
+
+export async function cleanupOldContent() {
+  const { storage: db } = await import("../storage");
+
+  // 1. Delete rejected items older than 7 days
+  const queue = await db.getMarketingQueue();
+  const now = new Date();
+
+  for (const item of queue) {
+    const createdAt = new Date(item.createdAt);
+    const daysSinceCreated = (now.getTime() - createdAt.getTime()) / (1000 * 60 * 60 * 24);
+
+    if (item.status === "rejected" && daysSinceCreated > 7) {
+      if (item.imageUrl) await deleteFromStorage(item.imageUrl);
+      if (item.videoUrl) await deleteFromStorage(item.videoUrl);
+      await db.deleteMarketingQueueItem(item.id);
+      console.log(`[Cleanup] Deleted rejected item: ${item.id}`);
+    }
+
+    // 2. Delete storage files for posted items older than 30 days (keep DB record)
+    const postedAt = item.postedAt ? new Date(item.postedAt) : null;
+    if (item.status === "posted" && postedAt) {
+      const daysSincePosted = (now.getTime() - postedAt.getTime()) / (1000 * 60 * 60 * 24);
+      if (daysSincePosted > 30) {
+        if (item.imageUrl && item.imageUrl.includes("supabase")) {
+          await deleteFromStorage(item.imageUrl);
+          await db.updateMarketingQueueItem(item.id, { imageUrl: null });
+        }
+        if (item.videoUrl && item.videoUrl.includes("supabase")) {
+          await deleteFromStorage(item.videoUrl);
+          await db.updateMarketingQueueItem(item.id, { videoUrl: null });
+        }
+      }
+    }
+  }
+
+  console.log("[Cleanup] Storage cleanup completed");
+}
+```
+
+### Step 2: Update `server/services/falService.ts`
+
+After generating image or video, save to Supabase Storage and return permanent URL:
+
+In `generateImage()`, after getting result.imageUrl:
+```typescript
+import { saveImageFromUrl, saveVideoFromUrl } from "./storageService";
+
+// After getting imageUrl from FAL.AI:
+if (model === "kling") {
+  const tempUrl = result.video?.url || "";
+  if (!tempUrl) return { imageUrl: "" };
+  const filename = `video_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+  const permanentUrl = await saveVideoFromUrl(tempUrl, filename);
+  return { imageUrl: permanentUrl };
+}
+
+// For images:
+const tempUrl = result.images?.[0]?.url || "";
+if (!tempUrl) return { imageUrl: "" };
+const filename = `img_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+const permanentUrl = await saveImageFromUrl(tempUrl, filename);
+return { imageUrl: permanentUrl, seed: result.seed };
+```
+
+### Step 3: Refactor Freeform Post Dialog in `client/src/pages/admin-marketing.tsx`
+
+Replace the separate Platform + Content Type selectors with a single "게시 형태" selector.
+
+Add this constant at the top of the file:
+```typescript
+const POST_FORMAT_OPTIONS = [
+  {
+    value: "instagram_feed",
+    label: "📸 인스타 피드 사진",
+    platform: "instagram",
+    contentType: "feed_image",
+    model: "flux-pro",
+    aspectRatio: "1:1",
+    description: "정방형 · Flux Pro",
+  },
+  {
+    value: "instagram_story",
+    label: "⭕ 인스타 스토리 사진",
+    platform: "instagram",
+    contentType: "story_image",
+    model: "flux-pro",
+    aspectRatio: "9:16",
+    description: "세로형 · Flux Pro",
+  },
+  {
+    value: "instagram_reel",
+    label: "🎬 인스타 릴스 영상",
+    platform: "instagram",
+    contentType: "reel",
+    model: "kling",
+    aspectRatio: "9:16",
+    description: "세로형 영상 · Kling",
+  },
+  {
+    value: "facebook_post",
+    label: "👥 페이스북 포스트",
+    platform: "facebook",
+    contentType: "feed_image",
+    model: "flux-pro",
+    aspectRatio: "1:1",
+    description: "정방형 · Flux Pro",
+  },
+  {
+    value: "tiktok_video",
+    label: "🎵 틱톡 영상",
+    platform: "tiktok",
+    contentType: "tiktok",
+    model: "kling",
+    aspectRatio: "9:16",
+    description: "세로형 영상 · Kling",
+  },
+  {
+    value: "card_news",
+    label: "🃏 카드뉴스",
+    platform: "instagram",
+    contentType: "card_news",
+    model: "ideogram",
+    aspectRatio: "1:1",
+    description: "텍스트 포함 · Ideogram",
+  },
+];
+```
+
+Replace freeformPlatform and freeformContentType states with single:
+```typescript
+const [freeformPostFormat, setFreeformPostFormat] = useState("instagram_feed");
+```
+
+In the dialog, replace Platform + ContentType selectors with:
+- Label: "게시 형태"
+- Single Select using POST_FORMAT_OPTIONS
+- Show description as small gray text below: e.g. "정방형 · Flux Pro"
+
+Update handleFreeformGenerate:
+```typescript
+const selectedFormat = POST_FORMAT_OPTIONS.find(f => f.value === freeformPostFormat)!;
+generateMut.mutate({
+  topic: freeformTopic.trim(),
+  prompt_id: freeformTone,
+  platform: selectedFormat.platform,
+  contentType: selectedFormat.contentType,
+  model: selectedFormat.model,
+  aspectRatio: selectedFormat.aspectRatio,
+  additionalInstructions: freeformAdditionalInstructions.trim(),
+});
+```
+
+Update image generation button label in QueueCard:
+- If contentType is "reel" or "tiktok" → button label: "영상 생성"
+- Otherwise → "이미지 생성"
+
+### Step 4: Update server/adminRoutes.ts
+
+Update POST /api/admin/marketing/generate to accept model and aspectRatio:
+```typescript
+const { topic, prompt_id, platform, contentType, model, aspectRatio, additionalInstructions } = req.body;
+```
+
+Pass aspectRatio to claudeMarketingService so imagePrompt includes correct ratio hint.
+
+Update POST /api/admin/marketing/queue/:id/generate-image:
+Use the queue item's contentType to determine model if not explicitly provided (existing logic is fine).
+
+### Step 5: Initialize storage buckets on server start
+
+In `server/index.ts`, add after existing startup cleanup:
+```typescript
+import { ensureBucketsExist } from "./services/storageService";
+await ensureBucketsExist();
+```
+
+### Step 6: Add cleanup to scheduler (or run daily)
+
+In `server/index.ts`, add a daily cleanup interval:
+```typescript
+import { cleanupOldContent } from "./services/storageService";
+
+// Run cleanup once on startup, then every 24 hours
+cleanupOldContent().catch(console.error);
+setInterval(() => {
+  cleanupOldContent().catch(console.error);
+}, 24 * 60 * 60 * 1000);
+```
+
+### Important notes:
+- Do not break any existing queue functionality
+- The POST_FORMAT_OPTIONS model field should be passed through to the generate-image endpoint as the default model
+- Keep additionalInstructions as optional textarea (no validation)
+- Test: Create a post with "인스타 릴스 영상" format → verify contentType is "reel", platform is "instagram", model is "kling"
+- Test: Create a post with "카드뉴스" format → verify model is "ideogram"
+- Supabase Storage URLs should be permanent (contain supabase.co domain)

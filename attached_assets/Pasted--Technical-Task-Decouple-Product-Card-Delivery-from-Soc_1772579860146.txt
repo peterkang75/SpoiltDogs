@@ -1,0 +1,26 @@
+### Technical Task: Decouple Product Card Delivery from Socket.io for Email Replies
+
+**1. Problem Identification:**
+- The current implementation of sending product cards is strictly coupled with `Socket.io` room availability.
+- When replying to an email inquiry (where the customer is not actively on the site), the `getVisitorRoom` returns `null`, causing the message/card delivery to fail or remain unstable.
+- The recent fix involving `emailToVisitorRoom` mapping still relies on a live socket connection, which doesn't solve the issue for offline email recipients.
+
+**2. Goal:**
+- Ensure product cards are delivered via the **Email Service (SMTP/API)** regardless of whether a real-time socket room exists.
+- The system should check for a live connection but should not "return" or fail if one isn't found.
+
+**3. Required Refactoring (Logical Flow):**
+- **Step 1 (Database):** Save the message and product card data to the database immediately.
+- **Step 2 (Socket Check):** Check if a `Socket.io` room exists for the user (using profileId or email).
+    - If **Online**: Emit `chat:new-message` to update the UI in real-time.
+    - If **Offline/Email Mode**: Do NOT stop. Proceed to Step 3.
+- **Step 3 (Email Dispatch):** Trigger the email service (e.g., SendGrid, Postmark, or internal Mailer) to send the reply. 
+    - The product card must be rendered as a **responsive HTML component** (Image, Title, Price, Link) within the email body.
+
+**4. Specific Instructions for handleSend Function:**
+- Remove any `if (!room) return;` logic that prevents the rest of the execution.
+- Implement a fallback mechanism: `sendViaSocket() || log('Socket offline'); sendViaEmail();`.
+- Ensure `Query Cache Invalidation` still triggers for the Admin CRM timeline so the sent status is reflected visually for the agent.
+
+**5. Expected Outcome:**
+- Agents can send product cards to customers who reached out via email, even if those customers are currently offline. The customer will receive the card directly in their email inbox.

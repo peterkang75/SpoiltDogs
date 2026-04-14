@@ -1,0 +1,29 @@
+### Image generation: Dynamic Pet Image with Irregular Oval Background & Warm Vibe
+
+Please generate a high-quality pet image with the following specifications, designed for the "SpoiltDog" Hero section, inspired by the "PATS" reference (image_7.png, image_16.png).
+
+**Execution Plan:**
+
+1. **Subject (Dog):**
+- Use the dog image (`image_35.png` or current placeholder) as the base.
+- **Leash and Harness Removal**: REMOVE the leash and all parts of the purple harness completely.
+- **Focus Correction**: Ensure the entire dog's face, especially the eyes, is in sharp, clear focus.
+- **Expression Update**: Change the current neutral tongue-out expression to a clear, happy, and slightly smiling expression. The smile should feel warm and sincere.
+
+2. **Background Shapes:**
+- Add a large, smooth, irregularly shaped oval (like a soft blob or jelly-bean shape) behind the pet image. This shape should not have rigid straight lines.
+- **Background Oval Color**: Use the specific deep forest green color from the PATS reference: `#2D5A47`. Ensure this color is solid and does not contain any cross-grid pattern.
+
+3. **Pet Image Placement & 3D Effect:**
+- Place the revised, sharply focused, smiling dog image inside the center of this irregular oval.
+- **"Break the Frame" Effect**: Scale the dog image slightly larger than the oval, so its head and ears "break" or float slightly above the top curve of the oval.
+
+4. **Atmosphere (Scene within the Oval):**
+- The inner background of the oval (behind the dog, between its new shape and its face) should show a deeply sun-dappled, warm, and peaceful park or meadow.
+- **Vibe**: The sunlight should feel golden, extremely warm, and peaceful, casting soft, warm light on the dog's fur, removing any current cold-light feel. This is not just a flat color, but a peaceful scene of sun-drenched greenery.
+
+5. **Visual Polish:**
+- Ensure the primary headline "Because your dog deserves the best" and other text from image_27.png are present and clear, with the headline being pure white (#FFFFFF) for luxurious contrast.
+- Add a refined, stylized, small decorative icon (like a paw print or heart) near the oval to mimic the "Approved by Vets" sticker from the reference.
+
+**Output**: Re-generate the entire Hero section code for `app/page.tsx` that integrates this dynamically shaped, smiling, sharp dog image.

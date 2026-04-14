@@ -1,0 +1,81 @@
+[1G[0K⠙[1G[0K
+> rest-express@1.0.0 dev
+> NODE_ENV=development tsx server/index.ts
+
+[1G[0K⠙[1G[0K9:32:00 PM [stripe] Initializing Stripe schema...
+[WC-Emulator] WooCommerce API emulation active
+[WC-Emulator] Store URL: https://acf5977d-c600-4de4-a88e-defcbf36c1e9-00-1jtvv9myxvvdf.worf.replit.dev
+[WC-Emulator] Consumer Key: ck_ff47ac93e857d3e9f11ebd93e2774ecf9d0ea1b3
+[WC-Emulator] OAuth endpoint: /wc-auth/v1/authorize
+9:32:02 PM [express] serving on port 5000
+[Cleanup] Storage cleanup completed
+9:32:02 PM [stripe] Stripe schema ready
+[Storage] Could not create bucket "generated-videos": The object exceeded the maximum allowed size
+Browserslist: browsers data (caniuse-lite) is 6 months old. Please run:
+  npx update-browserslist-db@latest
+  Why you should do it regularly: https://github.com/browserslist/update-db#readme
+
+A PostCSS plugin did not pass the `from` option to `postcss.parse`. This may cause imported assets to be incorrectly transformed. If you've recently added a PostCSS plugin that raised this warning, please contact the package author to fix the issue.
+{ autoExpandLists: [90mundefined[39m, stripeApiVersion: [90mundefined[39m } StripeSync initialized
+{
+  error: StripeInvalidRequestError: No such webhook endpoint: 'we_1THEGuRo1p4qb2v3BYP1cW1f'
+      at generateV1Error [90m(file:///home/runner/workspace/[39mnode_modules/[4mstripe[24m/esm/Error.js:8:20[90m)[39m
+      at res.toJSON.then.StripeAPIError.message [90m(file:///home/runner/workspace/[39mnode_modules/[4mstripe[24m/esm/RequestSender.js:111:31[90m)[39m
+  [90m    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)[39m {
+    type: [32m'StripeInvalidRequestError'[39m,
+    raw: {
+      code: [32m'resource_missing'[39m,
+      doc_url: [32m'https://stripe.com/docs/error-codes/resource-missing'[39m,
+      message: [32m"No such webhook endpoint: 'we_1THEGuRo1p4qb2v3BYP1cW1f'"[39m,
+      param: [32m'webhook_endpoint'[39m,
+      request_log_url: [32m'https://dashboard.stripe.com/acct_1T6LBkRo1p4qb2v3/test/workbench/logs?object=req_ih45xheJeYGH9C'[39m,
+      type: [32m'invalid_request_error'[39m,
+      headers: [36m[Object][39m,
+      statusCode: [33m404[39m,
+      requestId: [32m'req_ih45xheJeYGH9C'[39m
+    },
+    rawType: [32m'invalid_request_error'[39m,
+    code: [32m'resource_missing'[39m,
+    doc_url: [32m'https://stripe.com/docs/error-codes/resource-missing'[39m,
+    param: [32m'webhook_endpoint'[39m,
+    detail: [90mundefined[39m,
+    headers: {
+      server: [32m'nginx'[39m,
+      date: [32m'Thu, 02 Apr 2026 21:32:11 GMT'[39m,
+      [32m'content-type'[39m: [32m'application/json'[39m,
+      [32m'content-length'[39m: [32m'390'[39m,
+      connection: [32m'keep-alive'[39m,
+      [32m'access-control-allow-credentials'[39m: [32m'true'[39m,
+      [32m'access-control-allow-methods'[39m: [32m'GET, HEAD, PUT, PATCH, POST, DELETE'[39m,
+      [32m'access-control-allow-origin'[39m: [32m'*'[39m,
+      [32m'access-control-expose-headers'[39m: [32m'Request-Id, Stripe-Manage-Version, Stripe-Should-Retry, X-Stripe-External-Auth-Required, X-Stripe-Privileged-Session-Required'[39m,
+      [32m'access-control-max-age'[39m: [32m'300'[39m,
+      [32m'cache-control'[39m: [32m'no-cache, no-store'[39m,
+      [32m'content-security-policy'[39m: [32m"base-uri 'none'; default-src 'none'; form-action 'none'; frame-ancestors 'none'; img-src 'self'; script-src 'self' 'report-sample'; style-src 'self'; worker-src 'none'; upgrade-insecure-requests; report-uri https://q.stripe.com/csp-violation?q=Oq9YhSm5SudsOdGZkNCuxJmVZFvTM5qUUYK17sJGaPHEahl72eKo1Kz3NjtUuDpQMlposGRFKBKknYct"[39m,
+      [32m'request-id'[39m: [32m'req_ih45xheJeYGH9C'[39m,
+      [32m'stripe-version'[39m: [32m'2025-11-17.clover'[39m,
+      vary: [32m'Origin'[39m,
+      [32m'x-stripe-priority-routing-enabled'[39m: [32m'true'[39m,
+      [32m'x-stripe-routing-context-priority-tier'[39m: [32m'api-testmode'[39m,
+      [32m'x-wc'[39m: [32m'3c3'[39m,
+      [32m'strict-transport-security'[39m: [32m'max-age=63072000; includeSubDomains; preload'[39m
+    },
+    requestId: [32m'req_ih45xheJeYGH9C'[39m,
+    statusCode: [33m404[39m,
+    userMessage: [90mundefined[39m,
+    charge: [90mundefined[39m,
+    decline_code: [90mundefined[39m,
+    payment_intent: [90mundefined[39m,
+    payment_method: [90mundefined[39m,
+    payment_method_type: [90mundefined[39m,
+    setup_intent: [90mundefined[39m,
+    source: [90mundefined[39m
+  },
+  webhookId: [32m'we_1THEGuRo1p4qb2v3BYP1cW1f'[39m
+} Webhook not found in Stripe (404), removing from database
+{
+  webhookId: [32m'we_1THEzXRo1p4qb2v3QfWZXTEh'[39m,
+  url: [32m'https://spoilt-dog.replit.app/api/stripe/webhook'[39m
+} Found orphaned managed webhook in Stripe, deleting
+9:32:12 PM [stripe] Webhook configured: https://acf5977d-c600-4de4-a88e-defcbf36c1e9-00-1jtvv9myxvvdf.worf.replit.dev/api/stripe/webhook
+9:32:12 PM [stripe] Stripe data synced

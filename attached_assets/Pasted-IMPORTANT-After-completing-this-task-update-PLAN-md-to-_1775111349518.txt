@@ -1,0 +1,108 @@
+IMPORTANT: After completing this task, update PLAN.md to reflect all changes made.
+
+Add a separate image_guideline type to brand_context and create a dedicated image generation pipeline.
+
+## Task 1: Update Brand Studio UI — add image_guideline tab section
+
+In client/src/pages/admin-brand-studio.tsx:
+
+In the "캠페인 메모리" tab, add a separate section above the existing campaign_memory items for image_guideline type:
+
+Add a divider section titled "🎨 이미지 생성 가이드라인" with:
+- Description: "이미지 생성 시 FAL.AI에 직접 전달되는 시각적 가이드라인"
+- Same CRUD UI as other sections (add/edit/delete cards)
+- Filter: type === "image_guideline"
+- Add button label: "+ 이미지 가이드라인 추가"
+
+When creating new item in this section, default type to "image_guideline".
+
+## Task 2: Update server/services/claudeMarketingService.ts
+
+In generateMarketingContent(), separate image guidelines from post guidelines:
+
+1. Filter brand context by type:
+const imageGuidelines = activeItems.filter(i => i.type === "image_guideline")
+  .map(i => `[${i.title}]\n${i.content}`).join("\n\n");
+
+const postGuidelines = activeItems.filter(i => i.type === "post_guideline")
+  .map(i => `[${i.title}]\n${i.content}`).join("\n\n");
+
+2. Add postGuidelines to system prompt (for caption/copy generation):
+${postGuidelines ? `== POST GUIDELINES ==\n${postGuidelines}` : ""}
+
+3. Do NOT include imageGuidelines in Claude system prompt.
+Instead, return imageGuidelines from the function so it can be passed to FAL.AI directly.
+
+4. Update return type to include imageGuidelines:
+return {
+  caption: parsed.caption || responseText,
+  hashtags: parsed.hashtags || "",
+  imagePrompt: parsed.imagePrompt || "",
+  imageGuidelines: imageGuidelines, // NEW
+};
+
+## Task 3: Update server/adminRoutes.ts — generate endpoint
+
+In POST /api/admin/marketing/generate:
+
+After calling generateMarketingContent(), save imageGuidelines to the queue item:
+const item = await storage.createMarketingQueueItem({
+  ...
+  imagePrompt: result.imagePrompt,
+  // Store image guidelines separately — will be appended during image generation
+});
+
+Also store imageGuidelines in a new field OR append it to imagePrompt with a separator.
+For simplicity, append to imagePrompt:
+const fullImagePrompt = result.imagePrompt + 
+  (result.imageGuidelines ? `\n\n=== STYLE GUIDELINES ===\n${result.imageGuidelines}` : "");
+
+Save fullImagePrompt as imagePrompt in DB.
+
+## Task 4: Update server/adminRoutes.ts — generate-image endpoint
+
+In POST /api/admin/marketing/queue/:id/generate-image:
+
+Fetch image guidelines from DB separately and append to prompt:
+const brandContext = await storage.getBrandContextItems();
+const imageGuidelineItems = brandContext
+  .filter(item => item.isActive && item.type === "image_guideline")
+  .map(item => item.content)
+  .join("\n");
+
+Build enhanced prompt:
+const basePrompt = item.imagePrompt || item.caption || "";
+const enhancedPrompt = basePrompt + 
+  (imageGuidelineItems ? `\n\nSTRICT VISUAL REQUIREMENTS - MUST FOLLOW:\n${imageGuidelineItems}` : "") +
+  "\nProfessional pet photography style, high quality.";
+
+Pass enhancedPrompt to generateImage().
+
+## Task 5: Update Brand Studio — move existing image guideline items
+
+In admin-brand-studio.tsx, also update the type selector in the "항목 추가" dialog to include "image_guideline" as an option with label "이미지 가이드라인".
+
+The full type options should be:
+- gukdung_profile → "Gukdung 프로필"
+- brand_voice → "브랜드 보이스"
+- campaign_memory → "캠페인 메모리"
+- post_guideline → "포스트 가이드라인"
+- image_guideline → "이미지 가이드라인" (NEW)
+
+## Task 6: Update PLAN.md
+
+Add to brand_context table:
+| image_guideline | FAL.AI 이미지 생성 파이프라인에 직접 전달되는 시각적 가이드라인 (배경, 조명, 스타일, 금지사항) |
+
+Document the two separate pipelines:
+카피 생성 파이프라인 (Claude):
+- gukdung_profile, brand_voice, campaign_memory, post_guideline 사용
+
+이미지 생성 파이프라인 (FAL.AI):
+- image_guideline 타입만 사용
+- imagePrompt에 직접 주입 (Claude 개입 없음)
+
+## Important notes:
+- Do not change shared/schema.ts (image_guideline is a new VALUE for the existing type column, not a schema change)
+- Keep all existing functionality unchanged
+- Test: add an image_guideline item "배경: 짙은 남색 카페트, 크림색 소파" → generate new post → check imagePrompt includes this guideline

@@ -1,0 +1,125 @@
+IMPORTANT: After completing this task, update PLAN.md to reflect all changes made.
+
+Add Veo 2, Veo 3, and Kling 3.0 video models to the image/video generation pipeline.
+
+## Task 1: Update ImageModel type and generateImage() in server/services/falService.ts
+
+Update ImageModel type:
+export type ImageModel = "nano-banana-2" | "nano-banana-pro" | "nano-banana" | "ideogram" | "kling" | "kling-3" | "veo2" | "veo3";
+
+Add new video model cases to generateImage():
+
+if (model === "kling-3") {
+  const result = await fal.run("fal-ai/kling-video/v2.5-turbo/pro/text-to-video", {
+    input: {
+      prompt,
+      duration: "5",
+      aspect_ratio: "9:16",
+    },
+  }) as any;
+  const videoUrl = result.video?.url || "";
+  if (!videoUrl) throw new Error("Kling 3 returned no video URL");
+  const { saveVideoFromUrl } = await import("./storageService");
+  const filename = `video_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+  const permanentUrl = await saveVideoFromUrl(videoUrl, filename);
+  return { imageUrl: permanentUrl };
+}
+
+if (model === "veo2") {
+  const result = await fal.run("fal-ai/veo2", {
+    input: {
+      prompt,
+      duration: "5s",
+      aspect_ratio: "9:16",
+    },
+  }) as any;
+  const videoUrl = result.video?.url || "";
+  if (!videoUrl) throw new Error("Veo 2 returned no video URL");
+  const { saveVideoFromUrl } = await import("./storageService");
+  const filename = `video_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+  const permanentUrl = await saveVideoFromUrl(videoUrl, filename);
+  return { imageUrl: permanentUrl };
+}
+
+if (model === "veo3") {
+  const result = await fal.run("fal-ai/veo3", {
+    input: {
+      prompt,
+      aspect_ratio: "9:16",
+      audio_enabled: false,
+    },
+  }) as any;
+  const videoUrl = result.video?.url || "";
+  if (!videoUrl) throw new Error("Veo 3 returned no video URL");
+  const { saveVideoFromUrl } = await import("./storageService");
+  const filename = `video_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+  const permanentUrl = await saveVideoFromUrl(videoUrl, filename);
+  return { imageUrl: permanentUrl };
+}
+
+## Task 2: Update IMAGE_MODEL_OPTIONS in client/src/pages/admin-marketing.tsx
+
+Replace the kling entry and add new video models:
+
+{
+  value: "kling",
+  label: "🎬 Kling 1.6",
+  description: "기본 영상 · $0.50/5초",
+  forTypes: ["reel", "tiktok"],
+},
+{
+  value: "kling-3",
+  label: "🎬✨ Kling 3.0",
+  description: "고품질 영상 · $1.00/5초 · 추천",
+  forTypes: ["reel", "tiktok"],
+},
+{
+  value: "veo2",
+  label: "🎥 Veo 2",
+  description: "Google · 물리 기반 모션 · $2.50/5초",
+  forTypes: ["reel", "tiktok"],
+},
+{
+  value: "veo3",
+  label: "🎥✨ Veo 3",
+  description: "Google 최고품질 · 사운드 지원 · $1.00/5초",
+  forTypes: ["reel", "tiktok"],
+},
+
+## Task 3: Update default model selection in QueueCard
+
+In the useEffect that sets default model:
+if (item.contentType === "reel" || item.contentType === "tiktok") {
+  setSelectedImageModel("kling-3"); // upgrade default from kling to kling-3
+}
+
+## Task 4: Update auto-model selection in server/adminRoutes.ts
+
+In POST /api/admin/marketing/queue/:id/generate-image:
+Change default video model from "kling" to "kling-3":
+} else if (contentType === "reel" || contentType === "tiktok") {
+  model = "kling-3"; // upgraded from kling
+  aspectRatio = "9:16";
+}
+
+## Task 5: Update model selector display in QueueCard
+
+Add cost indicator to help admin choose:
+Show a small info text below the model selector:
+- kling: "~$0.50/영상"
+- kling-3: "~$1.00/영상 ⭐추천"
+- veo2: "~$2.50/영상"
+- veo3: "~$1.00/영상 🔊사운드"
+
+Show this as a small gray text below the Select component:
+const selectedModelInfo = IMAGE_MODEL_OPTIONS.find(m => m.value === selectedImageModel);
+{selectedModelInfo && (
+  <p className="text-xs text-gray-400 mt-1">{selectedModelInfo.description}</p>
+)}
+
+## Important notes:
+- Do not change shared/schema.ts
+- Veo 3 with audio_enabled: false costs $0.20/second = $1.00 for 5 seconds
+- Veo 3 with audio_enabled: true costs $0.40/second = $2.00 for 5 seconds
+- Keep all existing functionality unchanged
+- Test: select "Veo 3" model on a reel queue item → generate → compare quality with Kling 1.6

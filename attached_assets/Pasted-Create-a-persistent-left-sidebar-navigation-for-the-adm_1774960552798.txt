@@ -1,0 +1,131 @@
+Create a persistent left sidebar navigation for the admin area. This replaces the current scattered header buttons across admin pages.
+
+## Goal
+All admin pages share a common left sidebar with navigation links. As new admin features are added in the future, they get added to this sidebar.
+
+## Step 1: Create shared layout component `client/src/components/admin-layout.tsx`
+
+This is a wrapper component that renders the sidebar + main content area.
+
+The sidebar should be:
+- Fixed left side, full height, width 220px
+- Background: #1a3a2e (dark green, same as current headers)
+- Sticky on scroll
+- Collapsible on mobile (hamburger toggle)
+
+Sidebar content (top to bottom):
+1. Logo/Brand area at top:
+   - SpoiltDogs logo text or paw icon
+   - Small subtitle: "어드민"
+
+2. Navigation menu items (with lucide-react icons):
+   - 상품 관리 → /admin/products (icon: Package)
+   - CRM → /admin/crm (icon: Users)
+   - 마케팅 → /admin/marketing (icon: Megaphone)
+   - 브랜드 스튜디오 → /admin/brand-studio (icon: Palette)
+   - (more items will be added here in future)
+
+3. Bottom area:
+   - 로그아웃 button (icon: LogOut)
+   - Calls POST /api/admin/logout then navigates to /admin/login
+
+Sidebar item styling:
+- Default: text-white/70, hover: text-white + bg-white/10, rounded-lg
+- Active (current page): text-white + bg-white/15 + left border 3px solid #FFD54F (gold)
+- Icon size: h-4 w-4
+- Font: text-sm font-medium
+- Padding: px-3 py-2.5
+- Gap between icon and label: gap-3
+
+Use `useLocation` from wouter to detect active route.
+
+The main content area:
+- margin-left: 220px on desktop
+- Full width on mobile (sidebar overlays)
+- No top padding needed (each page manages its own)
+
+Component signature:
+```typescript
+export function AdminLayout({ children }: { children: React.ReactNode }) {
+  // sidebar + children
+}
+```
+
+## Step 2: Update all admin pages to use AdminLayout
+
+Wrap the content of these pages with AdminLayout and REMOVE their individual sticky headers that duplicate navigation:
+
+Pages to update:
+- client/src/pages/admin-crm.tsx
+- client/src/pages/admin-marketing.tsx  
+- client/src/pages/admin-brand-studio.tsx
+- client/src/pages/admin-products.tsx (if exists)
+
+For each page:
+- Remove the sticky top header bar that contains back/navigation buttons
+- Remove navigation buttons that link to other admin pages (these are now in sidebar)
+- Keep the page title as an inline heading inside the content area
+- Wrap the entire page return with <AdminLayout>...</AdminLayout>
+- Keep all existing functionality (tabs, buttons, modals, etc.) unchanged
+
+Example transformation for admin-marketing.tsx:
+BEFORE:
+  <div className="min-h-screen" style={{ backgroundColor: "#FCF9F1" }}>
+    <div className="sticky top-0 z-30 ... header with nav buttons">
+      ...back to CRM button, brand studio button...
+    </div>
+    <div className="max-w-6xl mx-auto px-6 py-8">
+      ...content...
+    </div>
+  </div>
+
+AFTER:
+  <AdminLayout>
+    <div className="min-h-screen" style={{ backgroundColor: "#FCF9F1" }}>
+      <div className="max-w-6xl mx-auto px-6 py-8">
+        <h1 className="text-xl font-bold mb-6" style={{ color: "#1a3a2e" }}>마케팅 커맨드 센터</h1>
+        ...content...
+      </div>
+    </div>
+  </AdminLayout>
+
+## Step 3: Update App.tsx routes
+
+Make sure all admin routes are still registered:
+- /admin/login → AdminLogin (no sidebar)
+- /admin/crm → AdminCRM (with AdminLayout)
+- /admin/marketing → AdminMarketing (with AdminLayout)
+- /admin/brand-studio → AdminBrandStudio (with AdminLayout)
+- /admin/products → AdminProducts (with AdminLayout)
+
+AdminLogin page does NOT use AdminLayout (no sidebar on login page).
+
+## Step 4: Mobile responsiveness
+
+On mobile (< 768px):
+- Sidebar is hidden by default
+- Show hamburger menu button (Menu icon) in top-left corner
+- Clicking hamburger opens sidebar as overlay with dark backdrop
+- Clicking backdrop or nav item closes the sidebar
+- Use useState for open/closed state
+
+## Step 5: Future-proof the sidebar
+
+Add a comment in admin-layout.tsx marking where new menu items should be added:
+// ── Add new admin menu items here as features are built ──
+
+The menu items array should be defined as a simple array of objects for easy addition:
+const menuItems = [
+  { label: "상품 관리", icon: Package, href: "/admin/products" },
+  { label: "CRM", icon: Users, href: "/admin/crm" },
+  { label: "마케팅", icon: Megaphone, href: "/admin/marketing" },
+  { label: "브랜드 스튜디오", icon: Palette, href: "/admin/brand-studio" },
+];
+
+## Important notes:
+- Do not change any page functionality — only the navigation/layout wrapper
+- The sidebar replaces ALL existing cross-page navigation buttons
+- Each page should still have its own internal tabs/controls
+- Test that all pages render correctly with the new sidebar
+- Make sure logout still works correctly
+- The /admin/login page should remain standalone without sidebar

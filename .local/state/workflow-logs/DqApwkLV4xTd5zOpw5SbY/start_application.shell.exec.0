@@ -1,0 +1,464 @@
+
+> rest-express@1.0.0 dev
+> NODE_ENV=development tsx server/index.ts
+
+[1G[0K9:51:17 AM [stripe] Initializing Stripe schema...
+[WC-Emulator] WooCommerce API emulation active
+[WC-Emulator] Store URL: https://acf5977d-c600-4de4-a88e-defcbf36c1e9-00-1jtvv9myxvvdf.worf.replit.dev
+[WC-Emulator] Consumer Key: ck_ff47ac93e857d3e9f11ebd93e2774ecf9d0ea1b3
+[WC-Emulator] OAuth endpoint: /wc-auth/v1/authorize
+[Cleanup] Storage cleanup completed
+9:51:17 AM [stripe] Stripe schema ready
+9:51:18 AM [express] serving on port 5000
+Failed to initialize Stripe: Error: Stripe connection not found — configure Stripe integration in Replit
+    at getCredentials [90m(/home/runner/workspace/[39mserver/stripeClient.ts:46:9[90m)[39m
+[90m    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)[39m
+    at async getStripeSecretKey [90m(/home/runner/workspace/[39mserver/stripeClient.ts:62:25[90m)[39m
+    at async getStripeSync [90m(/home/runner/workspace/[39mserver/stripeClient.ts:71:23[90m)[39m
+    at async initStripe [90m(/home/runner/workspace/[39mserver/index.ts:48:24[90m)[39m
+Browserslist: browsers data (caniuse-lite) is 6 months old. Please run:
+  npx update-browserslist-db@latest
+  Why you should do it regularly: https://github.com/browserslist/update-db#readme
+
+A PostCSS plugin did not pass the `from` option to `postcss.parse`. This may cause imported assets to be incorrectly transformed. If you've recently added a PostCSS plugin that raised this warning, please contact the package author to fix the issue.
+[Storage] Could not create bucket "generated-videos": The object exceeded the maximum allowed size
+9:51:27 AM [express] GET /api/products 304 in 8ms :: []
+9:51:27 AM [express] GET /api/products/featured 304 in 3ms :: []
+9:51:28 AM [express] GET /api/products/featured 304 in 1ms :: []
+9:51:28 AM [express] GET /api/products 304 in 2ms :: []
+9:51:28 AM [express] POST /api/admin/dev-login 200 in 2ms :: {"success":true}
+9:51:30 AM [express] GET /api/admin/marketing/queue 304 in 3ms :: [{"id":"4f81c157-bd3d-429b-a575-b6de69b5b6e5","promptId":null,"productId":null,"platform":"instagram","contentType":"reel","caption":"Golden hour strolls with my favourite philosopher 🌅\n\nGukdung doesn't do fetch. Doesn't do tricks. Just does... profound contemplation at sunset. Honestly, we could all learn something.\n\nWhat's your dog's favourite time for walkies?","hashtags":"#SpoiltDogs #GoldenHourWalks #JindoLife #ParkLife #SunsetStrolls #AustralianPets #LuxuryPetLife #DogWalks #PetPhotography #JindoDog","imageUrl":"https://ssqzvozouagsslczmaxj.supabase.co/storage/v1/object/public/generated-images/img_1775122071881_favgve0mpto.jpg","videoUrl":"https://v3b.fal.media/files/b/0a949f0f/oSd_ZlkP8VcQJBQo-DMlx_output.mp4","imagePrompt":"A majestic white Korean Jindo dog named Gukdung walking gracefully through a lush Australian park at golden hour, warm sunset light filtering through eucalyptus trees, long shadows on grass, peaceful contemplative mood, premium lifestyle photography aesthetic, cinematic composition, vertical format, 9:16 ratio\n\n=== STYLE GUIDELINES ===\n[하네스 착용]\n야외 이미지인경우 하네스를 항상 착용.\n실내이미지인경우 아무것도 착용하지않음\n\n[자연스러운이미지 생성]\n너무 AI 스럽지않은 이미지 생성.\n너무 심한 아웃포커스 금지.\n너무 정확한 구도, 완벽한 표정 하지말기. - 국둥이가 카메라를 정면으로 바라보고있는 장면 피하기. \n너무 께끗하고 예쁘기만한 배경 하지말기.\n실생활에서 어설프게 찍은 이미지느낌 재현\n\n[배경설정]\nFree form post 인경우항상 같은 배경 유지:\n- 실내: 짙은 남색 카페트 바닥, 크림색 린넨 소파, 자연광\n- 실외: 시드니 Bicentennial Park, 초록 잔디, 자연스러운 환경","status":"approved","approvedBy":"admin","scheduledAt":null,"postedAt":null,"makeWebhookId":null,"metaPostId":null,"rejectionReason":null,"topic":"해질무렵 공원산책중","createdAt":"2026-04-02T09:24:26.063Z"},{"id":"730550f7-bacc-40ec-9238-e080364422cf","promptId":null,"productId":null,"platform":"instagram","contentType":"feed_image","caption":"아침 산책? 아니, 아침 행차라고 해야겠어요 👑\n\n8살 진돗개가 호숫가 전체를 소유한 것처럼 걷는 모습이라니 (스포: 실제로 그의 것이에요). 저 품격 있는 뒤뚱거림, 저 초연한 에너지, '나 다 겪어봤어, 인간아' 하는 분위기.\n\nGukdung에게 아침 산책이란 없습니다. 아침 행차만 있을 뿐이죠. 🐕‍🦺✨\n\n이 정도 여유가 있다면, 나이는 그저 숫자일 뿐이에요.","hashtags":"#SpoiltDogsAU #진돗개라이프 #아침산책 #프리미엄반려생활 #호주공원 #호주반려견산책 #진돗개 #진돗개사랑 #반려견일상 #럭셔리펫 #호주펫부티크 #반려견스타일 #시니어독사랑 #공원산책","imageUrl":"https://ssqzvozouagsslczmaxj.supabase.co/storage/v1/object/public/generated-images/img_1775112610738_bgz8kusexq.jpg","videoUrl":null,"imagePrompt":"Rear view photograph of a white Korean Jindo dog walking away from camera on a park path, wearing a premium harness with leash visible, confident proud gait, morning golden hour lighting, serene lake visible in background, manicured park grounds with trees, the dog's tail held high showing excitement and dignity, professional pet photography style, natural colors, square format, 1:1 ratio\n\n=== STYLE GUIDELINES ===\n[하네스 착용]\n야외 이미지인경우 하네스를 항상 착용.\n실내이미지인경우 아무것도 착용하지않음\n\n[자연스러운이미지 생성]\n너무 AI 스럽지않은 이미지 생성.\n너무 심한 아웃포커스 금지.\n너무 정확한 구도, 완벽한 표정 하지말기. - 국둥이가 카메라를 정면으로 바라보고있는 장면 피하기. \n너무 께끗하고 예쁘기만한 배경 하지말기.\n실생활에서 어설프게 찍은 이미지느낌 재현\n\n[배경설정]\nFree form post 인경우항상 같은 배경 유지:\n- 실내: 짙은 남색 카페트 바닥, 크림색 린넨 소파, 자연광\n- 실외: 시드니 Bicentennial Park, 초록 잔디, 자연스러운 환경","status":"approved","approvedBy":"admin","scheduledAt":null,"postedAt":null,"makeWebhookId":null,"metaPostId":null,"rejectionReason":null,"topic":"아침산책. 위풍당당한 발걸음","createdAt":"2026-04-02T06:49:27.706Z"},{"id":"e00c4869-2b41-45e3-8266-43c8131c6e90","promptId":null,"productId":null,"platform":"instagram","contentType":"feed_image","caption":"미스터리 공 사냥꾼이 또 출동했습니다 🔮⚽️\n\n매번. 정말. 매번이에요. 공원에 가면 Gukdung은 덤불 속으로 사라졌다가 누군가가 오래전에 잃어버린 테니스공을 물고 나타나요. 훈련도 안 했고, 간식으로 유도한 것도 아니에요. 순수한 보물 사냥 본능이죠.\n\n오늘의 발견품은? 아마도 2019년부터 실종된 것으로 추정되는 흙투성이 윌슨 공. 지금은 마치 미제 사건을 해결한 것처럼 당당하게 앉아있네요 🕵️‍♂️\n\n진짜 궁금한 게, 공 가져오기에는 전혀 관심 없는 8살 진돗개가 어떻게 공원의 비공식 분실물 센터가 된 거죠? 완전히 '놀고 싶은 게 아니라 증거를 수집하고 싶어' 바이브인데요 😂\n\n혹시 여러분 강아지도 이상한 초능력 가진 친구 있나요? 아래에 댓글 남겨주세요 👇","hashtags":"#SpoiltDogs #KoreanJindo #진돗개라이프 #공원나들이 #보물사냥꾼 #GukdungChronicles #시니어독 #호주멍스타그램 #프리미엄펫부티크 #강아지성격 #특별한강아지 #공수집가 #도그스타그램 #진돗개 #국둥이","imageUrl":"https://ssqzvozouagsslczmaxj.supabase.co/storage/v1/object/public/generated-images/img_1775111862841_ooj9xk7n5wn.jpg","videoUrl":null,"imagePrompt":"A dignified Korean Jindo dog with cream-colored fur sitting upright in front of overgrown bushes and wild grass at a dog park, a muddy tennis ball placed directly in front of his paws, the dog has an alert but calm expression with pointed ears, mature 8-year-old appearance, natural lighting, shallow depth of field with bushes slightly blurred in background, the dog looks proud but nonchalant like a detective who just cracked a case, Australian park setting with eucalyptus trees visible in distant background, square format, 1:1 ratio, photorealistic style\n\n=== STYLE GUIDELINES ===\n[자연스러운이미지 생성]\n너무 AI 스럽지않은 이미지 생성.\n너무 심한 아웃포커스 금지.\n너무 정확한 구도, 완벽한 표정 하지말기.\n너무 께끗하고 예쁘기만한 배경 하지말기.\n실생활에서 어설프게 찍은 이미지느낌 재현\n\n[배경설정]\nFree form post 인경우항상 같은 배경 유지:\n- 실내: 짙은 남색 카페트 바닥, 크림색 린넨 소파, 자연광\n- 실외: 시드니 Bicentennial Park, 초록 잔디, 자연스러운 환경","status":"approved","approvedBy":"admin","scheduledAt":null,"postedAt":null,"makeWebhookId":null,"metaPostId":null,"rejectionReason":null,"topic":"dog park 에만 가면 어디선가 공을 물어오는 국둥이","createdAt":"2026-04-02T06:37:15.208Z"}]
+9:51:30 AM [express] GET /api/admin/marketing/prompts 304 in 12ms :: [{"id":"8b463a53-5d84-40db-8b50-c21f8bdc6e52","name":"호주 상류층에게 먹힐만한 유머러스한 톤","category":"global","section":"instagram_post","systemInstruction":"호주 상류층사람들이 좋아할만한 단어, 표현. \n유머러스하고 캐주얼하지만 절대 천박하거나 거칠지 않은 톤으로.\n너무 길고 구구절절하지말고 가능한한 짧고 강렬, 유머러스하게.","modelTarget":null,"isActive":true,"createdAt":"2026-04-02T06:44:29.498Z","updatedAt":"2026-04-02T06:44:29.498Z"}]
+9:52:06 AM [express] POST /api/admin/marketing/generate 200 in 8835ms :: {"success":true,"item":{"id":"766e8c6b-d47f-479c-a31b-206adddd9904","promptId":null,"productId":null,"platform":"instagram","contentType":"reel","caption":"When the ball is life but you're too dignified to admit it 🎾✨\n\nGukdung pretends he's not obsessed with fetch... until that tennis ball appears. Then suddenly this 8-year-old Jindo becomes a Olympic athlete.\n\nThe quiet ones always surprise you 😏\n\nWhat's your pup's secret obsession?","hashtags":"#SpoiltDogs #JindoLove #BallObsessed #LuxuryPetLife #AustralianDogs #DogReels #FetchLife #KoreanJindo #8YearsYoung #PremiumPets #SydneyDogs #PetBoutique","imageUrl":null,"videoUrl":null,"imagePrompt":"Elegant Korean Jindo dog with cream-white fur, 8 years old, mid-action catching a premium tennis ball in a luxurious Australian garden setting, golden hour lighting, sophisticated composition, vertical format 9:16 ratio, high-end pet photography style, shallow depth of field, capturing dignified intensity and athletic grace\n\n=== STYLE GUIDELINES ===\n[하네스 착용]\n야외 이미지인경우 하네스를 항상 착용.\n실내이미지인경우 아무것도 착용하지않음\n\n[자연스러운이미지 생성]\n너무 AI 스럽지않은 이미지 생성.\n너무 심한 아웃포커스 금지.\n너무 정확한 구도, 완벽한 표정 하지말기. - 국둥이가 카메라를 정면으로 바라보고있는 장면 피하기. \n너무 께끗하고 예쁘기만한 배경 하지말기.\n실생활에서 어설프게 찍은 이미지느낌 재현\n\n[배경설정]\nFree form post 인경우항상 같은 배경 유지:\n- 실내: 짙은 남색 카페트 바닥, 크림색 린넨 소파, 자연광\n- 실외: 시드니 Bicentennial Park, 초록 잔디, 자연스러운 환경","status":"pending","approvedBy":null,"scheduledAt":null,"postedAt":null,"makeWebhookId":null,"metaPostId":null,"rejectionReason":null,"topic":"공놀이가 세상에서 제일좋아.","createdAt":"2026-04-02T09:52:06.127Z"}}
+9:52:06 AM [express] GET /api/admin/marketing/queue 200 in 3ms :: [{"id":"766e8c6b-d47f-479c-a31b-206adddd9904","promptId":null,"productId":null,"platform":"instagram","contentType":"reel","caption":"When the ball is life but you're too dignified to admit it 🎾✨\n\nGukdung pretends he's not obsessed with fetch... until that tennis ball appears. Then suddenly this 8-year-old Jindo becomes a Olympic athlete.\n\nThe quiet ones always surprise you 😏\n\nWhat's your pup's secret obsession?","hashtags":"#SpoiltDogs #JindoLove #BallObsessed #LuxuryPetLife #AustralianDogs #DogReels #FetchLife #KoreanJindo #8YearsYoung #PremiumPets #SydneyDogs #PetBoutique","imageUrl":null,"videoUrl":null,"imagePrompt":"Elegant Korean Jindo dog with cream-white fur, 8 years old, mid-action catching a premium tennis ball in a luxurious Australian garden setting, golden hour lighting, sophisticated composition, vertical format 9:16 ratio, high-end pet photography style, shallow depth of field, capturing dignified intensity and athletic grace\n\n=== STYLE GUIDELINES ===\n[하네스 착용]\n야외 이미지인경우 하네스를 항상 착용.\n실내이미지인경우 아무것도 착용하지않음\n\n[자연스러운이미지 생성]\n너무 AI 스럽지않은 이미지 생성.\n너무 심한 아웃포커스 금지.\n너무 정확한 구도, 완벽한 표정 하지말기. - 국둥이가 카메라를 정면으로 바라보고있는 장면 피하기. \n너무 께끗하고 예쁘기만한 배경 하지말기.\n실생활에서 어설프게 찍은 이미지느낌 재현\n\n[배경설정]\nFree form post 인경우항상 같은 배경 유지:\n- 실내: 짙은 남색 카페트 바닥, 크림색 린넨 소파, 자연광\n- 실외: 시드니 Bicentennial Park, 초록 잔디, 자연스러운 환경","status":"pending","approvedBy":null,"scheduledAt":null,"postedAt":null,"makeWebhookId":null,"metaPostId":null,"rejectionReason":null,"topic":"공놀이가 세상에서 제일좋아.","createdAt":"2026-04-02T09:52:06.127Z"},{"id":"4f81c157-bd3d-429b-a575-b6de69b5b6e5","promptId":null,"productId":null,"platform":"instagram","contentType":"reel","caption":"Golden hour strolls with my favourite philosopher 🌅\n\nGukdung doesn't do fetch. Doesn't do tricks. Just does... profound contemplation at sunset. Honestly, we could all learn something.\n\nWhat's your dog's favourite time for walkies?","hashtags":"#SpoiltDogs #GoldenHourWalks #JindoLife #ParkLife #SunsetStrolls #AustralianPets #LuxuryPetLife #DogWalks #PetPhotography #JindoDog","imageUrl":"https://ssqzvozouagsslczmaxj.supabase.co/storage/v1/object/public/generated-images/img_1775122071881_favgve0mpto.jpg","videoUrl":"https://v3b.fal.media/files/b/0a949f0f/oSd_ZlkP8VcQJBQo-DMlx_output.mp4","imagePrompt":"A majestic white Korean Jindo dog named Gukdung walking gracefully through a lush Australian park at golden hour, warm sunset light filtering through eucalyptus trees, long shadows on grass, peaceful contemplative mood, premium lifestyle photography aesthetic, cinematic composition, vertical format, 9:16 ratio\n\n=== STYLE GUIDELINES ===\n[하네스 착용]\n야외 이미지인경우 하네스를 항상 착용.\n실내이미지인경우 아무것도 착용하지않음\n\n[자연스러운이미지 생성]\n너무 AI 스럽지않은 이미지 생성.\n너무 심한 아웃포커스 금지.\n너무 정확한 구도, 완벽한 표정 하지말기. - 국둥이가 카메라를 정면으로 바라보고있는 장면 피하기. \n너무 께끗하고 예쁘기만한 배경 하지말기.\n실생활에서 어설프게 찍은 이미지느낌 재현\n\n[배경설정]\nFree form post 인경우항상 같은 배경 유지:\n- 실내: 짙은 남색 카페트 바닥, 크림색 린넨 소파, 자연광\n- 실외: 시드니 Bicentennial Park, 초록 잔디, 자연스러운 환경","status":"approved","approvedBy":"admin","scheduledAt":null,"postedAt":null,"makeWebhookId":null,"metaPostId":null,"rejectionReason":null,"topic":"해질무렵 공원산책중","createdAt":"2026-04-02T09:24:26.063Z"},{"id":"730550f7-bacc-40ec-9238-e080364422cf","promptId":null,"productId":null,"platform":"instagram","contentType":"feed_image","caption":"아침 산책? 아니, 아침 행차라고 해야겠어요 👑\n\n8살 진돗개가 호숫가 전체를 소유한 것처럼 걷는 모습이라니 (스포: 실제로 그의 것이에요). 저 품격 있는 뒤뚱거림, 저 초연한 에너지, '나 다 겪어봤어, 인간아' 하는 분위기.\n\nGukdung에게 아침 산책이란 없습니다. 아침 행차만 있을 뿐이죠. 🐕‍🦺✨\n\n이 정도 여유가 있다면, 나이는 그저 숫자일 뿐이에요.","hashtags":"#SpoiltDogsAU #진돗개라이프 #아침산책 #프리미엄반려생활 #호주공원 #호주반려견산책 #진돗개 #진돗개사랑 #반려견일상 #럭셔리펫 #호주펫부티크 #반려견스타일 #시니어독사랑 #공원산책","imageUrl":"https://ssqzvozouagsslczmaxj.supabase.co/storage/v1/object/public/generated-images/img_1775112610738_bgz8kusexq.jpg","videoUrl":null,"imagePrompt":"Rear view photograph of a white Korean Jindo dog walking away from camera on a park path, wearing a premium harness with leash visible, confident proud gait, morning golden hour lighting, serene lake visible in background, manicured park grounds with trees, the dog's tail held high showing excitement and dignity, professional pet photography style, natural colors, square format, 1:1 ratio\n\n=== STYLE GUIDELINES ===\n[하네스 착용]\n야외 이미지인경우 하네스를 항상 착용.\n실내이미지인경우 아무것도 착용하지않음\n\n[자연스러운이미지 생성]\n너무 AI 스럽지않은 이미지 생성.\n너무 심한 아웃포커스 금지.\n너무 정확한 구도, 완벽한 표정 하지말기. - 국둥이가 카메라를 정면으로 바라보고있는 장면 피하기. \n너무 께끗하고 예쁘기만한 배경 하지말기.\n실생활에서 어설프게 찍은 이미지느낌 재현\n\n[배경설정]\nFree form post 인경우항상 같은 배경 유지:\n- 실내: 짙은 남색 카페트 바닥, 크림색 린넨 소파, 자연광\n- 실외: 시드니 Bicentennial Park, 초록 잔디, 자연스러운 환경","status":"approved","approvedBy":"admin","scheduledAt":null,"postedAt":null,"makeWebhookId":null,"metaPostId":null,"rejectionReason":null,"topic":"아침산책. 위풍당당한 발걸음","createdAt":"2026-04-02T06:49:27.706Z"},{"id":"e00c4869-2b41-45e3-8266-43c8131c6e90","promptId":null,"productId":null,"platform":"instagram","contentType":"feed_image","caption":"미스터리 공 사냥꾼이 또 출동했습니다 🔮⚽️\n\n매번. 정말. 매번이에요. 공원에 가면 Gukdung은 덤불 속으로 사라졌다가 누군가가 오래전에 잃어버린 테니스공을 물고 나타나요. 훈련도 안 했고, 간식으로 유도한 것도 아니에요. 순수한 보물 사냥 본능이죠.\n\n오늘의 발견품은? 아마도 2019년부터 실종된 것으로 추정되는 흙투성이 윌슨 공. 지금은 마치 미제 사건을 해결한 것처럼 당당하게 앉아있네요 🕵️‍♂️\n\n진짜 궁금한 게, 공 가져오기에는 전혀 관심 없는 8살 진돗개가 어떻게 공원의 비공식 분실물 센터가 된 거죠? 완전히 '놀고 싶은 게 아니라 증거를 수집하고 싶어' 바이브인데요 😂\n\n혹시 여러분 강아지도 이상한 초능력 가진 친구 있나요? 아래에 댓글 남겨주세요 👇","hashtags":"#SpoiltDogs #KoreanJindo #진돗개라이프 #공원나들이 #보물사냥꾼 #GukdungChronicles #시니어독 #호주멍스타그램 #프리미엄펫부티크 #강아지성격 #특별한강아지 #공수집가 #도그스타그램 #진돗개 #국둥이","imageUrl":"https://ssqzvozouagsslczmaxj.supabase.co/storage/v1/object/public/generated-images/img_1775111862841_ooj9xk7n5wn.jpg","videoUrl":null,"imagePrompt":"A dignified Korean Jindo dog with cream-colored fur sitting upright in front of overgrown bushes and wild grass at a dog park, a muddy tennis ball placed directly in front of his paws, the dog has an alert but calm expression with pointed ears, mature 8-year-old appearance, natural lighting, shallow depth of field with bushes slightly blurred in background, the dog looks proud but nonchalant like a detective who just cracked a case, Australian park setting with eucalyptus trees visible in distant background, square format, 1:1 ratio, photorealistic style\n\n=== STYLE GUIDELINES ===\n[자연스러운이미지 생성]\n너무 AI 스럽지않은 이미지 생성.\n너무 심한 아웃포커스 금지.\n너무 정확한 구도, 완벽한 표정 하지말기.\n너무 께끗하고 예쁘기만한 배경 하지말기.\n실생활에서 어설프게 찍은 이미지느낌 재현\n\n[배경설정]\nFree form post 인경우항상 같은 배경 유지:\n- 실내: 짙은 남색 카페트 바닥, 크림색 린넨 소파, 자연광\n- 실외: 시드니 Bicentennial Park, 초록 잔디, 자연스러운 환경","status":"approved","approvedBy":"admin","scheduledAt":null,"postedAt":null,"makeWebhookId":null,"metaPostId":null,"rejectionReason":null,"topic":"dog park 에만 가면 어디선가 공을 물어오는 국둥이","createdAt":"2026-04-02T06:37:15.208Z"}]
+9:52:17 AM [express] POST /api/admin/marketing/queue/766e8c6b-d47f-479c-a31b-206adddd9904/translate 200 in 6628ms :: {"success":true,"captionKo":"공은 내 인생이지만 인정하기엔 너무 품위있는 척하는 중 🎾✨\n\nGukdung는 공놀이에 집착하지 않는 척 하죠... 테니스공이 나타나기 전까지는요. 그러면 갑자기 이 8살 진돗개가 올림픽 선수로 변신합니다.\n\n조용한 아이들이 항상 놀라게 하죠 😏\n\n여러분 반려견의 비밀스러운 집착은 무엇인가요?","hashtagsKo":"#SpoiltDogs #진돗개사랑 #공집착 #럭셔리펫라이프 #호주반려견 #강아지릴스 #공놀이인생 #진돗개 #여덟살청춘 #프리미엄펫 #시드니반려견 #펫부티크"}
+9:52:27 AM [express] PATCH /api/admin/marketing/queue/766e8c6b-d47f-479c-a31b-206adddd9904/approve 200 in 14ms :: {"id":"766e8c6b-d47f-479c-a31b-206adddd9904","promptId":null,"productId":null,"platform":"instagram","contentType":"reel","caption":"When the ball is life but you're too dignified to admit it 🎾✨\n\nGukdung pretends he's not obsessed with fetch... until that tennis ball appears. Then suddenly this 8-year-old Jindo becomes a Olympic athlete.\n\nThe quiet ones always surprise you 😏\n\nWhat's your pup's secret obsession?","hashtags":"#SpoiltDogs #JindoLove #BallObsessed #LuxuryPetLife #AustralianDogs #DogReels #FetchLife #KoreanJindo #8YearsYoung #PremiumPets #SydneyDogs #PetBoutique","imageUrl":null,"videoUrl":null,"imagePrompt":"Elegant Korean Jindo dog with cream-white fur, 8 years old, mid-action catching a premium tennis ball in a luxurious Australian garden setting, golden hour lighting, sophisticated composition, vertical format 9:16 ratio, high-end pet photography style, shallow depth of field, capturing dignified intensity and athletic grace\n\n=== STYLE GUIDELINES ===\n[하네스 착용]\n야외 이미지인경우 하네스를 항상 착용.\n실내이미지인경우 아무것도 착용하지않음\n\n[자연스러운이미지 생성]\n너무 AI 스럽지않은 이미지 생성.\n너무 심한 아웃포커스 금지.\n너무 정확한 구도, 완벽한 표정 하지말기. - 국둥이가 카메라를 정면으로 바라보고있는 장면 피하기. \n너무 께끗하고 예쁘기만한 배경 하지말기.\n실생활에서 어설프게 찍은 이미지느낌 재현\n\n[배경설정]\nFree form post 인경우항상 같은 배경 유지:\n- 실내: 짙은 남색 카페트 바닥, 크림색 린넨 소파, 자연광\n- 실외: 시드니 Bicentennial Park, 초록 잔디, 자연스러운 환경","status":"approved","approvedBy":"admin","scheduledAt":null,"postedAt":null,"makeWebhookId":null,"metaPostId":null,"rejectionReason":null,"topic":"공놀이가 세상에서 제일좋아.","createdAt":"2026-04-02T09:52:06.127Z"}
+9:52:27 AM [express] GET /api/admin/marketing/queue 200 in 3ms :: [{"id":"766e8c6b-d47f-479c-a31b-206adddd9904","promptId":null,"productId":null,"platform":"instagram","contentType":"reel","caption":"When the ball is life but you're too dignified to admit it 🎾✨\n\nGukdung pretends he's not obsessed with fetch... until that tennis ball appears. Then suddenly this 8-year-old Jindo becomes a Olympic athlete.\n\nThe quiet ones always surprise you 😏\n\nWhat's your pup's secret obsession?","hashtags":"#SpoiltDogs #JindoLove #BallObsessed #LuxuryPetLife #AustralianDogs #DogReels #FetchLife #KoreanJindo #8YearsYoung #PremiumPets #SydneyDogs #PetBoutique","imageUrl":null,"videoUrl":null,"imagePrompt":"Elegant Korean Jindo dog with cream-white fur, 8 years old, mid-action catching a premium tennis ball in a luxurious Australian garden setting, golden hour lighting, sophisticated composition, vertical format 9:16 ratio, high-end pet photography style, shallow depth of field, capturing dignified intensity and athletic grace\n\n=== STYLE GUIDELINES ===\n[하네스 착용]\n야외 이미지인경우 하네스를 항상 착용.\n실내이미지인경우 아무것도 착용하지않음\n\n[자연스러운이미지 생성]\n너무 AI 스럽지않은 이미지 생성.\n너무 심한 아웃포커스 금지.\n너무 정확한 구도, 완벽한 표정 하지말기. - 국둥이가 카메라를 정면으로 바라보고있는 장면 피하기. \n너무 께끗하고 예쁘기만한 배경 하지말기.\n실생활에서 어설프게 찍은 이미지느낌 재현\n\n[배경설정]\nFree form post 인경우항상 같은 배경 유지:\n- 실내: 짙은 남색 카페트 바닥, 크림색 린넨 소파, 자연광\n- 실외: 시드니 Bicentennial Park, 초록 잔디, 자연스러운 환경","status":"approved","approvedBy":"admin","scheduledAt":null,"postedAt":null,"makeWebhookId":null,"metaPostId":null,"rejectionReason":null,"topic":"공놀이가 세상에서 제일좋아.","createdAt":"2026-04-02T09:52:06.127Z"},{"id":"4f81c157-bd3d-429b-a575-b6de69b5b6e5","promptId":null,"productId":null,"platform":"instagram","contentType":"reel","caption":"Golden hour strolls with my favourite philosopher 🌅\n\nGukdung doesn't do fetch. Doesn't do tricks. Just does... profound contemplation at sunset. Honestly, we could all learn something.\n\nWhat's your dog's favourite time for walkies?","hashtags":"#SpoiltDogs #GoldenHourWalks #JindoLife #ParkLife #SunsetStrolls #AustralianPets #LuxuryPetLife #DogWalks #PetPhotography #JindoDog","imageUrl":"https://ssqzvozouagsslczmaxj.supabase.co/storage/v1/object/public/generated-images/img_1775122071881_favgve0mpto.jpg","videoUrl":"https://v3b.fal.media/files/b/0a949f0f/oSd_ZlkP8VcQJBQo-DMlx_output.mp4","imagePrompt":"A majestic white Korean Jindo dog named Gukdung walking gracefully through a lush Australian park at golden hour, warm sunset light filtering through eucalyptus trees, long shadows on grass, peaceful contemplative mood, premium lifestyle photography aesthetic, cinematic composition, vertical format, 9:16 ratio\n\n=== STYLE GUIDELINES ===\n[하네스 착용]\n야외 이미지인경우 하네스를 항상 착용.\n실내이미지인경우 아무것도 착용하지않음\n\n[자연스러운이미지 생성]\n너무 AI 스럽지않은 이미지 생성.\n너무 심한 아웃포커스 금지.\n너무 정확한 구도, 완벽한 표정 하지말기. - 국둥이가 카메라를 정면으로 바라보고있는 장면 피하기. \n너무 께끗하고 예쁘기만한 배경 하지말기.\n실생활에서 어설프게 찍은 이미지느낌 재현\n\n[배경설정]\nFree form post 인경우항상 같은 배경 유지:\n- 실내: 짙은 남색 카페트 바닥, 크림색 린넨 소파, 자연광\n- 실외: 시드니 Bicentennial Park, 초록 잔디, 자연스러운 환경","status":"approved","approvedBy":"admin","scheduledAt":null,"postedAt":null,"makeWebhookId":null,"metaPostId":null,"rejectionReason":null,"topic":"해질무렵 공원산책중","createdAt":"2026-04-02T09:24:26.063Z"},{"id":"730550f7-bacc-40ec-9238-e080364422cf","promptId":null,"productId":null,"platform":"instagram","contentType":"feed_image","caption":"아침 산책? 아니, 아침 행차라고 해야겠어요 👑\n\n8살 진돗개가 호숫가 전체를 소유한 것처럼 걷는 모습이라니 (스포: 실제로 그의 것이에요). 저 품격 있는 뒤뚱거림, 저 초연한 에너지, '나 다 겪어봤어, 인간아' 하는 분위기.\n\nGukdung에게 아침 산책이란 없습니다. 아침 행차만 있을 뿐이죠. 🐕‍🦺✨\n\n이 정도 여유가 있다면, 나이는 그저 숫자일 뿐이에요.","hashtags":"#SpoiltDogsAU #진돗개라이프 #아침산책 #프리미엄반려생활 #호주공원 #호주반려견산책 #진돗개 #진돗개사랑 #반려견일상 #럭셔리펫 #호주펫부티크 #반려견스타일 #시니어독사랑 #공원산책","imageUrl":"https://ssqzvozouagsslczmaxj.supabase.co/storage/v1/object/public/generated-images/img_1775112610738_bgz8kusexq.jpg","videoUrl":null,"imagePrompt":"Rear view photograph of a white Korean Jindo dog walking away from camera on a park path, wearing a premium harness with leash visible, confident proud gait, morning golden hour lighting, serene lake visible in background, manicured park grounds with trees, the dog's tail held high showing excitement and dignity, professional pet photography style, natural colors, square format, 1:1 ratio\n\n=== STYLE GUIDELINES ===\n[하네스 착용]\n야외 이미지인경우 하네스를 항상 착용.\n실내이미지인경우 아무것도 착용하지않음\n\n[자연스러운이미지 생성]\n너무 AI 스럽지않은 이미지 생성.\n너무 심한 아웃포커스 금지.\n너무 정확한 구도, 완벽한 표정 하지말기. - 국둥이가 카메라를 정면으로 바라보고있는 장면 피하기. \n너무 께끗하고 예쁘기만한 배경 하지말기.\n실생활에서 어설프게 찍은 이미지느낌 재현\n\n[배경설정]\nFree form post 인경우항상 같은 배경 유지:\n- 실내: 짙은 남색 카페트 바닥, 크림색 린넨 소파, 자연광\n- 실외: 시드니 Bicentennial Park, 초록 잔디, 자연스러운 환경","status":"approved","approvedBy":"admin","scheduledAt":null,"postedAt":null,"makeWebhookId":null,"metaPostId":null,"rejectionReason":null,"topic":"아침산책. 위풍당당한 발걸음","createdAt":"2026-04-02T06:49:27.706Z"},{"id":"e00c4869-2b41-45e3-8266-43c8131c6e90","promptId":null,"productId":null,"platform":"instagram","contentType":"feed_image","caption":"미스터리 공 사냥꾼이 또 출동했습니다 🔮⚽️\n\n매번. 정말. 매번이에요. 공원에 가면 Gukdung은 덤불 속으로 사라졌다가 누군가가 오래전에 잃어버린 테니스공을 물고 나타나요. 훈련도 안 했고, 간식으로 유도한 것도 아니에요. 순수한 보물 사냥 본능이죠.\n\n오늘의 발견품은? 아마도 2019년부터 실종된 것으로 추정되는 흙투성이 윌슨 공. 지금은 마치 미제 사건을 해결한 것처럼 당당하게 앉아있네요 🕵️‍♂️\n\n진짜 궁금한 게, 공 가져오기에는 전혀 관심 없는 8살 진돗개가 어떻게 공원의 비공식 분실물 센터가 된 거죠? 완전히 '놀고 싶은 게 아니라 증거를 수집하고 싶어' 바이브인데요 😂\n\n혹시 여러분 강아지도 이상한 초능력 가진 친구 있나요? 아래에 댓글 남겨주세요 👇","hashtags":"#SpoiltDogs #KoreanJindo #진돗개라이프 #공원나들이 #보물사냥꾼 #GukdungChronicles #시니어독 #호주멍스타그램 #프리미엄펫부티크 #강아지성격 #특별한강아지 #공수집가 #도그스타그램 #진돗개 #국둥이","imageUrl":"https://ssqzvozouagsslczmaxj.supabase.co/storage/v1/object/public/generated-images/img_1775111862841_ooj9xk7n5wn.jpg","videoUrl":null,"imagePrompt":"A dignified Korean Jindo dog with cream-colored fur sitting upright in front of overgrown bushes and wild grass at a dog park, a muddy tennis ball placed directly in front of his paws, the dog has an alert but calm expression with pointed ears, mature 8-year-old appearance, natural lighting, shallow depth of field with bushes slightly blurred in background, the dog looks proud but nonchalant like a detective who just cracked a case, Australian park setting with eucalyptus trees visible in distant background, square format, 1:1 ratio, photorealistic style\n\n=== STYLE GUIDELINES ===\n[자연스러운이미지 생성]\n너무 AI 스럽지않은 이미지 생성.\n너무 심한 아웃포커스 금지.\n너무 정확한 구도, 완벽한 표정 하지말기.\n너무 께끗하고 예쁘기만한 배경 하지말기.\n실생활에서 어설프게 찍은 이미지느낌 재현\n\n[배경설정]\nFree form post 인경우항상 같은 배경 유지:\n- 실내: 짙은 남색 카페트 바닥, 크림색 린넨 소파, 자연광\n- 실외: 시드니 Bicentennial Park, 초록 잔디, 자연스러운 환경","status":"approved","approvedBy":"admin","scheduledAt":null,"postedAt":null,"makeWebhookId":null,"metaPostId":null,"rejectionReason":null,"topic":"dog park 에만 가면 어디선가 공을 물어오는 국둥이","createdAt":"2026-04-02T06:37:15.208Z"}]
+[Video] Motion prompt generated: Eight-year-old Korean Jindo stands on green grass at Bicentennial Park Sydney, appearing calm and disinterested. A tennis ball enters frame from left side. Dog's head turns sharply toward ball, ears perk up. Dog lunges forward, accelerating from standing position into full sprint. Body extends in running motion, legs pumping naturally. Camera follows handheld style, slight shake, capturing dog mid-chase. Ball bounces once on grass. Dog closes distance rapidly, mouth opens to catch. Natural daytime speed, realistic movement, no slow motion. Outdoor lighting, green grass background visible throughout motion.
+[Video] Step 1: Generating Gukdung image with Nano Banana 2...
+[Video] Step 1 complete. Image URL: https://v3b.fal.media/files/b/0a949fa5/Mmw7QWKfdFRQxizws-OKI_sWr5eWbB.png
+[Video] Step 2: Converting image to video with veo2-img2vid ...
+[Video] Step 2 complete. Video URL: https://v3b.fal.media/files/b/0a949fac/b56S5vIkz4cM0vYri567U_output.mp4
+[Storage] saveVideoFromUrl error: Upload failed: Bucket not found
+9:54:12 AM [express] POST /api/admin/marketing/queue/766e8c6b-d47f-479c-a31b-206adddd9904/generate-image 200 in 87249ms :: {"success":true,"videoUrl":"https://v3b.fal.media/files/b/0a949fac/b56S5vIkz4cM0vYri567U_output.mp4","thumbnailUrl":"https://ssqzvozouagsslczmaxj.supabase.co/storage/v1/object/public/generated-images/img_1775123648750_t20irdb58uj.jpg","videoPrompt":"Eight-year-old Korean Jindo stands on green grass at Bicentennial Park Sydney, appearing calm and disinterested. A tennis ball enters frame from left side. Dog's head turns sharply toward ball, ears perk up. Dog lunges forward, accelerating from standing position into full sprint. Body extends in running motion, legs pumping naturally. Camera follows handheld style, slight shake, capturing dog mid-chase. Ball bounces once on grass. Dog closes distance rapidly, mouth opens to catch. Natural daytime speed, realistic movement, no slow motion. Outdoor lighting, green grass background visible throughout motion.","item":{"id":"766e8c6b-d47f-479c-a31b-206adddd9904","promptId":null,"productId":null,"platform":"instagram","contentType":"reel","caption":"When the ball is life but you're too dignified to admit it 🎾✨\n\nGukdung pretends he's not obsessed with fetch... until that tennis ball appears. Then suddenly this 8-year-old Jindo becomes a Olympic athlete.\n\nThe quiet ones always surprise you 😏\n\nWhat's your pup's secret obsession?","hashtags":"#SpoiltDogs #JindoLove #BallObsessed #LuxuryPetLife #AustralianDogs #DogReels #FetchLife #KoreanJindo #8YearsYoung #PremiumPets #SydneyDogs #PetBoutique","imageUrl":"https://ssqzvozouagsslczmaxj.supabase.co/storage/v1/object/public/generated-images/img_1775123648750_t20irdb58uj.jpg","videoUrl":"https://v3b.fal.media/files/b/0a949fac/b56S5vIkz4cM0vYri567U_output.mp4","imagePrompt":"Eight-year-old Korean Jindo stands on green grass at Bicentennial Park Sydney, appearing calm and disinterested. A tennis ball enters frame from left side. Dog's head turns sharply toward ball, ears perk up. Dog lunges forward, accelerating from standing position into full sprint. Body extends in running motion, legs pumping naturally. Camera follows handheld style, slight shake, capturing dog mid-chase. Ball bounces once on grass. Dog closes distance rapidly, mouth opens to catch. Natural daytime speed, realistic movement, no slow motion. Outdoor lighting, green grass background visible throughout motion.","status":"approved","approvedBy":"admin","scheduledAt":null,"postedAt":null,"makeWebhookId":null,"metaPostId":null,"rejectionReason":null,"topic":"공놀이가 세상에서 제일좋아.","createdAt":"2026-04-02T09:52:06.127Z"}}
+9:54:12 AM [express] GET /api/admin/marketing/queue 200 in 3ms :: [{"id":"766e8c6b-d47f-479c-a31b-206adddd9904","promptId":null,"productId":null,"platform":"instagram","contentType":"reel","caption":"When the ball is life but you're too dignified to admit it 🎾✨\n\nGukdung pretends he's not obsessed with fetch... until that tennis ball appears. Then suddenly this 8-year-old Jindo becomes a Olympic athlete.\n\nThe quiet ones always surprise you 😏\n\nWhat's your pup's secret obsession?","hashtags":"#SpoiltDogs #JindoLove #BallObsessed #LuxuryPetLife #AustralianDogs #DogReels #FetchLife #KoreanJindo #8YearsYoung #PremiumPets #SydneyDogs #PetBoutique","imageUrl":"https://ssqzvozouagsslczmaxj.supabase.co/storage/v1/object/public/generated-images/img_1775123648750_t20irdb58uj.jpg","videoUrl":"https://v3b.fal.media/files/b/0a949fac/b56S5vIkz4cM0vYri567U_output.mp4","imagePrompt":"Eight-year-old Korean Jindo stands on green grass at Bicentennial Park Sydney, appearing calm and disinterested. A tennis ball enters frame from left side. Dog's head turns sharply toward ball, ears perk up. Dog lunges forward, accelerating from standing position into full sprint. Body extends in running motion, legs pumping naturally. Camera follows handheld style, slight shake, capturing dog mid-chase. Ball bounces once on grass. Dog closes distance rapidly, mouth opens to catch. Natural daytime speed, realistic movement, no slow motion. Outdoor lighting, green grass background visible throughout motion.","status":"approved","approvedBy":"admin","scheduledAt":null,"postedAt":null,"makeWebhookId":null,"metaPostId":null,"rejectionReason":null,"topic":"공놀이가 세상에서 제일좋아.","createdAt":"2026-04-02T09:52:06.127Z"},{"id":"4f81c157-bd3d-429b-a575-b6de69b5b6e5","promptId":null,"productId":null,"platform":"instagram","contentType":"reel","caption":"Golden hour strolls with my favourite philosopher 🌅\n\nGukdung doesn't do fetch. Doesn't do tricks. Just does... profound contemplation at sunset. Honestly, we could all learn something.\n\nWhat's your dog's favourite time for walkies?","hashtags":"#SpoiltDogs #GoldenHourWalks #JindoLife #ParkLife #SunsetStrolls #AustralianPets #LuxuryPetLife #DogWalks #PetPhotography #JindoDog","imageUrl":"https://ssqzvozouagsslczmaxj.supabase.co/storage/v1/object/public/generated-images/img_1775122071881_favgve0mpto.jpg","videoUrl":"https://v3b.fal.media/files/b/0a949f0f/oSd_ZlkP8VcQJBQo-DMlx_output.mp4","imagePrompt":"A majestic white Korean Jindo dog named Gukdung walking gracefully through a lush Australian park at golden hour, warm sunset light filtering through eucalyptus trees, long shadows on grass, peaceful contemplative mood, premium lifestyle photography aesthetic, cinematic composition, vertical format, 9:16 ratio\n\n=== STYLE GUIDELINES ===\n[하네스 착용]\n야외 이미지인경우 하네스를 항상 착용.\n실내이미지인경우 아무것도 착용하지않음\n\n[자연스러운이미지 생성]\n너무 AI 스럽지않은 이미지 생성.\n너무 심한 아웃포커스 금지.\n너무 정확한 구도, 완벽한 표정 하지말기. - 국둥이가 카메라를 정면으로 바라보고있는 장면 피하기. \n너무 께끗하고 예쁘기만한 배경 하지말기.\n실생활에서 어설프게 찍은 이미지느낌 재현\n\n[배경설정]\nFree form post 인경우항상 같은 배경 유지:\n- 실내: 짙은 남색 카페트 바닥, 크림색 린넨 소파, 자연광\n- 실외: 시드니 Bicentennial Park, 초록 잔디, 자연스러운 환경","status":"approved","approvedBy":"admin","scheduledAt":null,"postedAt":null,"makeWebhookId":null,"metaPostId":null,"rejectionReason":null,"topic":"해질무렵 공원산책중","createdAt":"2026-04-02T09:24:26.063Z"},{"id":"730550f7-bacc-40ec-9238-e080364422cf","promptId":null,"productId":null,"platform":"instagram","contentType":"feed_image","caption":"아침 산책? 아니, 아침 행차라고 해야겠어요 👑\n\n8살 진돗개가 호숫가 전체를 소유한 것처럼 걷는 모습이라니 (스포: 실제로 그의 것이에요). 저 품격 있는 뒤뚱거림, 저 초연한 에너지, '나 다 겪어봤어, 인간아' 하는 분위기.\n\nGukdung에게 아침 산책이란 없습니다. 아침 행차만 있을 뿐이죠. 🐕‍🦺✨\n\n이 정도 여유가 있다면, 나이는 그저 숫자일 뿐이에요.","hashtags":"#SpoiltDogsAU #진돗개라이프 #아침산책 #프리미엄반려생활 #호주공원 #호주반려견산책 #진돗개 #진돗개사랑 #반려견일상 #럭셔리펫 #호주펫부티크 #반려견스타일 #시니어독사랑 #공원산책","imageUrl":"https://ssqzvozouagsslczmaxj.supabase.co/storage/v1/object/public/generated-images/img_1775112610738_bgz8kusexq.jpg","videoUrl":null,"imagePrompt":"Rear view photograph of a white Korean Jindo dog walking away from camera on a park path, wearing a premium harness with leash visible, confident proud gait, morning golden hour lighting, serene lake visible in background, manicured park grounds with trees, the dog's tail held high showing excitement and dignity, professional pet photography style, natural colors, square format, 1:1 ratio\n\n=== STYLE GUIDELINES ===\n[하네스 착용]\n야외 이미지인경우 하네스를 항상 착용.\n실내이미지인경우 아무것도 착용하지않음\n\n[자연스러운이미지 생성]\n너무 AI 스럽지않은 이미지 생성.\n너무 심한 아웃포커스 금지.\n너무 정확한 구도, 완벽한 표정 하지말기. - 국둥이가 카메라를 정면으로 바라보고있는 장면 피하기. \n너무 께끗하고 예쁘기만한 배경 하지말기.\n실생활에서 어설프게 찍은 이미지느낌 재현\n\n[배경설정]\nFree form post 인경우항상 같은 배경 유지:\n- 실내: 짙은 남색 카페트 바닥, 크림색 린넨 소파, 자연광\n- 실외: 시드니 Bicentennial Park, 초록 잔디, 자연스러운 환경","status":"approved","approvedBy":"admin","scheduledAt":null,"postedAt":null,"makeWebhookId":null,"metaPostId":null,"rejectionReason":null,"topic":"아침산책. 위풍당당한 발걸음","createdAt":"2026-04-02T06:49:27.706Z"},{"id":"e00c4869-2b41-45e3-8266-43c8131c6e90","promptId":null,"productId":null,"platform":"instagram","contentType":"feed_image","caption":"미스터리 공 사냥꾼이 또 출동했습니다 🔮⚽️\n\n매번. 정말. 매번이에요. 공원에 가면 Gukdung은 덤불 속으로 사라졌다가 누군가가 오래전에 잃어버린 테니스공을 물고 나타나요. 훈련도 안 했고, 간식으로 유도한 것도 아니에요. 순수한 보물 사냥 본능이죠.\n\n오늘의 발견품은? 아마도 2019년부터 실종된 것으로 추정되는 흙투성이 윌슨 공. 지금은 마치 미제 사건을 해결한 것처럼 당당하게 앉아있네요 🕵️‍♂️\n\n진짜 궁금한 게, 공 가져오기에는 전혀 관심 없는 8살 진돗개가 어떻게 공원의 비공식 분실물 센터가 된 거죠? 완전히 '놀고 싶은 게 아니라 증거를 수집하고 싶어' 바이브인데요 😂\n\n혹시 여러분 강아지도 이상한 초능력 가진 친구 있나요? 아래에 댓글 남겨주세요 👇","hashtags":"#SpoiltDogs #KoreanJindo #진돗개라이프 #공원나들이 #보물사냥꾼 #GukdungChronicles #시니어독 #호주멍스타그램 #프리미엄펫부티크 #강아지성격 #특별한강아지 #공수집가 #도그스타그램 #진돗개 #국둥이","imageUrl":"https://ssqzvozouagsslczmaxj.supabase.co/storage/v1/object/public/generated-images/img_1775111862841_ooj9xk7n5wn.jpg","videoUrl":null,"imagePrompt":"A dignified Korean Jindo dog with cream-colored fur sitting upright in front of overgrown bushes and wild grass at a dog park, a muddy tennis ball placed directly in front of his paws, the dog has an alert but calm expression with pointed ears, mature 8-year-old appearance, natural lighting, shallow depth of field with bushes slightly blurred in background, the dog looks proud but nonchalant like a detective who just cracked a case, Australian park setting with eucalyptus trees visible in distant background, square format, 1:1 ratio, photorealistic style\n\n=== STYLE GUIDELINES ===\n[자연스러운이미지 생성]\n너무 AI 스럽지않은 이미지 생성.\n너무 심한 아웃포커스 금지.\n너무 정확한 구도, 완벽한 표정 하지말기.\n너무 께끗하고 예쁘기만한 배경 하지말기.\n실생활에서 어설프게 찍은 이미지느낌 재현\n\n[배경설정]\nFree form post 인경우항상 같은 배경 유지:\n- 실내: 짙은 남색 카페트 바닥, 크림색 린넨 소파, 자연광\n- 실외: 시드니 Bicentennial Park, 초록 잔디, 자연스러운 환경","status":"approved","approvedBy":"admin","scheduledAt":null,"postedAt":null,"makeWebhookId":null,"metaPostId":null,"rejectionReason":null,"topic":"dog park 에만 가면 어디선가 공을 물어오는 국둥이","createdAt":"2026-04-02T06:37:15.208Z"}]
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m9:58:07 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/pages/admin-marketing.tsx, /src/index.css[22m
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m9:58:15 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/pages/admin-marketing.tsx, /src/index.css[22m [33m(x2)[39m
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m9:58:20 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/pages/admin-marketing.tsx, /src/index.css[22m [33m(x3)[39m
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m9:58:27 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/pages/admin-marketing.tsx, /src/index.css[22m [33m(x4)[39m
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m9:58:34 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/pages/admin-marketing.tsx, /src/index.css[22m [33m(x5)[39m
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m9:58:54 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/pages/admin-marketing.tsx, /src/index.css[22m [33m(x6)[39m

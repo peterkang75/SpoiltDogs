@@ -1,0 +1,160 @@
+Implement Phase 2.5-D: FAL.AI image generation service integrated into our marketing pipeline.
+
+## Goal
+After a marketing queue item is approved, admin can click "이미지 생성" to generate a Gukdung image using FAL.AI. The generated image URL is saved to the queue item's imageUrl field.
+
+## Step 1: Install FAL.AI SDK
+Run: npm install @fal-ai/serverless-client
+Check package.json first — if already there, skip this step.
+
+## Step 2: Create server/services/falService.ts
+
+import * as fal from "@fal-ai/serverless-client";
+
+fal.config({ credentials: process.env.FAL_API_KEY });
+
+export type ImageModel = "flux-pro" | "ideogram" | "kling";
+
+export async function generateImage({ prompt, model = "flux-pro", loraModelId }: { prompt: string; model?: ImageModel; loraModelId?: string }): Promise<{ imageUrl: string; seed?: number }> {
+  if (model === "ideogram") {
+    const result = await fal.run("fal-ai/ideogram/v3", { input: { prompt, aspect_ratio: "1:1", style: "PHOTO" } }) as any;
+    return { imageUrl: result.images?.[0]?.url || "" };
+  }
+  if (model === "kling") {
+    const result = await fal.run("fal-ai/kling-video/v1.6/pro/text-to-video", { input: { prompt, duration: "5", aspect_ratio: "9:16" } }) as any;
+    return { imageUrl: result.video?.url || "" };
+  }
+  const input: any = {
+    prompt,
+    image_size: "square_hd",
+    num_inference_steps: 28,
+    guidance_scale: 3.5,
+    num_images: 1,
+    enable_safety_checker: true,
+  };
+  if (loraModelId) {
+    input.loras = [{ path: loraModelId, scale: 0.9 }];
+  }
+  const result = await fal.run("fal-ai/flux-pro/v1.1", { input }) as any;
+  return { imageUrl: result.images?.[0]?.url || "", seed: result.seed };
+}
+
+export async function trainLoRA({ imageUrls, triggerWord = "GUKDUNG" }: { imageUrls: string[]; triggerWord?: string }): Promise<{ loraModelId: string }> {
+  const result = await fal.run("fal-ai/flux-lora-fast-training", {
+    input: { images_data_url: imageUrls, trigger_word: triggerWord, steps: 1000 },
+  }) as any;
+  return { loraModelId: result.diffusers_lora_file?.url || "" };
+}
+
+## Step 3: Add API endpoints to server/adminRoutes.ts (all protected by requireAdmin)
+
+### POST /api/admin/marketing/queue/:id/generate-image
+app.post("/api/admin/marketing/queue/:id/generate-image", requireAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { model = "flux-pro" } = req.body;
+    const item = await storage.getMarketingQueueItem(id);
+    if (!item) return res.status(404).json({ error: "Queue item not found" });
+    const prompt = item.imagePrompt || item.caption || "";
+    if (!prompt) return res.status(400).json({ error: "No image prompt available" });
+    const images = await storage.getGukdungImages();
+    const loraImage = images.find((img) => img.loraModelId);
+    const loraModelId = loraImage?.loraModelId || undefined;
+    const { generateImage } = await import("./services/falService");
+    const result = await generateImage({
+      prompt: `${prompt}. Professional pet photography style, high quality.`,
+      model: model as any,
+      loraModelId,
+    });
+    if (!result.imageUrl) return res.status(500).json({ error: "Image generation failed — no URL returned" });
+    const updated = await storage.updateMarketingQueueItem(id, { imageUrl: result.imageUrl });
+    res.json({ success: true, imageUrl: result.imageUrl, item: updated });
+  } catch (error: any) {
+    console.error("FAL.AI generate image error:", error);
+    res.status(500).json({ error: error.message || "Image generation failed" });
+  }
+});
+
+### POST /api/admin/brand/lora-train
+app.post("/api/admin/brand/lora-train", requireAdmin, async (req, res) => {
+  try {
+    const images = await storage.getGukdungImages();
+    const trainingImages = images.filter((img) => img.isTrainingData && img.imageUrl);
+    if (trainingImages.length < 5) {
+      return res.status(400).json({ error: "최소 5장의 학습용 사진이 필요합니다.", current: trainingImages.length });
+    }
+    const imageUrls = trainingImages.map((img) => img.imageUrl);
+    const { trainLoRA } = await import("./services/falService");
+    const { loraModelId } = await trainLoRA({ imageUrls });
+    for (const img of trainingImages) {
+      await storage.updateGukdungImage(img.id, { loraModelId });
+    }
+    res.json({ success: true, loraModelId, trainedWith: trainingImages.length });
+  } catch (error: any) {
+    console.error("LoRA training error:", error);
+    res.status(500).json({ error: error.message || "LoRA training failed" });
+  }
+});
+
+## Step 4: Update storage.ts
+Add this method if not already present:
+- getMarketingQueueItem(id: string): Promise<MarketingQueue | null> — get single queue item by id
+
+## Step 5: Update QueueCard in client/src/pages/admin-marketing.tsx
+
+Add generateImageMut mutation in the parent AdminMarketing component:
+const generateImageMut = useMutation({
+  mutationFn: ({ id, model }: { id: string; model: string }) =>
+    apiRequest("POST", `/api/admin/marketing/queue/${id}/generate-image`, { model }),
+  onSuccess: () => {
+    queryClient.invalidateQueries({ queryKey: ["/api/admin/marketing/queue"] });
+    toast({ title: "이미지가 생성되었습니다!" });
+  },
+  onError: (err: Error) => {
+    toast({ title: "이미지 생성 실패", description: err.message, variant: "destructive" });
+  },
+});
+
+Add rewriteMut mutation in the parent AdminMarketing component:
+const rewriteMut = useMutation({
+  mutationFn: ({ topic, platform }: { topic: string; platform: string }) =>
+    apiRequest("POST", "/api/admin/marketing/generate", { topic, platform }),
+  onSuccess: () => {
+    queryClient.invalidateQueries({ queryKey: ["/api/admin/marketing/queue"] });
+    toast({ title: "새 버전이 생성되었습니다!" });
+  },
+});
+
+Pass these as props to QueueCard:
+- onGenerateImage: (id: string, model: string) => void
+- onRewrite: (topic: string, platform: string) => void
+- isGeneratingImage: boolean
+
+Update QueueCard component to:
+1. Show generated image if item.imageUrl exists:
+   <img src={item.imageUrl} className="w-full rounded-lg mt-3 max-h-64 object-cover" alt="Generated" />
+
+2. If item.status === "approved" and no item.imageUrl — show image generation controls:
+   - Dropdown to select model: "Flux Pro (사진)" | "Ideogram (카드뉴스)" | "Kling (영상)"
+   - Button "이미지 생성" — calls onGenerateImage(item.id, selectedModel)
+   - While generating: show Loader2 spinner + "이미지 생성 중..." disabled button
+
+3. If item.status === "pending" — show "재작성" button next to reject button:
+   - Calls onRewrite(item.topic || item.caption?.slice(0, 50) || "rewrite", item.platform)
+   - Style: outline button, same row as approve/reject
+
+## Step 6: Update LoRA button in client/src/pages/admin-brand-studio.tsx
+In the 이미지 라이브러리 tab:
+- Remove "준비 중" disabled tooltip
+- Connect button to POST /api/admin/brand/lora-train
+- Add loraTrainMut mutation using useMutation
+- Show loading state: "학습 중..." + Loader2 spinner while pending
+- On success: toast showing "LoRA 학습 완료! 모델 ID: {loraModelId}"
+- On error: destructive toast with error message
+
+## Important notes:
+- FAL.AI calls take 10-30 seconds — always show loading state on buttons
+- Image generation is triggered manually by admin after approval
+- imagePrompt is already saved by claudeMarketingService — use it as base prompt
+- Do not break any existing queue approve/reject/delete functionality
+- Test flow: Generate post → Approve → Select model → 이미지 생성 → image appears in card

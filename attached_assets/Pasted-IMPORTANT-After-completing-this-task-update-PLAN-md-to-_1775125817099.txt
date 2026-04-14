@@ -1,0 +1,201 @@
+IMPORTANT: After completing this task, update PLAN.md to reflect all changes made.
+
+Implement card news generation using Nano Banana 2/edit for Gukdung image + Sharp for text overlay.
+Remove the Ideogram Edit step completely.
+
+## Task 1: Install Sharp
+
+Run: npm install sharp @types/sharp
+
+## Task 2: Create server/services/cardNewsService.ts
+```typescript
+import sharp from "sharp";
+import { fal } from "@fal-ai/client";
+
+export async function generateCardNewsImage({
+  imagePrompt,
+  textLines,
+  referenceImageUrls = [],
+  aspectRatio = "1:1",
+}: {
+  imagePrompt: string;
+  textLines: string[];
+  referenceImageUrls?: string[];
+  aspectRatio?: string;
+}): Promise<{ imageUrl: string }> {
+  try {
+    // Step 1: Generate Gukdung image with Nano Banana 2/edit
+    console.log("[CardNews] Step 1: Generating Gukdung image...");
+
+    const imageInput: any = {
+      prompt: imagePrompt + ". Clean composition, suitable for text overlay on top portion.",
+      aspect_ratio: aspectRatio,
+      output_format: "png",
+      safety_tolerance: "4",
+      resolution: "1K",
+    };
+
+    if (referenceImageUrls.length > 0) {
+      imageInput.image_urls = referenceImageUrls.slice(0, 5);
+    }
+
+    const imageResult = await fal.run(
+      referenceImageUrls.length > 0 ? "fal-ai/nano-banana-2/edit" : "fal-ai/nano-banana-2",
+      { input: imageInput }
+    ) as any;
+
+    const generatedImageUrl = imageResult.images?.[0]?.url || "";
+    if (!generatedImageUrl) throw new Error("Step 1 failed: No image generated");
+    console.log("[CardNews] Step 1 complete:", generatedImageUrl);
+
+    // Step 2: Download the image
+    console.log("[CardNews] Step 2: Adding text overlay with Sharp...");
+    const response = await fetch(generatedImageUrl);
+    const imageBuffer = Buffer.from(await response.arrayBuffer());
+
+    // Get image dimensions
+    const metadata = await sharp(imageBuffer).metadata();
+    const width = metadata.width || 1024;
+    const height = metadata.height || 1024;
+
+    // Build SVG text overlay
+    const fontSize = Math.floor(width * 0.07);
+    const lineHeight = fontSize * 1.4;
+    const padding = Math.floor(width * 0.06);
+    const boxHeight = Math.floor(height * 0.28);
+
+    const textSvgLines = textLines
+      .slice(0, 3)
+      .map((line, i) => {
+        const y = padding + fontSize + i * lineHeight;
+        const safeText = line
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;")
+          .replace(/"/g, "&quot;");
+        return `<text
+          x="${width / 2}"
+          y="${y}"
+          font-family="Georgia, serif"
+          font-size="${fontSize}"
+          font-weight="bold"
+          fill="white"
+          text-anchor="middle"
+          filter="url(#shadow)"
+        >${safeText}</text>`;
+      })
+      .join("\n");
+
+    const svgOverlay = `
+      <svg width="${width}" height="${height}" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+            <feDropShadow dx="0" dy="2" stdDeviation="4" flood-color="rgba(0,0,0,0.8)" />
+          </filter>
+          <linearGradient id="topGrad" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="rgba(0,0,0,0.75)" />
+            <stop offset="100%" stop-color="rgba(0,0,0,0)" />
+          </linearGradient>
+        </defs>
+        <rect width="${width}" height="${boxHeight}" fill="url(#topGrad)" />
+        ${textSvgLines}
+      </svg>`;
+
+    // Composite image + text overlay
+    const finalBuffer = await sharp(imageBuffer)
+      .composite([
+        {
+          input: Buffer.from(svgOverlay),
+          top: 0,
+          left: 0,
+        },
+      ])
+      .jpeg({ quality: 95 })
+      .toBuffer();
+
+    console.log("[CardNews] Step 2 complete. Text overlay applied.");
+
+    // Step 3: Upload to Supabase Storage
+    const { createClient } = await import("@supabase/supabase-js");
+    const supabase = createClient(
+      process.env.SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!
+    );
+
+    const filename = `card_${Date.now()}_${Math.random().toString(36).slice(2)}.jpg`;
+    const { error: uploadError } = await supabase.storage
+      .from("generated-images")
+      .upload(filename, finalBuffer, {
+        contentType: "image/jpeg",
+        upsert: false,
+      });
+
+    if (uploadError) throw new Error(`Storage upload failed: ${uploadError.message}`);
+
+    const { data: urlData } = supabase.storage
+      .from("generated-images")
+      .getPublicUrl(filename);
+
+    console.log("[CardNews] Upload complete:", urlData.publicUrl);
+    return { imageUrl: urlData.publicUrl };
+
+  } catch (error: any) {
+    const errorBody = error?.body?.detail || error?.message || "";
+    if (
+      error?.status === 403 ||
+      errorBody.includes("Exhausted balance") ||
+      errorBody.includes("locked") ||
+      errorBody.includes("balance")
+    ) {
+      throw new Error("CREDIT_EXHAUSTED:FAL.AI");
+    }
+    throw error;
+  }
+}
+```
+
+## Task 3: Update server/adminRoutes.ts — generate-image endpoint
+
+Replace the isCardNews block:
+```typescript
+if (isCardNews) {
+  // Extract text lines from caption
+  const captionLines = (item.caption || "")
+    .split("\n")
+    .map(l => l.trim())
+    .filter(l => l.length > 0 && !l.startsWith("#"));
+
+  const textLines = captionLines.slice(0, 2).map(l =>
+    l.length > 40 ? l.slice(0, 40) + "..." : l
+  );
+
+  const { generateCardNewsImage } = await import("./services/cardNewsService");
+  const result = await generateCardNewsImage({
+    imagePrompt: item.imagePrompt || "",
+    textLines,
+    referenceImageUrls: referenceImages,
+    aspectRatio: "1:1",
+  });
+
+  const updated = await storage.updateMarketingQueueItem(id, {
+    imageUrl: result.imageUrl,
+  });
+
+  return res.json({ success: true, imageUrl: result.imageUrl, item: updated });
+}
+```
+
+## Task 4: Remove Ideogram from card_news pipeline
+
+In falService.ts, keep Ideogram only for direct ideogram model selection.
+Card news no longer uses Ideogram directly.
+
+In IMAGE_MODEL_OPTIONS in admin-marketing.tsx:
+Remove ideogram from card_news forTypes since card_news now uses its own pipeline.
+
+## Important notes:
+- Do not change shared/schema.ts
+- Sharp composites text WITHOUT changing the underlying image
+- Text is rendered as white bold with dark gradient overlay at top
+- Max 2 lines of text overlay (first 2 lines of caption, max 40 chars each)
+- Test: create card_news → approve → click 카드뉴스 생성 → verify Gukdung appears with text on top

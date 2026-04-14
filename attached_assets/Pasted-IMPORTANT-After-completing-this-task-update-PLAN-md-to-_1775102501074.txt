@@ -1,0 +1,72 @@
+IMPORTANT: After completing this task, update PLAN.md to reflect all changes made.
+
+Please make the following changes:
+
+## Task 1: Admin Shield Icon — redirect to Admin Dashboard instead of CRM
+
+Find the red shield icon button in the storefront header/navbar that currently navigates to /admin/crm.
+Change its destination to /admin (or create a simple /admin redirect page that shows the sidebar layout).
+
+Search for the shield icon in these files:
+- client/src/components/Navbar.tsx
+- client/src/components/Header.tsx
+- Any file containing the shield icon or /admin/crm navigation link
+
+Change the navigation target from /admin/crm to /admin/dashboard (or whichever admin landing page makes sense with the current sidebar layout).
+
+If there is no dedicated /admin or /admin/dashboard route, create a simple one that just renders AdminLayout with a welcome message showing links to the main sections.
+
+## Task 2: Create /admin/dashboard as the admin landing page
+
+Create client/src/pages/admin-dashboard.tsx:
+- Wrap with AdminLayout (the existing sidebar component)
+- Show a simple welcome page with:
+  - Title: "어드민 대시보드"
+  - 4 large clickable cards linking to each section:
+    - 상품 관리 → /admin/products (Package icon)
+    - CRM → /admin/crm (Users icon)
+    - 마케팅 → /admin/marketing (Megaphone icon)
+    - 브랜드 스튜디오 → /admin/brand-studio (Palette icon)
+  - Each card: icon + Korean label + brief description
+  - Brand colors: background #FCF9F1, cards white with border, accent #4B9073
+
+Register route in App.tsx:
+- /admin → AdminDashboard
+- /admin/dashboard → AdminDashboard (same component)
+
+## Task 3: CRM page — full screen mode (hide sidebar)
+
+The CRM page (admin-crm.tsx) has a 3-column layout (conversation list + chat + customer info) that conflicts with the admin sidebar.
+
+Make these changes to admin-crm.tsx:
+1. Remove the AdminLayout wrapper from CRM page (if it was added)
+2. The CRM page should be full-screen with NO left sidebar
+3. Add a small "← 어드민" back button at the top-left of the CRM page header
+   - Style: ghost button, white text, ArrowLeft icon
+   - Navigates to /admin/dashboard
+   - Position: inside the existing CRM dark header bar, leftmost position
+4. Keep all existing CRM functionality completely unchanged
+   - 3-column layout
+   - Conversation list on left
+   - Chat in center
+   - Customer info on right
+   - All existing buttons and features
+
+## Task 4: Update AdminLayout sidebar
+
+In client/src/components/admin-layout.tsx:
+- Make sure the CRM menu item in the sidebar still links to /admin/crm
+- The sidebar should NOT appear on /admin/crm route
+- Add logic: if current path is /admin/crm, render children without the sidebar wrapper
+
+You can implement this by checking the route in AdminLayout:
+const [location] = useLocation();
+const isFullScreen = location === '/admin/crm';
+if (isFullScreen) return <>{children}</>;
+
+## Important notes:
+- Do not break any existing CRM functionality
+- Do not change shared/schema.ts
+- The shield icon in the storefront should now go to /admin/dashboard
+- All other admin pages (products, marketing, brand-studio) keep the sidebar
+- Only CRM is full-screen without sidebar

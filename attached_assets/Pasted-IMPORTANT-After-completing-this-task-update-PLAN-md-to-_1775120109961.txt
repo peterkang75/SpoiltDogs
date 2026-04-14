@@ -1,0 +1,92 @@
+IMPORTANT: After completing this task, update PLAN.md to reflect all changes made.
+
+The previous implementation was incomplete. Please verify and fix the following:
+
+## Fix 1: IMAGE_MODEL_OPTIONS in client/src/pages/admin-marketing.tsx
+
+Find the IMAGE_MODEL_OPTIONS constant and make sure it contains ALL of these entries for reel/tiktok types:
+
+const IMAGE_MODEL_OPTIONS = [
+  {
+    value: "nano-banana-2",
+    label: "🍌 Nano Banana 2",
+    description: "Gemini 3.1 · 참조 이미지 · 기본 추천",
+    forTypes: ["feed_image", "story_image", "instagram_feed", "instagram_story", "facebook_post", "card_news"],
+  },
+  {
+    value: "nano-banana-pro",
+    label: "🍌✨ Nano Banana Pro",
+    description: "Gemini 3 Pro · 최고 품질 · $0.15/장",
+    forTypes: ["feed_image", "story_image", "instagram_feed", "instagram_story", "facebook_post"],
+  },
+  {
+    value: "nano-banana",
+    label: "🍌 Nano Banana 1",
+    description: "Gemini 2.5 · 빠름 · 저렴",
+    forTypes: ["feed_image", "story_image", "facebook_post"],
+  },
+  {
+    value: "ideogram",
+    label: "📝 Ideogram V3",
+    description: "텍스트 포함 이미지 · 카드뉴스 전용",
+    forTypes: ["card_news"],
+  },
+  {
+    value: "kling",
+    label: "🎬 Kling 1.6",
+    description: "기본 영상 · ~$0.50/5초",
+    forTypes: ["reel", "tiktok"],
+  },
+  {
+    value: "kling-3",
+    label: "🎬✨ Kling 3.0",
+    description: "고품질 영상 · ~$1.00/5초 ⭐추천",
+    forTypes: ["reel", "tiktok"],
+  },
+  {
+    value: "veo2",
+    label: "🎥 Veo 2",
+    description: "Google · 물리 기반 모션 · ~$2.50/5초",
+    forTypes: ["reel", "tiktok"],
+  },
+  {
+    value: "veo3",
+    label: "🎥✨ Veo 3",
+    description: "Google 최고품질 · 사운드 지원 · ~$1.00/5초",
+    forTypes: ["reel", "tiktok"],
+  },
+];
+
+## Fix 2: Verify falService.ts has all video model cases
+
+Make sure server/services/falService.ts generateImage() function has cases for:
+- "kling" → fal-ai/kling-video/v1.6/pro/text-to-video
+- "kling-3" → fal-ai/kling-video/v2.5-turbo/pro/text-to-video
+- "veo2" → fal-ai/veo2
+- "veo3" → fal-ai/veo3
+
+Each case must:
+1. Call fal.run() with correct endpoint
+2. Catch 403/balance errors and throw new Error("CREDIT_EXHAUSTED:FAL.AI")
+3. Save video to Supabase Storage via saveVideoFromUrl()
+4. Return { imageUrl: permanentUrl }
+
+## Fix 3: Verify CreditAlert dialog in admin-marketing.tsx
+
+Make sure the AlertDialog for credit exhaustion is present in the component.
+Check that generateImageMut uses a custom fetch (not apiRequest) that can detect the CREDIT_EXHAUSTED error from response body.
+
+## Fix 4: Update QueueCard default model for reel/tiktok
+
+In QueueCard useEffect, set default to "kling-3" not "kling":
+if (item.contentType === "reel" || item.contentType === "tiktok") {
+  setSelectedImageModel("kling-3");
+}
+
+## Verification steps after fixing:
+1. Open a queue item with contentType "reel"
+2. The model selector should show 4 options: Kling 1.6, Kling 3.0, Veo 2, Veo 3
+3. Default should be Kling 3.0
+4. For "feed_image" items: show Nano Banana options only
+
+Do not change shared/schema.ts.

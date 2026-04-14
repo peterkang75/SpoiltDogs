@@ -1,0 +1,242 @@
+IMPORTANT: After completing this task, update PLAN.md to reflect all changes made.
+
+Two tasks: 1) Switch to nano-banana-2/edit, 2) Add model selector to queue card image generation.
+
+## Task 1: Update server/services/falService.ts
+
+Update ImageModel type and generateImage() function:
+
+export type ImageModel = "nano-banana-2" | "nano-banana-pro" | "nano-banana" | "ideogram" | "kling";
+
+Replace generateImage() with:
+
+export async function generateImage({
+  prompt,
+  model = "nano-banana-2",
+  referenceImageUrls = [],
+  aspectRatio = "1:1",
+}: {
+  prompt: string;
+  model?: ImageModel;
+  referenceImageUrls?: string[];
+  aspectRatio?: string;
+}): Promise<{ imageUrl: string }> {
+
+  // Nano Banana models — use edit variant if reference images provided
+  if (model === "nano-banana-2" || model === "nano-banana-pro" || model === "nano-banana") {
+    const endpointMap: Record<string, string> = {
+      "nano-banana-2": referenceImageUrls.length > 0 ? "fal-ai/nano-banana-2/edit" : "fal-ai/nano-banana-2",
+      "nano-banana-pro": referenceImageUrls.length > 0 ? "fal-ai/nano-banana-pro/edit" : "fal-ai/nano-banana-pro",
+      "nano-banana": referenceImageUrls.length > 0 ? "fal-ai/nano-banana/edit" : "fal-ai/nano-banana",
+    };
+    const endpoint = endpointMap[model];
+
+    const input: any = {
+      prompt,
+      aspect_ratio: aspectRatio,
+      output_format: "png",
+      safety_tolerance: "4",
+      resolution: "1K",
+    };
+
+    if (referenceImageUrls.length > 0) {
+      input.image_urls = referenceImageUrls.slice(0, 5);
+    }
+
+    const result = await fal.run(endpoint, { input }) as any;
+    const imageUrl = result.images?.[0]?.url || "";
+    if (!imageUrl) throw new Error(`${model} returned no image URL`);
+
+    const { saveImageFromUrl } = await import("./storageService");
+    const filename = `img_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+    const permanentUrl = await saveImageFromUrl(imageUrl, filename);
+    return { imageUrl: permanentUrl };
+  }
+
+  // Ideogram V3 — card news
+  if (model === "ideogram") {
+    const result = await fal.run("fal-ai/ideogram/v3", {
+      input: {
+        prompt,
+        aspect_ratio: aspectRatio === "9:16" ? "ASPECT_9_16" : "ASPECT_1_1",
+        style: "PHOTO",
+      },
+    }) as any;
+    const imageUrl = result.images?.[0]?.url || "";
+    if (!imageUrl) throw new Error("Ideogram returned no image URL");
+    const { saveImageFromUrl } = await import("./storageService");
+    const filename = `img_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+    const permanentUrl = await saveImageFromUrl(imageUrl, filename);
+    return { imageUrl: permanentUrl };
+  }
+
+  // Kling — video
+  if (model === "kling") {
+    const result = await fal.run("fal-ai/kling-video/v1.6/pro/text-to-video", {
+      input: { prompt, duration: "5", aspect_ratio: "9:16" },
+    }) as any;
+    const videoUrl = result.video?.url || "";
+    if (!videoUrl) throw new Error("Kling returned no video URL");
+    const { saveVideoFromUrl } = await import("./storageService");
+    const filename = `video_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+    const permanentUrl = await saveVideoFromUrl(videoUrl, filename);
+    return { imageUrl: permanentUrl };
+  }
+
+  throw new Error(`Unknown model: ${model}`);
+}
+
+## Task 2: Update server/adminRoutes.ts — generate-image endpoint
+
+Accept model override from request body. Auto-select based on contentType but allow manual override:
+
+app.post("/api/admin/marketing/queue/:id/generate-image", requireAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { model: modelOverride } = req.body;
+
+    const item = await storage.getMarketingQueueItem(id);
+    if (!item) return res.status(404).json({ error: "Queue item not found" });
+
+    const prompt = item.imagePrompt || item.caption || "";
+    if (!prompt) return res.status(400).json({ error: "No image prompt available" });
+
+    // Get Gukdung reference images
+    const gukdungImages = await storage.getGukdungImages();
+    const referenceImages = gukdungImages
+      .filter(img => img.isTrainingData && img.imageUrl)
+      .slice(0, 5)
+      .map(img => img.imageUrl);
+
+    // Auto-select model and aspect ratio from contentType
+    const contentType = item.contentType || "feed_image";
+    let autoModel: string = "nano-banana-2";
+    let aspectRatio = "1:1";
+
+    if (contentType === "card_news") {
+      autoModel = "ideogram";
+    } else if (contentType === "reel" || contentType === "tiktok") {
+      autoModel = "kling";
+      aspectRatio = "9:16";
+    } else if (contentType === "story_image") {
+      autoModel = "nano-banana-2";
+      aspectRatio = "9:16";
+    }
+
+    // Use manual override if provided
+    const selectedModel = modelOverride || autoModel;
+
+    const { generateImage } = await import("./services/falService");
+    const result = await generateImage({
+      prompt: `${prompt}. Professional pet photography style, high quality.`,
+      model: selectedModel as any,
+      referenceImageUrls: selectedModel !== "ideogram" && selectedModel !== "kling" ? referenceImages : [],
+      aspectRatio,
+    });
+
+    if (!result.imageUrl) {
+      return res.status(500).json({ error: "Image generation failed" });
+    }
+
+    const updated = await storage.updateMarketingQueueItem(id, { imageUrl: result.imageUrl });
+    res.json({ success: true, imageUrl: result.imageUrl, item: updated });
+  } catch (error: any) {
+    console.error("FAL.AI generate image error:", error);
+    res.status(500).json({ error: error.message || "Image generation failed" });
+  }
+});
+
+## Task 3: Add model selector to QueueCard in client/src/pages/admin-marketing.tsx
+
+Add IMAGE_MODEL_OPTIONS constant at top of file:
+const IMAGE_MODEL_OPTIONS = [
+  {
+    value: "nano-banana-2",
+    label: "🍌 Nano Banana 2",
+    description: "Gemini 3.1 · 참조 이미지 · 기본 추천",
+    forTypes: ["feed_image", "story_image", "instagram_feed", "instagram_story", "facebook_post"],
+  },
+  {
+    value: "nano-banana-pro",
+    label: "🍌✨ Nano Banana Pro",
+    description: "Gemini 3 Pro · 최고 품질 · $0.15/장",
+    forTypes: ["feed_image", "story_image", "instagram_feed", "instagram_story"],
+  },
+  {
+    value: "nano-banana",
+    label: "🍌 Nano Banana 1",
+    description: "Gemini 2.5 · 빠름 · 저렴",
+    forTypes: ["feed_image", "story_image"],
+  },
+  {
+    value: "ideogram",
+    label: "📝 Ideogram V3",
+    description: "텍스트 포함 이미지 · 카드뉴스 전용",
+    forTypes: ["card_news"],
+  },
+  {
+    value: "kling",
+    label: "🎬 Kling 1.6",
+    description: "영상 생성 · 릴스/틱톡 전용",
+    forTypes: ["reel", "tiktok"],
+  },
+];
+
+In QueueCard component:
+1. Add local state: const [selectedImageModel, setSelectedImageModel] = useState<string>("");
+2. Auto-set default model based on item.contentType when component mounts:
+   useEffect(() => {
+     if (item.contentType === "card_news") setSelectedImageModel("ideogram");
+     else if (item.contentType === "reel" || item.contentType === "tiktok") setSelectedImageModel("kling");
+     else setSelectedImageModel("nano-banana-2");
+   }, [item.contentType]);
+
+3. Filter available models based on contentType:
+   const availableModels = IMAGE_MODEL_OPTIONS.filter(m =>
+     m.forTypes.includes(item.contentType || "feed_image")
+   );
+
+4. Show model selector dropdown before the generate button (only when status === "approved" and no imageUrl):
+   <div className="space-y-2 mt-3">
+     <Select value={selectedImageModel} onValueChange={setSelectedImageModel}>
+       <SelectTrigger className="w-full text-xs h-8">
+         <SelectValue placeholder="AI 모델 선택" />
+       </SelectTrigger>
+       <SelectContent>
+         {availableModels.map(m => (
+           <SelectItem key={m.value} value={m.value}>
+             <div>
+               <span className="font-medium">{m.label}</span>
+               <span className="text-gray-400 text-xs ml-2">{m.description}</span>
+             </div>
+           </SelectItem>
+         ))}
+       </SelectContent>
+     </Select>
+     <Button
+       onClick={() => onGenerateImage(item.id, selectedImageModel)}
+       disabled={isGeneratingImage || !selectedImageModel}
+       className="w-full gap-2 text-sm"
+       style={{ backgroundColor: "#4B9073", color: "white" }}
+     >
+       {isGeneratingImage ? (
+         <><Loader2 className="h-3.5 w-3.5 animate-spin" />생성 중...</>
+       ) : (
+         item.contentType === "reel" || item.contentType === "tiktok"
+           ? <><Film className="h-3.5 w-3.5" />영상 생성</>
+           : <><ImageIcon className="h-3.5 w-3.5" />이미지 생성</>
+       )}
+     </Button>
+   </div>
+
+5. Add Film and Image icons to imports from lucide-react.
+
+6. Update onGenerateImage call to pass selectedImageModel:
+   onGenerateImage: (id: string, model: string) => void
+
+7. Update generateImageMut in parent to pass model:
+   mutationFn: ({ id, model }: { id: string; model: string }) =>
+     apiRequest("POST", `/api/admin/marketing/queue/${id}/generate-image`, { model }),
+
+Do not change shared/schema.ts.
+Test: approve a queue item → see model dropdown → select nano-banana-pro → generate → compare quality with nano-banana-2.
