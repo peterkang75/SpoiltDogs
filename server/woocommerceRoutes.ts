@@ -181,9 +181,29 @@ async function saveWcProduct(body: any): Promise<{ id: string; [key: string]: an
   return toWcFormat(created, sourcingCostAud, suggestedSellPrice, synceeProductId, body.images);
 }
 
+// AutoDS/WooCommerce clients use Pydantic models that require `id` to be an integer.
+// We derive a stable positive 32-bit int from the product UUID via hex-prefix hash,
+// and reverse-resolve it by scanning products when AutoDS calls GET/PUT/DELETE /:id.
+function uuidToWcId(uuid: string): number {
+  const hex = String(uuid).replace(/-/g, "").slice(0, 8);
+  const n = parseInt(hex, 16);
+  return Number.isFinite(n) && n > 0 ? n : 1;
+}
+
+async function resolveProductIdParam(param: string): Promise<string | null> {
+  if (!param) return null;
+  if (/^\d+$/.test(param)) {
+    const target = parseInt(param, 10);
+    const all = await storage.getProducts();
+    const match = all.find((p) => uuidToWcId(p.id) === target);
+    return match?.id || null;
+  }
+  return param;
+}
+
 function toWcFormat(p: any, costAud = 0, sellPrice = 0, synceeId = "", images: any[] = []) {
   return {
-    id: p.id,
+    id: uuidToWcId(p.id),
     name: p.name,
     slug: p.slug,
     permalink: `${STORE_URL}/product/${p.slug}`,
@@ -454,9 +474,10 @@ export function registerWooCommerceRoutes(app: Express) {
         if (item.regular_price) updateData.priceAud = Math.round(parseFloat(item.regular_price) * 100);
         if (item.stock_status) updateData.inStock = item.stock_status !== "outofstock";
 
-        if (Object.keys(updateData).length > 0) {
-          await storage.updateProduct(item.id, updateData);
-          console.log(`[WC-Emulator] Product updated id=${item.id} fields=${Object.keys(updateData).join(",")}`);
+        const uuid = await resolveProductIdParam(String(item.id));
+        if (uuid && Object.keys(updateData).length > 0) {
+          await storage.updateProduct(uuid, updateData);
+          console.log(`[WC-Emulator] Product updated id=${item.id} (uuid=${uuid}) fields=${Object.keys(updateData).join(",")}`);
         }
         updated.push({ id: item.id, ...item, meta_data: [] });
       } catch (err: any) {
@@ -466,7 +487,8 @@ export function registerWooCommerceRoutes(app: Express) {
 
     for (const id of toDelete) {
       try {
-        await storage.deleteProduct(id);
+        const uuid = await resolveProductIdParam(String(id));
+        if (uuid) await storage.deleteProduct(uuid);
         deleted.push(id);
       } catch {
         deleted.push(id);
@@ -482,7 +504,8 @@ export function registerWooCommerceRoutes(app: Express) {
   app.get("/wp-json/wc/v3/products/:id", wcAuth, async (req, res) => {
     wcJsonHeaders(res);
     try {
-      const product = await storage.getProductById(req.params.id);
+      const uuid = await resolveProductIdParam(req.params.id);
+      const product = uuid ? await storage.getProductById(uuid) : null;
       if (!product) {
         return res.status(404).json({ code: "woocommerce_rest_product_invalid_id", message: "Invalid ID.", data: { status: 404 } });
       }
@@ -514,11 +537,12 @@ export function registerWooCommerceRoutes(app: Express) {
       const imgs = Array.isArray(body.images) ? body.images : [];
       if (imgs[0]?.src) updateData.imageUrl = imgs[0].src;
 
-      const updated = await storage.updateProduct(req.params.id, updateData);
+      const uuid = await resolveProductIdParam(req.params.id);
+      const updated = uuid ? await storage.updateProduct(uuid, updateData) : null;
       if (!updated) {
         return res.status(404).json({ code: "woocommerce_rest_product_invalid_id", message: "Invalid ID.", data: { status: 404 } });
       }
-      console.log(`[WC-Emulator] Product PUT/PATCH id=${req.params.id} fields=${Object.keys(updateData).join(",")}`);
+      console.log(`[WC-Emulator] Product PUT/PATCH id=${req.params.id} (uuid=${uuid}) fields=${Object.keys(updateData).join(",")}`);
       res.json(toWcFormat(updated, 0, (updated.priceAud || 0) / 100, "", imgs));
     } catch (err: any) {
       console.error("[WC-Emulator] PUT /products/:id error:", err);
@@ -531,7 +555,8 @@ export function registerWooCommerceRoutes(app: Express) {
   app.delete("/wp-json/wc/v3/products/:id", wcAuth, async (req, res) => {
     wcJsonHeaders(res);
     try {
-      await storage.deleteProduct(req.params.id);
+      const uuid = await resolveProductIdParam(req.params.id);
+      if (uuid) await storage.deleteProduct(uuid);
       res.json({ id: req.params.id, deleted: true });
     } catch (err: any) {
       res.status(500).json({ code: "woocommerce_rest_cannot_delete", message: err.message });
