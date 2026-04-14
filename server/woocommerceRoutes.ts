@@ -1066,44 +1066,58 @@ export function registerWooCommerceRoutes(app: Express) {
     let callbackBody = "";
 
     if (callback_url) {
-      // CRITICAL FIX: Syncee uses the base64 user_id (their OAuth session token) to find
-      // the pending OAuth session in their database. We MUST echo it back as-is.
-      // Sending the decoded number (1440127) or 1 causes a 500 — only the full base64 token
-      // matches their session lookup. Format: form-encoded (not JSON), matching wp_remote_post().
-      const callbackParams = new URLSearchParams({
-        key_id: "1",
-        user_id: user_id,          // Original Syncee base64 session token — REQUIRED for session lookup
+      // WooCommerce OAuth 1.0a spec says callback receives JSON.
+      // AutoDS follows the spec. Syncee is non-standard and needs form-urlencoded.
+      // Strategy: try JSON first (spec-compliant). If non-2xx, retry with form-urlencoded.
+      // user_id MUST be echoed back as received (UUID for AutoDS, base64 token for Syncee) —
+      // both providers use it to correlate their pending OAuth session.
+      const credentialsPayload = {
+        key_id: 1,
+        user_id: user_id,
         consumer_key: credentials.consumer_key,
         consumer_secret: credentials.consumer_secret,
         key_permissions: "read_write",
-      });
-      const callbackPayload = callbackParams.toString();
-
-      // Mimic WordPress wp_remote_post() headers exactly
-      const callbackReqHeaders: Record<string, string> = {
-        "Content-Type": "application/x-www-form-urlencoded",
-        "User-Agent": `WordPress/6.4; ${STORE_URL}`,
-        "Accept": "*/*",
-        "Accept-Encoding": "gzip, deflate, br",
-        "Content-Length": String(Buffer.byteLength(callbackPayload)),
       };
-      console.log(`[WC-OAuth] Callback URL: ${callback_url}`);
-      console.log(`[WC-OAuth] Callback Request Headers: ${JSON.stringify(callbackReqHeaders)}`);
-      console.log(`[WC-OAuth] Callback Request Body (form): ${callbackPayload}`);
+
+      const tryCallback = async (contentType: "json" | "form") => {
+        const body = contentType === "json"
+          ? JSON.stringify(credentialsPayload)
+          : new URLSearchParams({
+              key_id: "1",
+              user_id: user_id,
+              consumer_key: credentials.consumer_key,
+              consumer_secret: credentials.consumer_secret,
+              key_permissions: "read_write",
+            }).toString();
+        const headers: Record<string, string> = {
+          "Content-Type": contentType === "json" ? "application/json" : "application/x-www-form-urlencoded",
+          "User-Agent": `WordPress/6.4; ${STORE_URL}`,
+          "Accept": "*/*",
+          "Accept-Encoding": "gzip, deflate, br",
+          "Content-Length": String(Buffer.byteLength(body)),
+        };
+        console.log(`[WC-OAuth] Callback attempt (${contentType}): ${callback_url}`);
+        console.log(`[WC-OAuth] Callback Headers: ${JSON.stringify(headers)}`);
+        console.log(`[WC-OAuth] Callback Body: ${body}`);
+        const res = await fetch(callback_url, { method: "POST", headers, body });
+        const text = await res.text().catch(() => "");
+        const respHeaders: Record<string, string> = {};
+        res.headers.forEach((v, k) => { respHeaders[k] = v; });
+        console.log(`[WC-OAuth] Callback (${contentType}) → HTTP ${res.status}`);
+        console.log(`[WC-OAuth] Callback Response Headers: ${JSON.stringify(respHeaders)}`);
+        console.log(`[WC-OAuth] Callback Response Body: ${text}`);
+        return { ok: res.ok, status: res.status, body: text };
+      };
+
       try {
-        const callbackRes = await fetch(callback_url, {
-          method: "POST",
-          headers: callbackReqHeaders,
-          body: callbackPayload,
-        });
-        callbackStatus = callbackRes.status;
-        callbackBody = await callbackRes.text().catch(() => "");
-        callbackOk = callbackRes.ok;
-        const callbackRespHeaders: Record<string, string> = {};
-        callbackRes.headers.forEach((v, k) => { callbackRespHeaders[k] = v; });
-        console.log(`[WC-OAuth] Callback → HTTP ${callbackStatus}`);
-        console.log(`[WC-OAuth] Callback Response Headers: ${JSON.stringify(callbackRespHeaders)}`);
-        console.log(`[WC-OAuth] Callback Response Body: ${callbackBody}`);
+        let result = await tryCallback("json");
+        if (!result.ok) {
+          console.log(`[WC-OAuth] JSON callback failed (${result.status}), retrying with form-urlencoded for non-spec providers (Syncee)`);
+          result = await tryCallback("form");
+        }
+        callbackOk = result.ok;
+        callbackStatus = result.status;
+        callbackBody = result.body;
       } catch (err: any) {
         console.error(`[WC-OAuth] Callback FAILED: ${err.message}`);
         callbackBody = err.message;
