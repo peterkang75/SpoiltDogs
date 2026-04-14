@@ -1535,17 +1535,9 @@ Respond in JSON format:
         // Get Gukdung reference images (training data only)
         const gukdungImages = await storage.getGukdungImages();
         const referenceImages = gukdungImages
-          .filter((img) => img.isTrainingData && img.imageUrl)
+          .filter((img) => img.isTrainingData && img.imageUrl && img.imageUrl.startsWith("http"))
           .slice(0, 5)
-          .map((img) => {
-            const url = img.imageUrl;
-            // Convert relative paths to absolute public URLs
-            if (url.startsWith("/uploads/")) {
-              const domain = process.env.REPLIT_DEV_DOMAIN;
-              return domain ? `https://${domain}${url}` : url;
-            }
-            return url;
-          });
+          .map((img) => img.imageUrl);
 
         // Auto-select model and aspect ratio from contentType
         const contentType = item.contentType || "feed_image";
@@ -1766,12 +1758,9 @@ Respond ONLY with a JSON object:
         return;
       }
 
-      const domain = process.env.REPLIT_DEV_DOMAIN;
-      const baseUrl = domain ? `https://${domain}` : "";
-      const imageUrls = trainingImages.map((img) => {
-        const url = img.imageUrl;
-        return url.startsWith("http") ? url : `${baseUrl}${url}`;
-      });
+      const imageUrls = trainingImages
+        .map((img) => img.imageUrl)
+        .filter((url) => url.startsWith("http"));
 
       const { submitLoRATraining } = await import("./services/falService");
       const { requestId } = await submitLoRATraining({ imageUrls });
@@ -1890,13 +1879,7 @@ Respond ONLY with a JSON object:
 
   app.post("/api/admin/brand/images/upload", requireAdmin, upload.array("files", 100), async (req: Request, res: Response) => {
     try {
-      const fs = await import("fs");
-      const path = await import("path");
-
-      const uploadsDir = path.join(process.cwd(), "client", "public", "uploads");
-      if (!fs.existsSync(uploadsDir)) {
-        fs.mkdirSync(uploadsDir, { recursive: true });
-      }
+      const { uploadBufferToStorage } = await import("./services/storageService");
 
       const files = req.files as Express.Multer.File[];
       if (!files || files.length === 0) {
@@ -1908,18 +1891,21 @@ Respond ONLY with a JSON object:
       const results = [];
 
       for (const file of files) {
-        const ext = file.originalname.split(".").pop() ?? "jpg";
+        const ext = (file.originalname.split(".").pop() ?? "jpg").toLowerCase();
         const filename = `gukdung_${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`;
-        const filePath = path.join(uploadsDir, filename);
 
+        let imageUrl: string;
         try {
-          fs.writeFileSync(filePath, file.buffer);
-        } catch (writeErr) {
-          console.error("File write error:", writeErr);
+          imageUrl = await uploadBufferToStorage(
+            file.buffer,
+            filename,
+            file.mimetype || "image/jpeg",
+            "uploads"
+          );
+        } catch (uploadErr: any) {
+          console.error("Supabase upload error:", uploadErr.message);
           continue;
         }
-
-        const imageUrl = `/uploads/${filename}`;
 
         const image = await storage.createGukdungImage({
           imageUrl,

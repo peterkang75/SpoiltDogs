@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useLocation, Link } from "wouter";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -14,6 +14,8 @@ import {
   PawPrint,
   ChevronLeft,
   ChevronRight,
+  ShieldCheck,
+  ShieldAlert,
 } from "lucide-react";
 
 const menuItems = [
@@ -37,6 +39,19 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
     }
   });
   const { toast } = useToast();
+
+  const { data: meData } = useQuery<{ isAdmin: boolean }>({
+    queryKey: ["/api/admin/me"],
+    queryFn: async () => {
+      const res = await fetch("/api/admin/me", { credentials: "include" });
+      if (!res.ok) return { isAdmin: false };
+      return res.json();
+    },
+    refetchInterval: 30_000,
+    refetchOnWindowFocus: true,
+    staleTime: 10_000,
+  });
+  const isAdmin = meData?.isAdmin ?? true;
 
   useEffect(() => {
     try {
@@ -123,8 +138,44 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
         })}
       </nav>
 
+      {/* Login status */}
+      <div className={`pt-3 pb-2 border-t border-white/10 ${collapsed && !forMobile ? "px-1.5" : "px-3"}`}>
+        {collapsed && !forMobile ? (
+          <div
+            title={isAdmin ? "로그인됨" : "로그아웃됨 — 다시 로그인 필요"}
+            className="flex items-center justify-center h-8 w-full"
+            data-testid="sidebar-auth-status"
+          >
+            {isAdmin ? (
+              <ShieldCheck className="h-4 w-4 text-emerald-400" />
+            ) : (
+              <ShieldAlert className="h-4 w-4 text-red-400" />
+            )}
+          </div>
+        ) : isAdmin ? (
+          <div
+            className="flex items-center gap-2 px-3 py-1.5 rounded-md text-xs text-emerald-300/90"
+            data-testid="sidebar-auth-status"
+          >
+            <ShieldCheck className="h-3.5 w-3.5 shrink-0" />
+            <span className="truncate">관리자 로그인됨</span>
+            <span className="ml-auto h-1.5 w-1.5 rounded-full bg-emerald-400 shrink-0" />
+          </div>
+        ) : (
+          <Link
+            href="/admin/login"
+            onClick={() => setMobileOpen(false)}
+            className="flex items-center gap-2 px-3 py-1.5 rounded-md text-xs text-red-300 bg-red-500/10 hover:bg-red-500/20 transition-colors"
+            data-testid="sidebar-auth-status"
+          >
+            <ShieldAlert className="h-3.5 w-3.5 shrink-0" />
+            <span className="truncate">세션 만료 — 로그인</span>
+          </Link>
+        )}
+      </div>
+
       {/* Logout */}
-      <div className={`py-4 border-t border-white/10 ${collapsed && !forMobile ? "px-1.5" : "px-3"}`}>
+      <div className={`pb-4 ${collapsed && !forMobile ? "px-1.5" : "px-3"}`}>
         {collapsed && !forMobile ? (
           <button
             onClick={() => logoutMut.mutate()}

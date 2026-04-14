@@ -495,22 +495,15 @@ export async function submitLoRATraining({
 
   const zipBuffer = await zip.generateAsync({ type: "nodebuffer" });
 
-  const fs = await import("fs");
-  const path = await import("path");
-  const uploadsDir = path.join(process.cwd(), "client", "public", "uploads");
-  if (!fs.existsSync(uploadsDir)) {
-    fs.mkdirSync(uploadsDir, { recursive: true });
-  }
-
+  const { uploadBufferToStorage } = await import("./storageService");
   const zipFilename = `lora_training_${Date.now()}.zip`;
-  const zipPath = path.join(uploadsDir, zipFilename);
-  fs.writeFileSync(zipPath, zipBuffer);
-
-  const domain = process.env.REPLIT_DEV_DOMAIN;
-  if (!domain) throw new Error("REPLIT_DEV_DOMAIN not set — cannot construct public ZIP URL");
-
-  const zipUrl = `https://${domain}/uploads/${zipFilename}`;
-  console.log(`[LoRA] ZIP saved locally: ${zipUrl} (${imageUrls.length} images)`);
+  const zipUrl = await uploadBufferToStorage(
+    zipBuffer,
+    zipFilename,
+    "application/zip",
+    "training"
+  );
+  console.log(`[LoRA] ZIP uploaded to Supabase: ${zipUrl} (${imageUrls.length} images)`);
 
   const { request_id } = await fal.queue.submit("fal-ai/flux-lora-fast-training", {
     input: {

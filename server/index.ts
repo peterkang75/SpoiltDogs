@@ -1,3 +1,5 @@
+import dotenv from "dotenv";
+dotenv.config();
 import express, { type Request, Response, NextFunction } from "express";
 import fs from "fs";
 import path from "path";
@@ -150,10 +152,6 @@ app.use((req, res, next) => {
 });
 
 (async () => {
-  // Seed disabled — products are imported from Syncee
-  // await seedProducts().catch(err => console.error("Product seed error:", err));
-
-  // One-time startup cleanup: remove seed products and deduplicate by SKU
   const { storage } = await import("./storage");
   storage.deleteProductsWithoutSourcing()
     .then(n => { if (n > 0) console.log(`[Startup] Removed ${n} seed product(s) with no sourcing record`); })
@@ -162,19 +160,16 @@ app.use((req, res, next) => {
     .then(n => { if (n > 0) console.log(`[Startup] Removed ${n} duplicate product(s) by SKU`); })
     .catch(err => console.error("[Startup] Dedup cleanup error:", err));
 
-  // Initialize Supabase Storage buckets
   const { ensureBucketsExist, cleanupOldContent } = await import("./services/storageService");
   ensureBucketsExist().catch((err: any) =>
     console.error("[Storage] Bucket init error:", err.message)
   );
 
-  // Run content cleanup on startup then every 24 hours
   cleanupOldContent().catch(console.error);
   setInterval(() => {
     cleanupOldContent().catch(console.error);
   }, 24 * 60 * 60 * 1000);
 
-  // Serve uploaded brand images
   const uploadsDir = path.join(process.cwd(), "client", "public", "uploads");
   if (!fs.existsSync(uploadsDir)) {
     fs.mkdirSync(uploadsDir, { recursive: true });
@@ -205,15 +200,9 @@ app.use((req, res, next) => {
     await setupVite(httpServer, app);
   }
 
-  const port = parseInt(process.env.PORT || "5000", 10);
-  httpServer.listen(
-    {
-      port,
-      host: "0.0.0.0",
-      reusePort: true,
-    },
-    () => {
-      log(`serving on port ${port}`);
-    }
-  );
+  const port = parseInt(process.env.PORT || "3000", 10);
+  const host = process.env.HOST || (process.env.NODE_ENV === "production" ? "0.0.0.0" : "127.0.0.1");
+  httpServer.listen(port, host, () => {
+    log(`serving on ${host}:${port}`);
+  });
 })();

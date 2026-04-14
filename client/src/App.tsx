@@ -21,6 +21,7 @@ import AdminProducts from "@/pages/admin-products";
 import AdminMarketing from "@/pages/admin-marketing";
 import AdminBrandStudio from "@/pages/admin-brand-studio";
 import AdminDashboard from "@/pages/admin-dashboard";
+import AdminLogin from "@/pages/admin-login";
 import Login from "@/pages/login";
 import MyAccount from "@/pages/my-account";
 import OurStory from "@/pages/our-story";
@@ -57,6 +58,7 @@ function Router() {
       <Route path="/refund-policy" component={RefundPolicy} />
       <Route path="/privacy-policy" component={PrivacyPolicy} />
       <Route path="/contact" component={ContactUs} />
+      <Route path="/admin/login" component={AdminLogin} />
       <Route path="/admin" component={AdminDashboard} />
       <Route path="/admin/dashboard" component={AdminDashboard} />
       <Route path="/admin/crm" component={AdminCRM} />

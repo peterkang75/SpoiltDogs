@@ -33,6 +33,22 @@ export async function ensureBucketsExist() {
   }
 }
 
+export async function uploadBufferToStorage(
+  buffer: Buffer,
+  filename: string,
+  contentType: string,
+  bucket: keyof typeof BUCKETS = "uploads"
+): Promise<string> {
+  const { error } = await supabase.storage
+    .from(BUCKETS[bucket])
+    .upload(filename, buffer, { contentType, upsert: false });
+
+  if (error) throw new Error(`Upload failed: ${error.message}`);
+
+  const { data } = supabase.storage.from(BUCKETS[bucket]).getPublicUrl(filename);
+  return data.publicUrl;
+}
+
 export async function saveImageFromUrl(
   imageUrl: string,
   filename: string
