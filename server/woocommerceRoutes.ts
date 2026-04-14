@@ -478,6 +478,97 @@ export function registerWooCommerceRoutes(app: Express) {
     res.json({ create: created, update: updated, delete: deleted, ...(errors.length ? { errors } : {}) });
   });
 
+  // Single product GET/PUT/PATCH/DELETE — AutoDS verifies products after push and updates stock individually
+  app.get("/wp-json/wc/v3/products/:id", wcAuth, async (req, res) => {
+    wcJsonHeaders(res);
+    try {
+      const product = await storage.getProductById(req.params.id);
+      if (!product) {
+        return res.status(404).json({ code: "woocommerce_rest_product_invalid_id", message: "Invalid ID.", data: { status: 404 } });
+      }
+      const sourcing = await storage.getSourcingByProductId?.(product.id).catch(() => null);
+      const synceeId = (sourcing as any)?.supplierProductId || "";
+      const costAud = (sourcing as any)?.sourcingCostAud ? (sourcing as any).sourcingCostAud / 100 : 0;
+      const sellPrice = product.priceAud ? product.priceAud / 100 : 0;
+      res.json(toWcFormat(product, costAud, sellPrice, synceeId, product.imageUrl ? [{ src: product.imageUrl }] : []));
+    } catch (err: any) {
+      console.error("[WC-Emulator] GET /products/:id error:", err);
+      res.status(500).json({ code: "woocommerce_rest_cannot_view", message: err.message });
+    }
+  });
+
+  const updateProductHandler = async (req: Request, res: Response) => {
+    wcJsonHeaders(res);
+    try {
+      const updateData: Record<string, any> = {};
+      const body = req.body || {};
+      if (body.name) updateData.name = body.name;
+      if (body.description) updateData.description = String(body.description).replace(/<[^>]*>/g, "").trim();
+      if (body.regular_price) updateData.priceAud = Math.round(parseFloat(body.regular_price) * 100);
+      if (body.price) updateData.priceAud = Math.round(parseFloat(body.price) * 100);
+      if (body.stock_status) updateData.inStock = body.stock_status !== "outofstock";
+      if (body.stock_quantity != null) {
+        const qty = parseInt(String(body.stock_quantity), 10);
+        if (!Number.isNaN(qty)) updateData.inStock = qty > 0;
+      }
+      const imgs = Array.isArray(body.images) ? body.images : [];
+      if (imgs[0]?.src) updateData.imageUrl = imgs[0].src;
+
+      const updated = await storage.updateProduct(req.params.id, updateData);
+      if (!updated) {
+        return res.status(404).json({ code: "woocommerce_rest_product_invalid_id", message: "Invalid ID.", data: { status: 404 } });
+      }
+      console.log(`[WC-Emulator] Product PUT/PATCH id=${req.params.id} fields=${Object.keys(updateData).join(",")}`);
+      res.json(toWcFormat(updated, 0, (updated.priceAud || 0) / 100, "", imgs));
+    } catch (err: any) {
+      console.error("[WC-Emulator] PUT /products/:id error:", err);
+      res.status(500).json({ code: "woocommerce_rest_cannot_edit", message: err.message });
+    }
+  };
+  app.put("/wp-json/wc/v3/products/:id", wcAuth, updateProductHandler);
+  app.patch("/wp-json/wc/v3/products/:id", wcAuth, updateProductHandler);
+
+  app.delete("/wp-json/wc/v3/products/:id", wcAuth, async (req, res) => {
+    wcJsonHeaders(res);
+    try {
+      await storage.deleteProduct(req.params.id);
+      res.json({ id: req.params.id, deleted: true });
+    } catch (err: any) {
+      res.status(500).json({ code: "woocommerce_rest_cannot_delete", message: err.message });
+    }
+  });
+
+  // Product attributes — AutoDS may probe for variant support
+  app.get("/wp-json/wc/v3/products/attributes", wcAuth, (_req, res) => {
+    wcJsonHeaders(res);
+    res.setHeader("X-WP-Total", "0");
+    res.setHeader("X-WP-TotalPages", "1");
+    res.json([]);
+  });
+  app.post("/wp-json/wc/v3/products/attributes", wcAuth, (req, res) => {
+    wcJsonHeaders(res);
+    const { name = "Attribute", slug } = req.body || {};
+    res.status(201).json({ id: Math.floor(Math.random() * 9000) + 1000, name, slug: slug || slugify(name), type: "select", order_by: "menu_order", has_archives: false });
+  });
+  app.post("/wp-json/wc/v3/products/attributes/batch", wcAuth, (_req, res) => {
+    wcJsonHeaders(res);
+    res.json({ create: [], update: [], delete: [] });
+  });
+  app.get("/wp-json/wc/v3/products/attributes/:id", wcAuth, (req, res) => {
+    wcJsonHeaders(res);
+    res.status(404).json({ code: "woocommerce_rest_attribute_invalid_id", message: "Invalid ID.", data: { status: 404 } });
+  });
+  app.get("/wp-json/wc/v3/products/attributes/:id/terms", wcAuth, (_req, res) => {
+    wcJsonHeaders(res);
+    res.json([]);
+  });
+
+  // Shipping classes — AutoDS reads these
+  app.get("/wp-json/wc/v3/products/shipping_classes", wcAuth, (_req, res) => {
+    wcJsonHeaders(res);
+    res.json([]);
+  });
+
   app.get("/wp-json/wc/v3/products/categories", wcAuth, async (_req, res) => {
     try {
       const cats = await storage.getCategories();
@@ -568,6 +659,26 @@ export function registerWooCommerceRoutes(app: Express) {
   app.get("/wp-json/wc/v3/orders/:id", wcAuth, (req, res) => {
     wcJsonHeaders(res);
     res.status(404).json({ code: "woocommerce_rest_order_invalid_id", message: "Invalid ID.", data: { status: 404 } });
+  });
+
+  // Order update — AutoDS marks orders as fulfilled / adds tracking
+  const updateOrderHandler = (req: Request, res: Response) => {
+    logFullRequest("WC-Order-Update", req);
+    wcJsonHeaders(res);
+    res.json({
+      id: req.params.id,
+      status: req.body?.status || "processing",
+      currency: "AUD",
+      meta_data: req.body?.meta_data || [],
+      ...(req.body || {}),
+    });
+  };
+  app.put("/wp-json/wc/v3/orders/:id", wcAuth, updateOrderHandler);
+  app.patch("/wp-json/wc/v3/orders/:id", wcAuth, updateOrderHandler);
+  app.post("/wp-json/wc/v3/orders/:id", wcAuth, updateOrderHandler);
+  app.post("/wp-json/wc/v3/orders/batch", wcAuth, (req, res) => {
+    wcJsonHeaders(res);
+    res.json({ create: [], update: req.body?.update || [], delete: [] });
   });
 
   app.post("/wp-json/wc/v3/orders", wcAuth, (req, res) => {
@@ -1139,6 +1250,41 @@ export function registerWooCommerceRoutes(app: Express) {
   // WordPress REST API index — some tools probe this before WC routes
   app.get("/wp-json/wp/v2/users/me", wcAuth, (_req, res) => {
     res.json({ id: 1, name: "SpoiltDogs Admin", slug: "admin", roles: ["administrator"] });
+  });
+
+  // Application Passwords — AutoDS may use this WP-native auth instead of WC OAuth
+  app.get("/wp-json/wp/v2/users/me/application-passwords", wcAuth, (_req, res) => {
+    wcJsonHeaders(res);
+    res.json([]);
+  });
+  app.post("/wp-json/wp/v2/users/me/application-passwords", wcAuth, (req, res) => {
+    wcJsonHeaders(res);
+    const name = req.body?.name || "AutoDS";
+    res.status(201).json({
+      uuid: `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`,
+      app_id: "",
+      name,
+      created: new Date().toISOString(),
+      last_used: null,
+      last_ip: null,
+      password: WC_CONSUMER_SECRET,
+    });
+  });
+
+  // WordPress core endpoints AutoDS may probe
+  app.get("/wp-json/wp/v2/types", wcAuth, (_req, res) => {
+    wcJsonHeaders(res);
+    res.json({ product: { name: "Product", slug: "product", rest_base: "products" } });
+  });
+
+  // Catch-all fallback for any unimplemented /wp-json/wc/v3/* GET — return [] instead of 404
+  // This prevents AutoDS/Syncee from failing on probe requests we haven't implemented yet.
+  app.get(/^\/wp-json\/wc\/v3\/.*/, wcAuth, (req, res) => {
+    console.log(`[WC-Fallback] Unhandled GET ${req.originalUrl} — returning []`);
+    wcJsonHeaders(res);
+    res.setHeader("X-WP-Total", "0");
+    res.setHeader("X-WP-TotalPages", "1");
+    res.json([]);
   });
 
   console.log("[WC-Emulator] WooCommerce API emulation active");
