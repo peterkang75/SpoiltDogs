@@ -19,7 +19,7 @@ export async function ensureBucketsExist() {
       const { error } = await supabase.storage.getBucket(name);
       if (error && (error.message.includes("not found") || error.message.includes("does not exist"))) {
         const fileSizeLimit =
-          key === "videos" ? 524288000 :
+          key === "videos" ? 52428800 :
           key === "music" ? 52428800 :
           52428800;
         const { error: createErr } = await supabase.storage.createBucket(name, {
