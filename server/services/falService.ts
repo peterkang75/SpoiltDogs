@@ -474,6 +474,7 @@ export async function generateVideo({
 export async function generateVideoWithKlingO1({
   prompt,
   caption,
+  motionDirective,
   referenceImageUrls = [],
   aspectRatio = "9:16",
   duration = "8",
@@ -482,6 +483,7 @@ export async function generateVideoWithKlingO1({
 }: {
   prompt: string;
   caption?: string;
+  motionDirective?: string;
   referenceImageUrls?: string[];
   aspectRatio?: string;
   duration?: string;
@@ -507,9 +509,18 @@ export async function generateVideoWithKlingO1({
     if (refs.length === 0) throw new Error("KlingO1 requires at least one reference image");
 
     const refMentions = refs.map((_, i) => `@Image${i + 1}`).join(", ");
+
+    const AMATEUR_STYLE =
+      "Shot on a phone by an amateur owner. Handheld camera with natural shake. " +
+      "No slow motion. No cinematic lighting or professional composition. " +
+      "Casual, candid moment captured in real life. Normal real-time speed. " +
+      "Realistic physics — objects in mouth hide the tongue, paws touch ground with weight.";
+
+    const dirPart = motionDirective ? ` Scene direction: ${motionDirective}.` : "";
+
     const finalPrompt =
       `Recreate the exact same dog shown in ${refMentions} (same breed, fur color, face, body). ` +
-      `${motionPrompt}. Real-time speed, natural motion, photorealistic.`;
+      `${motionPrompt}.${dirPart} ${AMATEUR_STYLE}`;
 
     // Kling duration: only "5" or "10"
     const klingDuration = duration === "5" ? "5" : "10";

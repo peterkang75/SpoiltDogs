@@ -1512,6 +1512,7 @@ Respond in JSON format:
           audioEnabled = false,
           musicUrl = null,
           musicVolume = 40,
+          motionDirective = "",
         } = req.body;
 
         const item = await storage.getMarketingQueueItem(id);
@@ -1608,8 +1609,9 @@ Respond in JSON format:
 
           const { generateVideoWithKlingO1 } = await import("./services/falService");
           const result = await generateVideoWithKlingO1({
-            prompt: `${prompt}. Professional pet photography style, high quality.`,
+            prompt: prompt,
             caption: item.caption || "",
+            motionDirective: motionDirective || "",
             referenceImageUrls: referenceImages,
             aspectRatio: "9:16",
             duration,

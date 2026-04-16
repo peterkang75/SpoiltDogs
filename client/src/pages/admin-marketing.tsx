@@ -344,12 +344,12 @@ export default function AdminMarketing() {
 
 
   const generateImageMut = useMutation({
-    mutationFn: async ({ id, model, duration, audioEnabled, musicUrl, musicVolume }: { id: string; model: string; duration: string; audioEnabled?: boolean; musicUrl?: string | null; musicVolume?: number }) => {
+    mutationFn: async ({ id, model, duration, audioEnabled, musicUrl, musicVolume, motionDirective }: { id: string; model: string; duration: string; audioEnabled?: boolean; musicUrl?: string | null; musicVolume?: number; motionDirective?: string }) => {
       const response = await fetch(`/api/admin/marketing/queue/${id}/generate-image`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({ model, duration, audioEnabled, musicUrl, musicVolume }),
+        body: JSON.stringify({ model, duration, audioEnabled, musicUrl, musicVolume, motionDirective }),
       });
       if (!response.ok) {
         const data = await response.json();
@@ -1233,7 +1233,7 @@ function QueueCard({
   onReject: () => void;
   onDelete: () => void;
   musicTracks: any[];
-  onGenerateImage: (id: string, model: string, duration: string, opts?: { audioEnabled?: boolean; musicUrl?: string | null; musicVolume?: number }) => void;
+  onGenerateImage: (id: string, model: string, duration: string, opts?: { audioEnabled?: boolean; musicUrl?: string | null; musicVolume?: number; motionDirective?: string }) => void;
   onRewrite: (topic: string, platform: string) => void;
   isApproving: boolean;
   isRejecting: boolean;
@@ -1243,6 +1243,7 @@ function QueueCard({
   const [selectedVideoQuality, setSelectedVideoQuality] = useState("recommended");
   const [selectedImageModel, setSelectedImageModel] = useState<string>("");
   const [selectedDuration, setSelectedDuration] = useState("8");
+  const [motionDirective, setMotionDirective] = useState("");
   const [audioEnabled, setAudioEnabled] = useState(false);
   const [selectedMusicId, setSelectedMusicId] = useState<string>("");
   const [musicVolume, setMusicVolume] = useState(40);
@@ -1599,6 +1600,20 @@ function QueueCard({
                   </div>
                 </div>
 
+                {/* Motion directive */}
+                <div>
+                  <p className="text-xs text-gray-500 mb-1.5">장면 연출 (선택)</p>
+                  <textarea
+                    value={motionDirective}
+                    onChange={(e) => setMotionDirective(e.target.value)}
+                    placeholder="예: 공원에서 공 쫓아가다 갑자기 카메라 쪽 돌아봄"
+                    className="w-full text-xs border rounded-lg px-2 py-1.5 bg-white resize-none"
+                    rows={2}
+                    data-testid={`input-motion-${item.id}`}
+                  />
+                  <p className="text-xs text-gray-400 mt-0.5">비워두면 캡션 기반으로 자동 생성</p>
+                </div>
+
                 {/* Audio selector */}
                 <div>
                   <p className="text-xs text-gray-500 mb-1.5">배경음악</p>
@@ -1685,6 +1700,7 @@ function QueueCard({
                       audioEnabled,
                       musicUrl,
                       musicVolume,
+                      motionDirective: motionDirective || undefined,
                     });
                   }}
                   disabled={isGeneratingImage}
