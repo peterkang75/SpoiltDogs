@@ -721,8 +721,8 @@ export default function AdminBrandStudio() {
       return;
     }
     try {
-      await apiRequest("PATCH", `/api/admin/gukdung-images/${image.id}`, { isVideoReference: next });
-      await queryClient.invalidateQueries({ queryKey: ["/api/admin/gukdung-images"] });
+      await apiRequest("PATCH", `/api/admin/brand/images/${image.id}`, { isVideoReference: next });
+      await queryClient.invalidateQueries({ queryKey: ["/api/admin/brand/images"] });
     } catch (err: any) {
       toast({ title: "업데이트 실패", description: err.message, variant: "destructive" });
     }
