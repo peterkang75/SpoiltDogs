@@ -265,7 +265,7 @@
 - Phase 2.5-I: Kling O1/O3 영상 파이프라인 교체 (아래 섹션) — ✅ 완료
 - Phase 2.5-J: 고정 배경 합성 (Inpainting) — 배경 라이브러리 + 마스크 편집기 + FAL inpaint 모델로 국둥이 합성. 배경 일치도 90~95% 목표. 개발 5~7일 예상.
 - Caption inline edit feature
-- Phase 2.6 Content Scheduler
+- Phase 2.6 Content Scheduler (아래 섹션) — 진행 중
 - Phase 2.7 Meta/TikTok SNS publishing
 
 ## Post-Replit Migration Debt (2026-04-14~)
@@ -363,3 +363,25 @@
 #### Phase 2.5-I-7: 미리보기 음악 재생 (2026-04-16)
 - [x] InstagramPreview: 비디오 음소거/재생 토글 버튼 추가 (Volume2/VolumeX 아이콘)
 - [x] 이미지+음악 혼합 영상도 미리보기에서 소리 재생 가능
+
+---
+
+## Phase 2.6 Content Scheduler
+
+### 구현 체크리스트
+
+#### Phase 2.6-A: DB 스키마 + API + 기본 UI ✅ (2026-04-16)
+- [x] `content_schedule_template` 테이블 — 주간 반복 패턴 (요일, 플랫폼, 콘텐츠 타입)
+- [x] `content_schedule_item` 테이블 — 개별 스케줄 항목 (날짜, 주제, 설명, 상태, queueItemId 연결)
+- [x] Storage CRUD 메서드 (templates + items, bulk create, month 단위 조회/삭제)
+- [x] API 엔드포인트: templates CRUD, items 조회/수정/삭제, AI 스케줄 생성, 전체 승인
+- [x] 주간 패턴 탭: 7일 그리드 + 플랫폼/콘텐츠 타입 추가/삭제/토글
+- [x] 캘린더 탭: 월간 캘린더 뷰, 인라인 주제/설명 편집, 개별/전체 승인, 삭제
+- [x] AI 스케줄 생성: 주간 패턴 + 월간 테마 → Claude가 각 슬롯별 주제/설명 자동 생성
+- [x] Admin 사이드바 "스케줄러" 메뉴 추가
+
+#### Phase 2.6-B: 자동 실행 (cron) — 미구현
+- [ ] node-cron으로 매일 시드니 시간 기준 실행
+- [ ] 승인된 항목 → 해당 날짜에 marketing_queue 생성 → 자동 카피+이미지/영상 생성
+- [ ] 에러 핸들링 (크레딧 부족, 생성 실패 등)
+- [ ] 생성 완료 시 schedule_item.status → "generated", queueItemId 연결
