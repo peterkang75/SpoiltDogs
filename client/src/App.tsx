@@ -60,13 +60,13 @@ function Router() {
       <Route path="/privacy-policy" component={PrivacyPolicy} />
       <Route path="/contact" component={ContactUs} />
       <Route path="/admin/login" component={AdminLogin} />
-      <Route path="/admin" component={AdminDashboard} />
       <Route path="/admin/dashboard" component={AdminDashboard} />
       <Route path="/admin/crm" component={AdminCRM} />
       <Route path="/admin/products" component={AdminProducts} />
       <Route path="/admin/marketing" component={AdminMarketing} />
       <Route path="/admin/brand-studio" component={AdminBrandStudio} />
       <Route path="/admin/scheduler" component={AdminScheduler} />
+      <Route path="/admin" component={AdminDashboard} />
       <Route component={NotFound} />
     </Switch>
   );
