@@ -73,3 +73,57 @@ export async function mixVideoWithMusic({
     await fs.rm(tmp, { recursive: true, force: true }).catch(() => {});
   }
 }
+
+export async function mixImageWithMusic({
+  imageUrl,
+  musicUrl,
+  musicVolume,
+  duration = 10,
+}: {
+  imageUrl: string;
+  musicUrl: string;
+  musicVolume: number;
+  duration?: number;
+}): Promise<string> {
+  const volume = Math.max(0, Math.min(100, musicVolume)) / 100;
+  const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "imgmix-"));
+  const imgPath = path.join(tmp, "image.jpg");
+  const mPath = path.join(tmp, "music.mp3");
+  const oPath = path.join(tmp, "output.mp4");
+
+  try {
+    console.log(`[ImageMix] Downloading image: ${imageUrl.substring(0, 80)}`);
+    console.log(`[ImageMix] Downloading music: ${musicUrl.substring(0, 80)}`);
+    await Promise.all([
+      downloadToFile(imageUrl, imgPath),
+      downloadToFile(musicUrl, mPath),
+    ]);
+    console.log(`[ImageMix] Downloads complete, creating ${duration}s video with volume=${volume.toFixed(2)}`);
+
+    await runFfmpeg([
+      "-y",
+      "-loop", "1",
+      "-i", imgPath,
+      "-i", mPath,
+      "-filter:a", `volume=${volume.toFixed(2)}`,
+      "-c:v", "libx264",
+      "-tune", "stillimage",
+      "-c:a", "aac",
+      "-b:a", "192k",
+      "-pix_fmt", "yuv420p",
+      "-t", String(duration),
+      "-shortest",
+      oPath,
+    ]);
+
+    console.log("[ImageMix] ffmpeg complete, uploading result...");
+    const buffer = await fs.readFile(oPath);
+    console.log(`[ImageMix] Output size: ${(buffer.length / 1024 / 1024).toFixed(1)}MB`);
+    const filename = `imgvid_${Date.now()}_${Math.random().toString(36).slice(2)}.mp4`;
+    const publicUrl = await uploadBufferToStorage(buffer, filename, "video/mp4", "videos");
+    console.log("[ImageMix] Upload complete:", publicUrl);
+    return publicUrl;
+  } finally {
+    await fs.rm(tmp, { recursive: true, force: true }).catch(() => {});
+  }
+}

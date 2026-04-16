@@ -1868,10 +1868,87 @@ function QueueCard({
                   </SelectContent>
                 </Select>
 
+                {/* Audio selector for images */}
+                <div>
+                  <p className="text-xs text-gray-500 mb-1.5">배경음악</p>
+                  <div className="flex gap-2 mb-2">
+                    <button
+                      onClick={() => setAudioEnabled(false)}
+                      className={`flex-1 py-1.5 px-2 rounded-lg text-xs font-medium border transition-colors ${
+                        !audioEnabled
+                          ? "border-green-600 bg-green-50 text-green-700"
+                          : "border-gray-200 text-gray-500 hover:border-gray-300"
+                      }`}
+                    >
+                      없음 (이미지)
+                    </button>
+                    <button
+                      onClick={() => setAudioEnabled(true)}
+                      className={`flex-1 py-1.5 px-2 rounded-lg text-xs font-medium border transition-colors ${
+                        audioEnabled
+                          ? "border-green-600 bg-green-50 text-green-700"
+                          : "border-gray-200 text-gray-500 hover:border-gray-300"
+                      }`}
+                    >
+                      있음 (이미지+음악=영상)
+                    </button>
+                  </div>
+                  {audioEnabled && (
+                    <div className="space-y-2 pl-1">
+                      <select
+                        value={selectedMusicId}
+                        onChange={(e) => setSelectedMusicId(e.target.value)}
+                        className="w-full text-xs border rounded-lg px-2 py-1.5 bg-white"
+                      >
+                        <option value="">음악 선택...</option>
+                        {musicTracks.filter((m: any) => m.isActive).map((m: any) => {
+                          let meta: any = {};
+                          try { meta = JSON.parse(m.content ?? "{}"); } catch {}
+                          return (
+                            <option key={m.id} value={m.id}>
+                              {m.title}{meta.mood ? ` · ${meta.mood}` : ""}
+                            </option>
+                          );
+                        })}
+                      </select>
+                      {musicTracks.filter((m: any) => m.isActive).length === 0 && (
+                        <p className="text-xs text-amber-600">
+                          활성 음악이 없습니다. 브랜드 스튜디오 → 음악 라이브러리에서 업로드하세요.
+                        </p>
+                      )}
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-gray-500 w-10">볼륨</span>
+                        <input
+                          type="range"
+                          min={0}
+                          max={100}
+                          value={musicVolume}
+                          onChange={(e) => setMusicVolume(Number(e.target.value))}
+                          className="flex-1"
+                        />
+                        <span className="text-xs text-gray-700 w-8 text-right">{musicVolume}%</span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
                 {/* Generate image button */}
                 <Button
                   size="sm"
-                  onClick={() => onGenerateImage(item.id, selectedImageModel, "0")}
+                  onClick={() => {
+                    const selectedTrack = musicTracks.find((m: any) => m.id === selectedMusicId);
+                    let musicUrl: string | null = null;
+                    if (audioEnabled && selectedTrack) {
+                      try {
+                        musicUrl = JSON.parse(selectedTrack.content ?? "{}").url ?? null;
+                      } catch {}
+                    }
+                    onGenerateImage(item.id, selectedImageModel, "10", {
+                      audioEnabled,
+                      musicUrl,
+                      musicVolume,
+                    });
+                  }}
                   disabled={isGeneratingImage || !selectedImageModel}
                   className="w-full gap-1.5 h-8 text-xs"
                   style={{ backgroundColor: "#4B9073", color: "white" }}

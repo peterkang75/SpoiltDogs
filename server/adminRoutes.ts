@@ -1727,7 +1727,27 @@ Respond in JSON format:
                 ? { videoUrl: result.videoUrl }
                 : { imageUrl: result.imageUrl! };
 
-              // 이미지 생성 후 음악 합성 (영상 결과인 경우)
+              // 이미지 + 음악 → 영상 합성
+              if (result.imageUrl && audioEnabled && musicUrl) {
+                try {
+                  setVideoProgress(id, "음악 합성 중", 85);
+                  console.log(`[Image] Mixing image with music for ${id}`);
+                  const { mixImageWithMusic } = await import("./services/musicMixService");
+                  const videoUrl = await mixImageWithMusic({
+                    imageUrl: result.imageUrl,
+                    musicUrl,
+                    musicVolume: Number(musicVolume) || 40,
+                    duration: Number(duration) || 10,
+                  });
+                  updateData.videoUrl = videoUrl;
+                  // imageUrl도 유지 (썸네일 용도)
+                  console.log(`[Image] Image+music video created: ${videoUrl}`);
+                } catch (mixErr: any) {
+                  console.error("[Image] Image+music mix failed:", mixErr?.message, mixErr?.stack);
+                }
+              }
+
+              // 영상 결과 + 음악 합성
               if (result.videoUrl && audioEnabled && musicUrl) {
                 try {
                   setVideoProgress(id, "음악 합성 중", 85);
@@ -1739,7 +1759,7 @@ Respond in JSON format:
                   });
                   updateData.videoUrl = mixedUrl;
                 } catch (mixErr: any) {
-                  console.error("[Image] Music mix failed:", mixErr?.message);
+                  console.error("[Image] Video+music mix failed:", mixErr?.message);
                 }
               }
 
