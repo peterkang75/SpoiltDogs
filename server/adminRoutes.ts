@@ -1421,6 +1421,16 @@ Respond in JSON format:
     },
   );
 
+  app.get(
+    "/api/admin/marketing/queue/:id/progress",
+    requireAdmin,
+    async (req, res) => {
+      const { getVideoProgress } = await import("./services/falService");
+      const progress = getVideoProgress(req.params.id);
+      res.json(progress || { stage: "대기 중", percent: 0 });
+    },
+  );
+
   app.patch(
     "/api/admin/marketing/queue/:id/approve",
     requireAdmin,
@@ -1526,11 +1536,15 @@ Respond in JSON format:
         const {
           model: modelOverride,
           duration = "8",
-          audioEnabled = false,
+          audioEnabled: rawAudioEnabled = false,
           musicUrl = null,
           musicVolume = 40,
           motionDirective = "",
         } = req.body;
+
+        // audioEnabled can come as string "true" from JSON
+        const audioEnabled = rawAudioEnabled === true || rawAudioEnabled === "true";
+        console.log(`[Generate] id=${id} audioEnabled=${audioEnabled} musicUrl=${musicUrl ? "yes" : "no"} volume=${musicVolume}`);
 
         const item = await storage.getMarketingQueueItem(id);
         if (!item) {
@@ -1629,7 +1643,7 @@ Respond in JSON format:
 
           (async () => {
             try {
-              const { generateVideoWithKlingO1 } = await import("./services/falService");
+              const { generateVideoWithKlingO1, setVideoProgress, clearVideoProgress } = await import("./services/falService");
               const result = await generateVideoWithKlingO1({
                 prompt: prompt,
                 caption: item.caption || "",
@@ -1639,11 +1653,13 @@ Respond in JSON format:
                 duration,
                 gukdungProfile,
                 imageGuidelines: imageGuidelineText,
+                queueItemId: id,
               });
 
               let finalVideoUrl = result.videoUrl;
               if (audioEnabled && musicUrl) {
                 try {
+                  setVideoProgress(id, "음악 합성 중", 92);
                   const { mixVideoWithMusic } = await import("./services/musicMixService");
                   finalVideoUrl = await mixVideoWithMusic({
                     videoUrl: result.videoUrl,
@@ -1656,48 +1672,81 @@ Respond in JSON format:
                 }
               }
 
+              setVideoProgress(id, "완료", 100);
+
               await storage.updateMarketingQueueItem(id, {
                 videoUrl: finalVideoUrl,
                 imagePrompt: result.videoPrompt || item.imagePrompt || null,
                 status: "approved",
               } as any);
               console.log(`[KlingO1] Video saved for queue item ${id}`);
+              clearVideoProgress(id);
             } catch (bgErr: any) {
               console.error(`[KlingO1] Background generation failed: ${bgErr?.message}`);
+              const { clearVideoProgress } = await import("./services/falService");
+              clearVideoProgress(id);
               await storage.updateMarketingQueueItem(id, { status: "failed" } as any).catch(() => {});
             }
           })();
           return;
         } else {
-          // ── Standard image generation ─────────────────────────────────────
-          const { generateImage } = await import("./services/falService");
-          const result = await generateImage({
-            prompt: `${prompt}. Professional pet photography style, high quality.`,
-            model: selectedModel as any,
-            referenceImageUrls:
-              selectedModel !== "ideogram" && selectedModel !== "kling"
-                ? referenceImages
-                : [],
-            aspectRatio,
-          });
+          // ── Standard image generation (비동기 — 진행률 바 지원) ─────────────
+          await storage.updateMarketingQueueItem(id, { status: "generating" } as any);
+          res.json({ success: true, status: "generating", message: "이미지 생성을 시작했습니다." });
 
-          if (!result.imageUrl && !result.videoUrl) {
-            res
-              .status(500)
-              .json({ error: "Generation failed — no URL returned" });
-            return;
-          }
+          (async () => {
+            try {
+              const { generateImage, setVideoProgress, clearVideoProgress } = await import("./services/falService");
+              setVideoProgress(id, "이미지 생성 중", 20);
 
-          const updateData: Record<string, string> = result.videoUrl
-            ? { videoUrl: result.videoUrl }
-            : { imageUrl: result.imageUrl! };
-          const updated = await storage.updateMarketingQueueItem(id, updateData);
-          res.json({
-            success: true,
-            imageUrl: result.imageUrl || null,
-            videoUrl: result.videoUrl || null,
-            item: updated,
-          });
+              const result = await generateImage({
+                prompt: `${prompt}. Professional pet photography style, high quality.`,
+                model: selectedModel as any,
+                referenceImageUrls:
+                  selectedModel !== "ideogram" && selectedModel !== "kling"
+                    ? referenceImages
+                    : [],
+                aspectRatio,
+              });
+
+              if (!result.imageUrl && !result.videoUrl) {
+                throw new Error("Generation failed — no URL returned");
+              }
+
+              setVideoProgress(id, "저장 중", 80);
+
+              const updateData: Record<string, string> = result.videoUrl
+                ? { videoUrl: result.videoUrl }
+                : { imageUrl: result.imageUrl! };
+
+              // 이미지 생성 후 음악 합성 (영상 결과인 경우)
+              if (result.videoUrl && audioEnabled && musicUrl) {
+                try {
+                  setVideoProgress(id, "음악 합성 중", 85);
+                  const { mixVideoWithMusic } = await import("./services/musicMixService");
+                  const mixedUrl = await mixVideoWithMusic({
+                    videoUrl: result.videoUrl,
+                    musicUrl,
+                    musicVolume: Number(musicVolume) || 40,
+                  });
+                  updateData.videoUrl = mixedUrl;
+                } catch (mixErr: any) {
+                  console.error("[Image] Music mix failed:", mixErr?.message);
+                }
+              }
+
+              setVideoProgress(id, "완료", 100);
+              await storage.updateMarketingQueueItem(id, { ...updateData, status: "approved" } as any);
+              console.log(`[Image] Saved for queue item ${id}`);
+              clearVideoProgress(id);
+            } catch (bgErr: any) {
+              console.error(`[Image] Generation failed: ${bgErr?.message}`);
+              const { clearVideoProgress } = await import("./services/falService");
+              clearVideoProgress(id);
+              await storage.updateMarketingQueueItem(id, { status: "failed" } as any).catch(() => {});
+            }
+          })();
+          return;
         }
       } catch (error: any) {
         const msg = error?.message || "";

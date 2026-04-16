@@ -3,6 +3,21 @@ import { saveImageFromUrl, saveVideoFromUrl } from "./storageService";
 
 fal.config({ credentials: process.env.FAL_API_KEY });
 
+// ── In-memory video generation progress tracking ──
+const videoProgress = new Map<string, { stage: string; percent: number; updatedAt: number }>();
+
+export function getVideoProgress(queueItemId: string) {
+  return videoProgress.get(queueItemId) ?? null;
+}
+
+export function setVideoProgress(queueItemId: string, stage: string, percent: number) {
+  videoProgress.set(queueItemId, { stage, percent, updatedAt: Date.now() });
+}
+
+export function clearVideoProgress(queueItemId: string) {
+  videoProgress.delete(queueItemId);
+}
+
 export type ImageModel =
   | "nano-banana-2"
   | "nano-banana-pro"
@@ -480,6 +495,7 @@ export async function generateVideoWithKlingO1({
   duration = "8",
   gukdungProfile,
   imageGuidelines,
+  queueItemId,
 }: {
   prompt: string;
   caption?: string;
@@ -489,8 +505,12 @@ export async function generateVideoWithKlingO1({
   duration?: string;
   gukdungProfile?: string;
   imageGuidelines?: string;
+  queueItemId?: string;
 }): Promise<{ videoUrl: string; videoPrompt: string }> {
+  const trackId = queueItemId || "";
   try {
+    if (trackId) setVideoProgress(trackId, "프롬프트 생성 중", 5);
+
     let motionPrompt = prompt;
     if (caption) {
       try {
@@ -504,6 +524,8 @@ export async function generateVideoWithKlingO1({
         console.warn("[KlingO1] Caption conversion failed, using original prompt:", err);
       }
     }
+
+    if (trackId) setVideoProgress(trackId, "영상 생성 대기 중", 10);
 
     const refs = referenceImageUrls.slice(0, 7);
     if (refs.length === 0) throw new Error("KlingO1 requires at least one reference image");
@@ -532,12 +554,23 @@ export async function generateVideoWithKlingO1({
     for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
       try {
         console.log(`[KlingO1] Attempt ${attempt}/${MAX_RETRIES}...`);
-        const result = (await fal.run("fal-ai/kling-video/o1/reference-to-video", {
+        const result = (await fal.subscribe("fal-ai/kling-video/o1/reference-to-video", {
           input: {
             prompt: finalPrompt,
             image_urls: refs,
             duration: klingDuration,
             aspect_ratio: aspectRatio,
+          },
+          logs: true,
+          onQueueUpdate: (status) => {
+            if (!trackId) return;
+            if (status.status === "IN_QUEUE") {
+              setVideoProgress(trackId, "대기열 대기 중", 15);
+            } else if (status.status === "IN_PROGRESS") {
+              const logCount = status.logs?.length || 0;
+              const percent = Math.min(15 + logCount * 5, 85);
+              setVideoProgress(trackId, "영상 생성 중", percent);
+            }
           },
         })) as any;
 
@@ -554,17 +587,23 @@ export async function generateVideoWithKlingO1({
           throw retryErr;
         }
         if (attempt === MAX_RETRIES) throw retryErr;
+        if (trackId) setVideoProgress(trackId, `재시도 중 (${attempt + 1}/${MAX_RETRIES})`, 15);
         console.log("[KlingO1] Retrying in 5s...");
         await new Promise(r => setTimeout(r, 5000));
       }
     }
     if (!videoUrl) throw new Error("KlingO1 returned no video URL after retries");
 
+    if (trackId) setVideoProgress(trackId, "영상 저장 중", 90);
+
     const filename = `video_${Date.now()}_${Math.random().toString(36).slice(2)}`;
     const permanentUrl = await saveVideoFromUrl(videoUrl, filename);
 
+    if (trackId) setVideoProgress(trackId, "완료", 100);
+
     return { videoUrl: permanentUrl, videoPrompt: motionPrompt };
   } catch (error: any) {
+    if (trackId) clearVideoProgress(trackId);
     const body = JSON.stringify(error?.body?.detail || error?.body || "") + (error?.message || "");
     console.error(`[KlingO1] Error status=${error?.status} msg=${error?.message}`);
     if (

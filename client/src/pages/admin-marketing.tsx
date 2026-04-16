@@ -369,8 +369,8 @@ export default function AdminMarketing() {
       });
       if (data.status === "generating") {
         toast({
-          title: "영상 생성 시작",
-          description: "2~5분 후 자동으로 완료됩니다. 페이지를 떠나도 괜찮습니다.",
+          title: "생성 시작",
+          description: "진행 상황이 카드에 표시됩니다. 페이지를 떠나도 괜찮습니다.",
         });
         const pollInterval = setInterval(async () => {
           const res = await fetch(`/api/admin/marketing/queue/${variables.id}`, { credentials: "include" });
@@ -379,13 +379,13 @@ export default function AdminMarketing() {
           if (item.status !== "generating") {
             clearInterval(pollInterval);
             queryClient.invalidateQueries({ queryKey: ["/api/admin/marketing/queue"] });
-            if (item.videoUrl) {
-              toast({ title: "영상 생성 완료!" });
+            if (item.videoUrl || item.imageUrl) {
+              toast({ title: "생성 완료!" });
             } else {
-              toast({ title: "영상 생성 실패", variant: "destructive" });
+              toast({ title: "생성 실패", variant: "destructive" });
             }
           }
-        }, 15000);
+        }, 10000);
         return;
       }
       if (variables.model === "card_news") {
@@ -1277,6 +1277,26 @@ function QueueCard({
   const [showRegenPanel, setShowRegenPanel] = useState(false);
   const [koCaption, setKoCaption] = useState<string | null>(null);
   const [koHashtags, setKoHashtags] = useState<string | null>(null);
+
+  // Video generation progress tracking
+  const [videoProgress, setVideoProgress] = useState<{ stage: string; percent: number } | null>(null);
+
+  useEffect(() => {
+    if (item.status !== "generating") {
+      setVideoProgress(null);
+      return;
+    }
+    const poll = setInterval(async () => {
+      try {
+        const res = await fetch(`/api/admin/marketing/queue/${item.id}/progress`, { credentials: "include" });
+        if (res.ok) {
+          const data = await res.json();
+          setVideoProgress(data);
+        }
+      } catch {}
+    }, 3000);
+    return () => clearInterval(poll);
+  }, [item.status, item.id]);
   const { toast } = useToast();
 
   const translateMut = useMutation({
@@ -1746,6 +1766,22 @@ function QueueCard({
                     </>
                   )}
                 </Button>
+
+                {/* Video generation progress bar */}
+                {item.status === "generating" && videoProgress && (
+                  <div className="mt-2 space-y-1">
+                    <div className="flex justify-between items-center">
+                      <span className="text-xs text-blue-700 font-medium">{videoProgress.stage}</span>
+                      <span className="text-xs text-blue-600">{videoProgress.percent}%</span>
+                    </div>
+                    <div className="w-full bg-blue-100 rounded-full h-2 overflow-hidden">
+                      <div
+                        className="bg-blue-500 h-2 rounded-full transition-all duration-700 ease-out"
+                        style={{ width: `${videoProgress.percent}%` }}
+                      />
+                    </div>
+                  </div>
+                )}
               </>
             ) : item.contentType === "card_news" ? (
               <>
@@ -1824,6 +1860,22 @@ function QueueCard({
                     </>
                   )}
                 </Button>
+
+                {/* Image generation progress bar */}
+                {item.status === "generating" && videoProgress && (
+                  <div className="mt-2 space-y-1">
+                    <div className="flex justify-between items-center">
+                      <span className="text-xs text-blue-700 font-medium">{videoProgress.stage}</span>
+                      <span className="text-xs text-blue-600">{videoProgress.percent}%</span>
+                    </div>
+                    <div className="w-full bg-blue-100 rounded-full h-2 overflow-hidden">
+                      <div
+                        className="bg-blue-500 h-2 rounded-full transition-all duration-700 ease-out"
+                        style={{ width: `${videoProgress.percent}%` }}
+                      />
+                    </div>
+                  </div>
+                )}
               </>
             )}
           </div>
