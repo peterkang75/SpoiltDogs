@@ -4,13 +4,10 @@ import path from "path";
 import { execSync } from "child_process";
 import runtimeErrorOverlay from "@replit/vite-plugin-runtime-error-modal";
 
-const buildVersion =
-  process.env.RAILWAY_GIT_COMMIT_SHA?.slice(0, 7) ||
-  (() => {
-    try { return execSync("git rev-parse --short HEAD").toString().trim(); }
-    catch { return "dev"; }
-  })();
-const buildDate = new Date().toISOString();
+const now = new Date();
+const pad = (n: number) => n.toString().padStart(2, "0");
+const buildVersion = `${pad(now.getFullYear() % 100)}${pad(now.getMonth() + 1)}${pad(now.getDate())}${pad(now.getHours())}${pad(now.getMinutes())}`;
+const buildDate = now.toISOString();
 
 export default defineConfig({
   define: {
