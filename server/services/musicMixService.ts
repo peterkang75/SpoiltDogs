@@ -40,10 +40,13 @@ export async function mixVideoWithMusic({
   const oPath = path.join(tmp, "output.mp4");
 
   try {
+    console.log(`[MusicMix] Downloading video: ${videoUrl.substring(0, 80)}`);
+    console.log(`[MusicMix] Downloading music: ${musicUrl.substring(0, 80)}`);
     await Promise.all([
       downloadToFile(videoUrl, vPath),
       downloadToFile(musicUrl, mPath),
     ]);
+    console.log(`[MusicMix] Downloads complete, running ffmpeg with volume=${volume.toFixed(2)}`);
 
     await runFfmpeg([
       "-y",
@@ -59,9 +62,12 @@ export async function mixVideoWithMusic({
       oPath,
     ]);
 
+    console.log("[MusicMix] ffmpeg complete, uploading result...");
     const buffer = await fs.readFile(oPath);
+    console.log(`[MusicMix] Output size: ${(buffer.length / 1024 / 1024).toFixed(1)}MB`);
     const filename = `mixed_${Date.now()}_${Math.random().toString(36).slice(2)}.mp4`;
     const publicUrl = await uploadBufferToStorage(buffer, filename, "video/mp4", "videos");
+    console.log("[MusicMix] Upload complete:", publicUrl);
     return publicUrl;
   } finally {
     await fs.rm(tmp, { recursive: true, force: true }).catch(() => {});

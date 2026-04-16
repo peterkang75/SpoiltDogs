@@ -1658,19 +1658,24 @@ Respond in JSON format:
               });
 
               let finalVideoUrl = result.videoUrl;
+              console.log(`[KlingO1] Video generated: ${result.videoUrl}`);
+              console.log(`[KlingO1] Audio mixing check: audioEnabled=${audioEnabled}, musicUrl=${musicUrl ? musicUrl.substring(0, 80) : "null"}, volume=${musicVolume}`);
               if (audioEnabled && musicUrl) {
                 try {
                   setVideoProgress(id, "음악 합성 중", 92);
+                  console.log("[KlingO1] Starting music mix...");
                   const { mixVideoWithMusic } = await import("./services/musicMixService");
                   finalVideoUrl = await mixVideoWithMusic({
                     videoUrl: result.videoUrl,
                     musicUrl,
                     musicVolume: Number(musicVolume) || 40,
                   });
-                  console.log("[KlingO1] Music mixed:", finalVideoUrl);
+                  console.log("[KlingO1] Music mixed successfully:", finalVideoUrl);
                 } catch (mixErr: any) {
-                  console.error("[KlingO1] Music mix failed, returning silent video:", mixErr?.message);
+                  console.error("[KlingO1] Music mix FAILED:", mixErr?.message, mixErr?.stack);
                 }
+              } else {
+                console.log("[KlingO1] Skipping music mix (audioEnabled=%s, musicUrl=%s)", audioEnabled, !!musicUrl);
               }
 
               setVideoProgress(id, "완료", 100);
