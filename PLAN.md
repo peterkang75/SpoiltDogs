@@ -350,6 +350,7 @@
 - [x] 이미지 생성 라우트에서 `audioEnabled + musicUrl` 시 이미지+음악 합성 실행
 - [x] 이미지 QueueCard에 배경음악 선택 UI 추가 (없음/있음 토글 + 곡 선택 + 볼륨)
 - [x] `generated-videos` 버킷 생성 실패 수정 — fileSizeLimit 500MB→50MB (Supabase plan 제한 초과 원인)
+- [x] 이미지+음악 영상 길이 선택기 추가 (10초/20초/30초)
 
 #### Phase 2.5-I-6: 영상 생성 진행률 바 (2026-04-16)
 - [x] `falService.ts`: 인메모리 진행률 추적 (`videoProgress` Map)
@@ -357,3 +358,7 @@
 - [x] 진행률 단계: 프롬프트 생성 → 대기열 → 영상 생성 중 → 저장 → 음악 합성 → 완료
 - [x] `GET /api/admin/marketing/queue/:id/progress` 엔드포인트 추가
 - [x] QueueCard: 3초 간격 폴링 + 진행률 바 UI (파란색, 퍼센트 표시)
+
+#### Phase 2.5-I-7: 미리보기 음악 재생 (2026-04-16)
+- [x] InstagramPreview: 비디오 음소거/재생 토글 버튼 추가 (Volume2/VolumeX 아이콘)
+- [x] 이미지+음악 혼합 영상도 미리보기에서 소리 재생 가능
