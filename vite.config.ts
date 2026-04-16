@@ -4,10 +4,13 @@ import path from "path";
 import { execSync } from "child_process";
 import runtimeErrorOverlay from "@replit/vite-plugin-runtime-error-modal";
 
-const now = new Date();
 const pad = (n: number) => n.toString().padStart(2, "0");
-const buildVersion = `${pad(now.getFullYear() % 100)}${pad(now.getMonth() + 1)}${pad(now.getDate())}${pad(now.getHours())}${pad(now.getMinutes())}`;
-const buildDate = now.toISOString();
+const sydneyNow = new Date().toLocaleString("en-AU", { timeZone: "Australia/Sydney", hour12: false });
+const [datePart, timePart] = sydneyNow.split(", ");
+const [day, month, year] = datePart.split("/");
+const [hours, minutes] = timePart.split(":");
+const buildVersion = `${pad(Number(year) % 100)}${pad(Number(month))}${pad(Number(day))}${pad(Number(hours))}${pad(Number(minutes))}`;
+const buildDate = new Date().toISOString();
 
 export default defineConfig({
   define: {
