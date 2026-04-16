@@ -105,14 +105,18 @@ export function registerAdminRoutes(app: Express) {
     connectionString: process.env.DATABASE_URL,
     ssl: { rejectUnauthorized: false },
   });
+  sessionPool.on("error", (err) => console.error("[Session Pool] error:", err.message));
+
+  const pgStore = new PgStore({
+    pool: sessionPool,
+    tableName: "admin_sessions",
+    createTableIfMissing: true,
+  });
+  pgStore.on("error", (err: Error) => console.error("[PgStore] error:", err.message));
 
   app.use(
     session({
-      store: new PgStore({
-        pool: sessionPool,
-        tableName: "admin_sessions",
-        createTableIfMissing: true,
-      }),
+      store: pgStore,
       secret: process.env.SESSION_SECRET,
       resave: false,
       saveUninitialized: false,
@@ -132,7 +136,14 @@ export function registerAdminRoutes(app: Express) {
     }
     if (password === process.env.ADMIN_PASSWORD) {
       req.session.isAdmin = true;
-      return res.json({ success: true });
+      req.session.save((err) => {
+        if (err) {
+          console.error("[Login] Session save error:", err.message);
+          return res.status(500).json({ error: "Session save failed" });
+        }
+        return res.json({ success: true });
+      });
+      return;
     }
     return res.status(401).json({ error: "Invalid password" });
   });
