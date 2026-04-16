@@ -1988,6 +1988,22 @@ function QueueCard({
         );
       })()}
 
+      {/* Generation progress bar — visible during generating status */}
+      {shouldPoll && videoProgress && (
+        <div className="space-y-1 pt-1">
+          <div className="flex justify-between items-center">
+            <span className="text-xs text-blue-700 font-medium">{videoProgress.stage}</span>
+            <span className="text-xs text-blue-600">{videoProgress.percent}%</span>
+          </div>
+          <div className="w-full bg-blue-100 rounded-full h-2.5 overflow-hidden">
+            <div
+              className="bg-blue-500 h-2.5 rounded-full transition-all duration-700 ease-out"
+              style={{ width: `${videoProgress.percent}%` }}
+            />
+          </div>
+        </div>
+      )}
+
       {/* Rejection reason */}
       {item.rejectionReason && (
         <div className="bg-red-50 rounded-lg px-3 py-2">
