@@ -262,7 +262,8 @@
 
 ## Pending
 
-- Phase 2.5-I: Kling O1/O3 영상 파이프라인 교체 (아래 섹션) — 다음 작업
+- Phase 2.5-I: Kling O1/O3 영상 파이프라인 교체 (아래 섹션) — ✅ 완료
+- Phase 2.5-J: 고정 배경 합성 (Inpainting) — 배경 라이브러리 + 마스크 편집기 + FAL inpaint 모델로 국둥이 합성. 배경 일치도 90~95% 목표. 개발 5~7일 예상.
 - Caption inline edit feature
 - Phase 2.6 Content Scheduler
 - Phase 2.7 Meta/TikTok SNS publishing
