@@ -61,6 +61,8 @@ import {
   Home,
   Search,
   Languages,
+  Volume2,
+  VolumeX,
 } from "lucide-react";
 import type { MarketingPrompt, MarketingQueue } from "@shared/schema";
 
@@ -1273,6 +1275,7 @@ function QueueCard({
   const [audioEnabled, setAudioEnabled] = useState(false);
   const [selectedMusicId, setSelectedMusicId] = useState<string>("");
   const [musicVolume, setMusicVolume] = useState(40);
+  const [imageMusicDuration, setImageMusicDuration] = useState("10");
   const [showPreview, setShowPreview] = useState(false);
   const [showRegenPanel, setShowRegenPanel] = useState(false);
   const [koCaption, setKoCaption] = useState<string | null>(null);
@@ -1928,6 +1931,28 @@ function QueueCard({
                         />
                         <span className="text-xs text-gray-700 w-8 text-right">{musicVolume}%</span>
                       </div>
+                      <div>
+                        <p className="text-xs text-gray-500 mb-1">영상 길이</p>
+                        <div className="flex gap-1.5">
+                          {[
+                            { value: "10", label: "10초" },
+                            { value: "20", label: "20초" },
+                            { value: "30", label: "30초" },
+                          ].map((opt) => (
+                            <button
+                              key={opt.value}
+                              onClick={() => setImageMusicDuration(opt.value)}
+                              className={`flex-1 py-1 px-2 rounded-lg text-xs font-medium border transition-colors ${
+                                imageMusicDuration === opt.value
+                                  ? "border-green-600 bg-green-50 text-green-700"
+                                  : "border-gray-200 text-gray-500 hover:border-gray-300"
+                              }`}
+                            >
+                              {opt.label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
                     </div>
                   )}
                 </div>
@@ -1943,7 +1968,7 @@ function QueueCard({
                         musicUrl = JSON.parse(selectedTrack.content ?? "{}").url ?? null;
                       } catch {}
                     }
-                    onGenerateImage(item.id, selectedImageModel, "10", {
+                    onGenerateImage(item.id, selectedImageModel, audioEnabled ? imageMusicDuration : "10", {
                       audioEnabled,
                       musicUrl,
                       musicVolume,
@@ -2042,6 +2067,8 @@ function InstagramPreview({
   const isStory = item.contentType === "story_image";
   const caption = item.caption || "";
   const hashtags = item.hashtags || "";
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const [isMuted, setIsMuted] = useState(true);
 
   return (
     <div
@@ -2158,14 +2185,28 @@ function InstagramPreview({
                   }}
                 >
                   <video
+                    ref={videoRef}
                     src={item.videoUrl}
                     autoPlay
-                    muted
+                    muted={isMuted}
                     loop
                     playsInline
                     className="w-full h-full object-cover"
                   />
-                  <div className="absolute top-3 right-3">
+                  <div className="absolute top-3 right-3 flex items-center gap-2">
+                    <button
+                      onClick={() => {
+                        setIsMuted(!isMuted);
+                        if (videoRef.current) videoRef.current.muted = !isMuted;
+                      }}
+                      className="w-8 h-8 rounded-full bg-black/50 flex items-center justify-center hover:bg-black/70 transition-colors"
+                    >
+                      {isMuted ? (
+                        <VolumeX className="h-4 w-4 text-white" />
+                      ) : (
+                        <Volume2 className="h-4 w-4 text-white" />
+                      )}
+                    </button>
                     <Film className="h-5 w-5 text-white drop-shadow" />
                   </div>
                 </div>
