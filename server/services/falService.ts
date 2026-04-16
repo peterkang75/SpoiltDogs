@@ -554,25 +554,29 @@ export async function generateVideoWithKlingO1({
     for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
       try {
         console.log(`[KlingO1] Attempt ${attempt}/${MAX_RETRIES}...`);
-        const result = (await fal.subscribe("fal-ai/kling-video/o1/reference-to-video", {
+        // Start time-based progress simulation
+        const startTime = Date.now();
+        const expectedDurationMs = klingDuration === "5" ? 120000 : 180000; // 2~3 min
+        let progressTimer: ReturnType<typeof setInterval> | null = null;
+        if (trackId) {
+          setVideoProgress(trackId, "영상 생성 중", 20);
+          progressTimer = setInterval(() => {
+            const elapsed = Date.now() - startTime;
+            const percent = Math.min(20 + Math.floor((elapsed / expectedDurationMs) * 65), 85);
+            setVideoProgress(trackId, "영상 생성 중", percent);
+          }, 5000);
+        }
+
+        const result = (await fal.run("fal-ai/kling-video/o1/reference-to-video", {
           input: {
             prompt: finalPrompt,
             image_urls: refs,
             duration: klingDuration,
             aspect_ratio: aspectRatio,
           },
-          logs: true,
-          onQueueUpdate: (status) => {
-            if (!trackId) return;
-            if (status.status === "IN_QUEUE") {
-              setVideoProgress(trackId, "대기열 대기 중", 15);
-            } else if (status.status === "IN_PROGRESS") {
-              const logCount = status.logs?.length || 0;
-              const percent = Math.min(15 + logCount * 5, 85);
-              setVideoProgress(trackId, "영상 생성 중", percent);
-            }
-          },
         })) as any;
+
+        if (progressTimer) clearInterval(progressTimer);
 
         videoUrl = result.video?.url || result.video_url || result.url || "";
         if (videoUrl) break;

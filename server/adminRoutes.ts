@@ -1638,6 +1638,7 @@ Respond in JSON format:
             .map((i) => i.content)
             .join("\n");
 
+          console.log(`[Generate] Starting VIDEO generation for ${id}, refs=${referenceImages.length}, audio=${audioEnabled}`);
           await storage.updateMarketingQueueItem(id, { status: "generating" } as any);
           res.json({ success: true, status: "generating", message: "영상 생성을 시작했습니다. 완료까지 2~5분 소요됩니다." });
 
@@ -1682,7 +1683,8 @@ Respond in JSON format:
               console.log(`[KlingO1] Video saved for queue item ${id}`);
               clearVideoProgress(id);
             } catch (bgErr: any) {
-              console.error(`[KlingO1] Background generation failed: ${bgErr?.message}`);
+              console.error(`[KlingO1] Background generation failed:`, bgErr?.message, bgErr?.stack);
+              console.error(`[KlingO1] Error body:`, JSON.stringify(bgErr?.body || ""));
               const { clearVideoProgress } = await import("./services/falService");
               clearVideoProgress(id);
               await storage.updateMarketingQueueItem(id, { status: "failed" } as any).catch(() => {});
@@ -1691,6 +1693,7 @@ Respond in JSON format:
           return;
         } else {
           // ── Standard image generation (비동기 — 진행률 바 지원) ─────────────
+          console.log(`[Generate] Starting IMAGE generation for ${id}, model=${selectedModel}, audio=${audioEnabled}`);
           await storage.updateMarketingQueueItem(id, { status: "generating" } as any);
           res.json({ success: true, status: "generating", message: "이미지 생성을 시작했습니다." });
 
@@ -1740,7 +1743,8 @@ Respond in JSON format:
               console.log(`[Image] Saved for queue item ${id}`);
               clearVideoProgress(id);
             } catch (bgErr: any) {
-              console.error(`[Image] Generation failed: ${bgErr?.message}`);
+              console.error(`[Image] Generation failed:`, bgErr?.message, bgErr?.stack);
+              console.error(`[Image] Error body:`, JSON.stringify(bgErr?.body || ""));
               const { clearVideoProgress } = await import("./services/falService");
               clearVideoProgress(id);
               await storage.updateMarketingQueueItem(id, { status: "failed" } as any).catch(() => {});
