@@ -1,5 +1,7 @@
 import type { Express, Request, Response, NextFunction } from "express";
 import session from "express-session";
+import pgSession from "connect-pg-simple";
+import pg from "pg";
 import { storage } from "./storage";
 import { db } from "./db";
 import { profiles as profilesTable } from "@shared/schema";
@@ -98,15 +100,26 @@ export function registerAdminRoutes(app: Express) {
 
   app.set("trust proxy", 1);
 
+  const PgStore = pgSession(session);
+  const sessionPool = new pg.Pool({
+    connectionString: process.env.DATABASE_URL,
+    ssl: { rejectUnauthorized: false },
+  });
+
   app.use(
     session({
+      store: new PgStore({
+        pool: sessionPool,
+        tableName: "admin_sessions",
+        createTableIfMissing: true,
+      }),
       secret: process.env.SESSION_SECRET,
       resave: false,
       saveUninitialized: false,
       cookie: {
         secure: process.env.NODE_ENV === "production",
         httpOnly: true,
-        maxAge: 24 * 60 * 60 * 1000,
+        maxAge: 30 * 24 * 60 * 60 * 1000,
         sameSite: "lax",
       },
     }),
