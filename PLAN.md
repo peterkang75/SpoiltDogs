@@ -345,7 +345,13 @@
 - API 연동 없음 — 무료 + 상업적 사용 + API 제공 조건을 모두 만족하는 서비스 없음 확인 완료
 - 워크플로우: Suno에서 음원 다운로드 → 브랜드 스튜디오 음악 탭에서 업로드 → 영상 생성 시 선택
 
-#### Phase 2.5-I-5: 영상 생성 진행률 바 (2026-04-16)
+#### Phase 2.5-I-5: 이미지 + 음악 합성 (2026-04-16)
+- [x] `musicMixService.ts`에 `mixImageWithMusic()` 추가 — 정지이미지 + 음악 → MP4 (ffmpeg, 추가 비용 $0)
+- [x] 이미지 생성 라우트에서 `audioEnabled + musicUrl` 시 이미지+음악 합성 실행
+- [x] 이미지 QueueCard에 배경음악 선택 UI 추가 (없음/있음 토글 + 곡 선택 + 볼륨)
+- [x] `generated-videos` 버킷 생성 실패 수정 — fileSizeLimit 500MB→50MB (Supabase plan 제한 초과 원인)
+
+#### Phase 2.5-I-6: 영상 생성 진행률 바 (2026-04-16)
 - [x] `falService.ts`: 인메모리 진행률 추적 (`videoProgress` Map)
 - [x] `fal.run()` → `fal.subscribe()` 교체 — `onQueueUpdate` 콜백으로 단계별 상태 수신
 - [x] 진행률 단계: 프롬프트 생성 → 대기열 → 영상 생성 중 → 저장 → 음악 합성 → 완료
