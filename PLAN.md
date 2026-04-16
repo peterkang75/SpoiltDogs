@@ -380,8 +380,11 @@
 - [x] AI 스케줄 생성: 주간 패턴 + 월간 테마 → Claude가 각 슬롯별 주제/설명 자동 생성
 - [x] Admin 사이드바 "스케줄러" 메뉴 추가
 
-#### Phase 2.6-B: 자동 실행 (cron) — 미구현
-- [ ] node-cron으로 매일 시드니 시간 기준 실행
-- [ ] 승인된 항목 → 해당 날짜에 marketing_queue 생성 → 자동 카피+이미지/영상 생성
-- [ ] 에러 핸들링 (크레딧 부족, 생성 실패 등)
-- [ ] 생성 완료 시 schedule_item.status → "generated", queueItemId 연결
+#### Phase 2.6-B: 자동 실행 (cron) ✅ (2026-04-16)
+- [x] `node-cron` 설치 — 매일 06:00 시드니 시간 (Australia/Sydney TZ)
+- [x] `schedulerService.ts`: 오늘 날짜의 승인된 스케줄 항목 → Claude 카피 생성 → marketing_queue에 "approved" 상태로 등록
+- [x] 에러 핸들링: 개별 항목 실패 시 status → "failed", 나머지 계속 처리
+- [x] 생성 완료 시 schedule_item.status → "generated", queueItemId 연결
+- [x] `POST /api/admin/schedule/run-now` 수동 실행 엔드포인트
+- [x] UI: "오늘 스케줄 실행" 버튼 (테스트용)
+- [ ] 자동 이미지/영상 생성 (현재는 카피만 자동 생성, 이미지는 마케팅 큐에서 수동 생성)
