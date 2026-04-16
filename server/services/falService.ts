@@ -527,18 +527,38 @@ export async function generateVideoWithKlingO1({
 
     console.log(`[KlingO1] Submitting ${refs.length} refs, duration=${klingDuration}s, ar=${aspectRatio}`);
 
-    const result = (await fal.run("fal-ai/kling-video/o1/reference-to-video", {
-      input: {
-        prompt: finalPrompt,
-        image_urls: refs,
-        duration: klingDuration,
-        aspect_ratio: aspectRatio,
-      },
-    })) as any;
+    const MAX_RETRIES = 2;
+    let videoUrl = "";
+    for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+      try {
+        console.log(`[KlingO1] Attempt ${attempt}/${MAX_RETRIES}...`);
+        const result = (await fal.run("fal-ai/kling-video/o1/reference-to-video", {
+          input: {
+            prompt: finalPrompt,
+            image_urls: refs,
+            duration: klingDuration,
+            aspect_ratio: aspectRatio,
+          },
+        })) as any;
 
-    const videoUrl =
-      result.video?.url || result.video_url || result.url || "";
-    if (!videoUrl) throw new Error("KlingO1 returned no video URL");
+        videoUrl = result.video?.url || result.video_url || result.url || "";
+        if (videoUrl) break;
+      } catch (retryErr: any) {
+        const msg = retryErr?.message || "";
+        console.warn(`[KlingO1] Attempt ${attempt} failed: ${msg}`);
+        if (
+          retryErr?.status === 403 ||
+          msg.includes("Exhausted balance") ||
+          msg.includes("credit")
+        ) {
+          throw retryErr;
+        }
+        if (attempt === MAX_RETRIES) throw retryErr;
+        console.log("[KlingO1] Retrying in 5s...");
+        await new Promise(r => setTimeout(r, 5000));
+      }
+    }
+    if (!videoUrl) throw new Error("KlingO1 returned no video URL after retries");
 
     const filename = `video_${Date.now()}_${Math.random().toString(36).slice(2)}`;
     const permanentUrl = await saveVideoFromUrl(videoUrl, filename);
