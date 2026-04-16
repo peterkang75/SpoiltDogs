@@ -53,6 +53,10 @@ import {
   CheckCircle,
   Save,
   Palette,
+  Music,
+  Upload,
+  Play,
+  Pause,
 } from "lucide-react";
 import type { BrandContext, GukdungImage } from "@shared/schema";
 
@@ -63,6 +67,29 @@ const GOOGLE_FONTS = [
   "Source Sans Pro", "Roboto", "Open Sans", "DM Sans",
   "DM Serif Display", "Cormorant Garamond", "Josefin Sans",
 ];
+
+const MUSIC_MOODS = [
+  { value: "calm", label: "잔잔" },
+  { value: "upbeat", label: "경쾌" },
+  { value: "emotional", label: "감성" },
+  { value: "energetic", label: "에너지" },
+  { value: "seasonal", label: "시즌" },
+];
+
+function formatDuration(sec: number): string {
+  if (!sec || sec < 1) return "0:00";
+  const m = Math.floor(sec / 60);
+  const s = Math.floor(sec % 60);
+  return `${m}:${s.toString().padStart(2, "0")}`;
+}
+
+interface MusicMeta {
+  url: string;
+  mood: string;
+  durationSec: number;
+  fileName: string;
+  sizeBytes: number;
+}
 
 const TEXT_STYLES = [
   { value: "light_on_dark", label: "밝은 텍스트 + 어두운 배경" },
@@ -157,10 +184,14 @@ function ImageCard({
   image,
   onEdit,
   onDelete,
+  onToggleVideoRef,
+  videoRefDisabled,
 }: {
   image: GukdungImage;
   onEdit: (image: GukdungImage) => void;
   onDelete: (id: string) => void;
+  onToggleVideoRef: (image: GukdungImage) => void;
+  videoRefDisabled: boolean;
 }) {
   return (
     <div
@@ -177,11 +208,34 @@ function ImageCard({
               "https://images.pexels.com/photos/4587998/pexels-photo-4587998.jpeg?auto=compress&cs=tinysrgb&w=400";
           }}
         />
-        {image.isTrainingData && (
-          <span className="absolute right-2 top-2 rounded-full bg-[#4B9073] px-2 py-0.5 text-xs font-semibold text-white">
-            학습용
-          </span>
-        )}
+        <div className="absolute right-2 top-2 flex gap-1">
+          {image.isTrainingData && (
+            <span className="rounded-full bg-[#4B9073] px-2 py-0.5 text-xs font-semibold text-white">
+              학습용
+            </span>
+          )}
+          {image.isVideoReference && (
+            <span className="rounded-full bg-amber-500 px-2 py-0.5 text-xs font-semibold text-white">
+              ⭐ 영상참조
+            </span>
+          )}
+        </div>
+        <button
+          type="button"
+          onClick={() => onToggleVideoRef(image)}
+          disabled={videoRefDisabled && !image.isVideoReference}
+          title={image.isVideoReference ? "영상참조 해제" : (videoRefDisabled ? "이미 7장 선택됨 — 다른 장 해제 후 선택 가능" : "영상참조로 지정")}
+          className={`absolute left-2 top-2 rounded-full p-1.5 text-xs font-semibold transition ${
+            image.isVideoReference
+              ? "bg-amber-500 text-white hover:bg-amber-600"
+              : videoRefDisabled
+                ? "bg-white/80 text-stone-300 cursor-not-allowed"
+                : "bg-white/80 text-stone-500 hover:bg-amber-100 hover:text-amber-600"
+          }`}
+          data-testid={`toggle-video-ref-${image.id}`}
+        >
+          {image.isVideoReference ? "⭐" : "☆"}
+        </button>
       </div>
       <div className="p-3">
         {image.description && (
@@ -262,6 +316,13 @@ export default function AdminBrandStudio() {
   // ── Brand Identity state ───────────────────────────────────────────
   const [brandIdentity, setBrandIdentity] = useState<BrandIdentity>(DEFAULT_BRAND_IDENTITY);
   const [isSavingIdentity, setIsSavingIdentity] = useState(false);
+
+  // ── Music library state ───────────────────────────────────────────
+  const [musicDialogOpen, setMusicDialogOpen] = useState(false);
+  const [musicFile, setMusicFile] = useState<File | null>(null);
+  const [musicTitle, setMusicTitle] = useState("");
+  const [musicMood, setMusicMood] = useState("calm");
+  const [isUploadingMusic, setIsUploadingMusic] = useState(false);
 
   // ── Queries ───────────────────────────────────────────────────────
   const { data: contextItems = [], isLoading: contextLoading } = useQuery<BrandContext[]>({
@@ -592,7 +653,80 @@ export default function AdminBrandStudio() {
   const voiceItems = contextItems.filter((i) => i.type === "brand_voice");
   const memoryItems = contextItems.filter((i) => i.type === "campaign_memory" || i.type === "post_guideline");
   const imageGuidelineItems = contextItems.filter((i) => i.type === "image_guideline");
+  const musicItems = contextItems.filter((i) => i.type === "brand_music");
+
+  const handleUploadMusic = async () => {
+    if (!musicFile || !musicTitle.trim()) {
+      toast({ title: "파일과 제목을 입력하세요", variant: "destructive" });
+      return;
+    }
+    setIsUploadingMusic(true);
+    try {
+      const formData = new FormData();
+      formData.append("file", musicFile);
+      formData.append("title", musicTitle);
+      formData.append("mood", musicMood);
+      const response = await fetch("/api/admin/brand/music/upload", {
+        method: "POST",
+        credentials: "include",
+        body: formData,
+      });
+      if (!response.ok) {
+        const err = await response.json().catch(() => ({}));
+        throw new Error(err.error || "업로드 실패");
+      }
+      await queryClient.invalidateQueries({ queryKey: ["/api/admin/brand/context"] });
+      toast({ title: "음악 업로드 완료" });
+      setMusicDialogOpen(false);
+      setMusicFile(null);
+      setMusicTitle("");
+      setMusicMood("calm");
+    } catch (err: any) {
+      toast({ title: "업로드 실패", description: err.message, variant: "destructive" });
+    } finally {
+      setIsUploadingMusic(false);
+    }
+  };
+
+  const handleToggleMusicActive = async (id: string, isActive: boolean) => {
+    try {
+      await apiRequest("PATCH", `/api/admin/brand/music/${id}`, { isActive });
+      await queryClient.invalidateQueries({ queryKey: ["/api/admin/brand/context"] });
+    } catch (err: any) {
+      toast({ title: "변경 실패", description: err.message, variant: "destructive" });
+    }
+  };
+
+  const handleDeleteMusic = async (id: string) => {
+    if (!confirm("이 음악을 삭제하시겠습니까?")) return;
+    try {
+      await apiRequest("DELETE", `/api/admin/brand/music/${id}`, undefined);
+      await queryClient.invalidateQueries({ queryKey: ["/api/admin/brand/context"] });
+      toast({ title: "삭제 완료" });
+    } catch (err: any) {
+      toast({ title: "삭제 실패", description: err.message, variant: "destructive" });
+    }
+  };
   const trainingCount = images.filter((i) => i.isTrainingData).length;
+  const videoRefCount = images.filter((i) => i.isVideoReference).length;
+
+  const handleToggleVideoRef = async (image: GukdungImage) => {
+    const next = !image.isVideoReference;
+    if (next && videoRefCount >= 7) {
+      toast({
+        title: "최대 7장까지",
+        description: "Kling O1 제한 — 다른 사진을 해제한 뒤 다시 선택하세요.",
+        variant: "destructive",
+      });
+      return;
+    }
+    try {
+      await apiRequest("PATCH", `/api/admin/gukdung-images/${image.id}`, { isVideoReference: next });
+      await queryClient.invalidateQueries({ queryKey: ["/api/admin/gukdung-images"] });
+    } catch (err: any) {
+      toast({ title: "업데이트 실패", description: err.message, variant: "destructive" });
+    }
+  };
   const contextPending = createContext.isPending || updateContext.isPending;
   const imagePending = updateImage.isPending;
 
@@ -686,6 +820,10 @@ export default function AdminBrandStudio() {
               <Palette size={14} className="mr-1" />
               브랜드 아이덴티티
             </TabsTrigger>
+            <TabsTrigger value="music" data-testid="tab-music">
+              <Music size={14} className="mr-1" />
+              음악 라이브러리
+            </TabsTrigger>
           </TabsList>
 
           {/* Tab 1 — Gukdung 프로필 */}
@@ -730,7 +868,10 @@ export default function AdminBrandStudio() {
               <div className="mb-4 space-y-2">
                 <div className="flex items-center justify-between">
                   <p className="text-sm text-stone-500">
-                    {images.length}장 총 &nbsp;·&nbsp; 학습용 사진: {trainingCount}장
+                    {images.length}장 총 &nbsp;·&nbsp; 학습용: {trainingCount}장 &nbsp;·&nbsp;{" "}
+                    <span className={videoRefCount === 7 ? "text-amber-600 font-semibold" : videoRefCount > 7 ? "text-red-600 font-semibold" : ""}>
+                      ⭐ 영상참조: {videoRefCount}/7
+                    </span>
                   </p>
                   <div className="flex gap-2">
                     <Button
@@ -822,6 +963,8 @@ export default function AdminBrandStudio() {
                       image={img}
                       onEdit={openEditImage}
                       onDelete={setDeleteImageId}
+                      onToggleVideoRef={handleToggleVideoRef}
+                      videoRefDisabled={videoRefCount >= 7}
                     />
                   ))}
                 </div>
@@ -1136,6 +1279,124 @@ export default function AdminBrandStudio() {
                 </Button>
               </div>
             </div>
+          </TabsContent>
+
+          {/* Tab 6 — 음악 라이브러리 */}
+          <TabsContent value="music">
+            <div className="space-y-4">
+              <div className="rounded-lg border border-purple-100 bg-purple-50/50 p-4">
+                <p className="text-sm text-purple-900">
+                  릴스/틱톡 영상 생성 시 배경음악으로 사용됩니다. Suno, YouTube Audio Library 등에서 저작권 프리 음원을 업로드하세요.
+                </p>
+              </div>
+
+              <div className="flex justify-between items-center">
+                <h3 className="text-base font-semibold">업로드된 음악 ({musicItems.length})</h3>
+                <Button onClick={() => setMusicDialogOpen(true)} data-testid="button-upload-music">
+                  <Plus className="h-4 w-4 mr-1" />
+                  음악 업로드
+                </Button>
+              </div>
+
+              {musicItems.length === 0 ? (
+                <div className="rounded-lg border-2 border-dashed border-gray-200 p-12 text-center text-gray-500">
+                  <Music className="h-10 w-10 mx-auto mb-2 text-gray-400" />
+                  <p className="text-sm">아직 업로드된 음악이 없습니다</p>
+                </div>
+              ) : (
+                <div className="grid gap-3">
+                  {musicItems.map((item) => {
+                    let meta: MusicMeta;
+                    try {
+                      meta = JSON.parse(item.content ?? "{}");
+                    } catch {
+                      meta = { url: "", mood: "neutral", durationSec: 0, fileName: "", sizeBytes: 0 };
+                    }
+                    const moodLabel = MUSIC_MOODS.find((m) => m.value === meta.mood)?.label ?? meta.mood;
+                    return (
+                      <div key={item.id} className="rounded-lg border bg-white p-3 flex items-center gap-3" data-testid={`music-card-${item.id}`}>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 mb-1">
+                            <p className="font-medium text-sm truncate">{item.title}</p>
+                            <span className="text-xs px-2 py-0.5 rounded-full bg-stone-100 text-stone-600 flex-shrink-0">{moodLabel}</span>
+                            <span className="text-xs text-gray-500 flex-shrink-0">{formatDuration(meta.durationSec)}</span>
+                          </div>
+                          {meta.url && (
+                            <audio controls src={meta.url} className="w-full h-8" preload="none" />
+                          )}
+                        </div>
+                        <div className="flex items-center gap-3 flex-shrink-0">
+                          <div className="flex items-center gap-1.5">
+                            <Switch
+                              checked={item.isActive ?? false}
+                              onCheckedChange={(checked) => handleToggleMusicActive(item.id, checked)}
+                              data-testid={`switch-music-${item.id}`}
+                            />
+                            <span className="text-xs text-gray-600">{item.isActive ? "활성" : "비활성"}</span>
+                          </div>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => handleDeleteMusic(item.id)}
+                            data-testid={`button-delete-music-${item.id}`}
+                          >
+                            <Trash2 className="h-4 w-4 text-red-500" />
+                          </Button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            <Dialog open={musicDialogOpen} onOpenChange={setMusicDialogOpen}>
+              <DialogContent className="max-w-md">
+                <DialogHeader>
+                  <DialogTitle>음악 업로드</DialogTitle>
+                </DialogHeader>
+                <div className="space-y-4 py-2">
+                  <div className="space-y-1.5">
+                    <Label>파일 (MP3, WAV · 최대 50MB)</Label>
+                    <Input
+                      type="file"
+                      accept="audio/mpeg,audio/wav,audio/mp3,audio/x-wav,.mp3,.wav"
+                      onChange={(e) => setMusicFile(e.target.files?.[0] ?? null)}
+                      data-testid="input-music-file"
+                    />
+                    {musicFile && (
+                      <p className="text-xs text-gray-500">{musicFile.name} · {(musicFile.size / 1024 / 1024).toFixed(1)}MB</p>
+                    )}
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label>제목</Label>
+                    <Input
+                      value={musicTitle}
+                      onChange={(e) => setMusicTitle(e.target.value)}
+                      placeholder="예: 국둥이 메인테마"
+                      data-testid="input-music-title"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label>분위기</Label>
+                    <Select value={musicMood} onValueChange={setMusicMood}>
+                      <SelectTrigger data-testid="select-music-mood"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {MUSIC_MOODS.map((m) => (
+                          <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <DialogFooter>
+                  <Button variant="ghost" onClick={() => setMusicDialogOpen(false)} disabled={isUploadingMusic}>취소</Button>
+                  <Button onClick={handleUploadMusic} disabled={isUploadingMusic} data-testid="button-submit-music">
+                    {isUploadingMusic ? <><Loader2 className="h-4 w-4 animate-spin mr-1" />업로드 중...</> : <><Upload className="h-4 w-4 mr-1" />업로드</>}
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
           </TabsContent>
 
         </Tabs>

@@ -145,6 +145,7 @@ export const gukdungImages = pgTable("gukdung_images", {
   description: text("description"),
   tags: text("tags"),
   isTrainingData: boolean("is_training_data").notNull().default(false),
+  isVideoReference: boolean("is_video_reference").notNull().default(false),
   loraModelId: text("lora_model_id"),
   createdAt: timestamp("created_at").defaultNow(),
 });

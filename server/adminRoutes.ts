@@ -11,6 +11,7 @@ import { sourcingService, type SupplierName } from "./services/sourcingService";
 import multer from "multer";
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024, files: 100 } });
+const musicUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 50 * 1024 * 1024, files: 1 } });
 
 let prodSessionCookie: string | null = null;
 
@@ -1505,7 +1506,13 @@ Respond in JSON format:
     async (req, res) => {
       try {
         const { id } = req.params;
-        const { model: modelOverride, duration = "8" } = req.body;
+        const {
+          model: modelOverride,
+          duration = "8",
+          audioEnabled = false,
+          musicUrl = null,
+          musicVolume = 40,
+        } = req.body;
 
         const item = await storage.getMarketingQueueItem(id);
         if (!item) {
@@ -1532,12 +1539,20 @@ Respond in JSON format:
             ? `\n\nSTRICT VISUAL REQUIREMENTS - MUST FOLLOW:\n${imageGuidelineText}`
             : "");
 
-        // Get Gukdung reference images (training data only)
+        // Get Gukdung reference images
+        // - 비디오: isVideoReference 플래그 (국둥이 대표 7장, 브랜드 일관성)
+        // - 이미지: isTrainingData 플래그 (기존 로직)
+        const isVideoContent = item.contentType === "reel" || item.contentType === "tiktok";
         const gukdungImages = await storage.getGukdungImages();
-        const referenceImages = gukdungImages
-          .filter((img) => img.isTrainingData && img.imageUrl && img.imageUrl.startsWith("http"))
-          .slice(0, 5)
-          .map((img) => img.imageUrl);
+        const referenceImages = isVideoContent
+          ? gukdungImages
+              .filter((img) => img.isVideoReference && img.imageUrl && img.imageUrl.startsWith("http"))
+              .slice(0, 7)
+              .map((img) => img.imageUrl)
+          : gukdungImages
+              .filter((img) => img.isTrainingData && img.imageUrl && img.imageUrl.startsWith("http"))
+              .slice(0, 5)
+              .map((img) => img.imageUrl);
 
         // Auto-select model and aspect ratio from contentType
         const contentType = item.contentType || "feed_image";
@@ -1585,26 +1600,16 @@ Respond in JSON format:
         }
 
         if (isVideo) {
-          // ── 2-Step Pipeline: Nano Banana 2 → Image-to-Video ──────────────
-          const videoModelMap: Record<string, string> = {
-            kling: "kling-img2vid",
-            "kling-3": "kling-3-img2vid",
-            veo2: "veo2-img2vid",
-            veo3: "veo2-img2vid", // veo3 text-to-video → use veo2 img2vid
-          };
-          const videoModel = videoModelMap[selectedModel] || "veo2-img2vid";
-
-          // Get Gukdung profile and image guidelines for caption→motion conversion
+          // ── Kling O1 reference-to-video (참조 7장 직접 전달, 무음) ──
           const gukdungProfile = brandContext
             .filter((i) => i.isActive && i.type === "gukdung_profile")
             .map((i) => i.content)
             .join("\n");
 
-          const { generateVideo } = await import("./services/falService");
-          const result = await generateVideo({
+          const { generateVideoWithKlingO1 } = await import("./services/falService");
+          const result = await generateVideoWithKlingO1({
             prompt: `${prompt}. Professional pet photography style, high quality.`,
             caption: item.caption || "",
-            model: videoModel,
             referenceImageUrls: referenceImages,
             aspectRatio: "9:16",
             duration,
@@ -1612,16 +1617,29 @@ Respond in JSON format:
             imageGuidelines: imageGuidelineText,
           });
 
+          let finalVideoUrl = result.videoUrl;
+          if (audioEnabled && musicUrl) {
+            try {
+              const { mixVideoWithMusic } = await import("./services/musicMixService");
+              finalVideoUrl = await mixVideoWithMusic({
+                videoUrl: result.videoUrl,
+                musicUrl,
+                musicVolume: Number(musicVolume) || 40,
+              });
+              console.log("[KlingO1] Music mixed:", finalVideoUrl);
+            } catch (mixErr: any) {
+              console.error("[KlingO1] Music mix failed, returning silent video:", mixErr?.message);
+            }
+          }
+
           const updateData: Record<string, string | null> = {
-            videoUrl: result.videoUrl,
-            imageUrl: result.thumbnailUrl || null,
+            videoUrl: finalVideoUrl,
             imagePrompt: result.videoPrompt || item.imagePrompt || null,
           };
           const updated = await storage.updateMarketingQueueItem(id, updateData as any);
           res.json({
             success: true,
-            videoUrl: result.videoUrl,
-            thumbnailUrl: result.thumbnailUrl || null,
+            videoUrl: finalVideoUrl,
             videoPrompt: result.videoPrompt || null,
             item: updated,
           });
@@ -1922,6 +1940,109 @@ Respond ONLY with a JSON object:
     } catch (error: any) {
       console.error("Image upload error:", error);
       res.status(500).json({ error: error.message || "Upload failed" });
+    }
+  });
+
+  app.get("/api/admin/brand/music", requireAdmin, async (_req: Request, res: Response) => {
+    const items = await storage.getBrandContextByType("brand_music");
+    res.json(items);
+  });
+
+  app.post("/api/admin/brand/music/upload", requireAdmin, musicUpload.single("file"), async (req: Request, res: Response) => {
+    try {
+      const { uploadBufferToStorage } = await import("./services/storageService");
+      const { parseBuffer } = await import("music-metadata");
+
+      const file = req.file as Express.Multer.File | undefined;
+      if (!file) {
+        res.status(400).json({ error: "No file uploaded" });
+        return;
+      }
+
+      const { title, mood } = req.body as { title?: string; mood?: string };
+      if (!title) {
+        res.status(400).json({ error: "Title is required" });
+        return;
+      }
+
+      let durationSec = 0;
+      try {
+        const meta = await parseBuffer(file.buffer, { mimeType: file.mimetype });
+        durationSec = Math.round(meta.format.duration ?? 0);
+      } catch (metaErr: any) {
+        console.warn("[Music] Failed to parse duration:", metaErr.message);
+      }
+
+      const ext = (file.originalname.split(".").pop() ?? "mp3").toLowerCase();
+      const filename = `music_${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`;
+
+      const url = await uploadBufferToStorage(
+        file.buffer,
+        filename,
+        file.mimetype || "audio/mpeg",
+        "music"
+      );
+
+      const item = await storage.createBrandContextItem({
+        type: "brand_music",
+        title,
+        content: JSON.stringify({
+          url,
+          mood: mood || "neutral",
+          durationSec,
+          fileName: file.originalname,
+          sizeBytes: file.size,
+        }),
+        isActive: true,
+      });
+
+      res.json(item);
+    } catch (error: any) {
+      console.error("Music upload error:", error);
+      res.status(500).json({ error: error.message || "Upload failed" });
+    }
+  });
+
+  app.patch("/api/admin/brand/music/:id", requireAdmin, async (req: Request, res: Response) => {
+    const { title, mood, isActive } = req.body as { title?: string; mood?: string; isActive?: boolean };
+    const existing = await storage.getBrandContextByType("brand_music");
+    const item = existing.find((i) => i.id === req.params.id);
+    if (!item) {
+      res.status(404).json({ error: "Not found" });
+      return;
+    }
+
+    const patch: any = {};
+    if (typeof isActive === "boolean") patch.isActive = isActive;
+    if (title !== undefined) patch.title = title;
+    if (mood !== undefined) {
+      try {
+        const parsed = JSON.parse(item.content ?? "{}");
+        parsed.mood = mood;
+        patch.content = JSON.stringify(parsed);
+      } catch {}
+    }
+
+    const updated = await storage.updateBrandContextItem(req.params.id, patch);
+    res.json(updated);
+  });
+
+  app.delete("/api/admin/brand/music/:id", requireAdmin, async (req: Request, res: Response) => {
+    try {
+      const { deleteFromStorage } = await import("./services/storageService");
+      const items = await storage.getBrandContextByType("brand_music");
+      const item = items.find((i) => i.id === req.params.id);
+      if (item?.content) {
+        try {
+          const parsed = JSON.parse(item.content);
+          if (parsed.url) await deleteFromStorage(parsed.url);
+        } catch {}
+      }
+      await storage.deleteBrandContextItem(req.params.id);
+      res.json({ success: true });
+    } catch (error: any) {
+      console.error("Music delete error:", error);
+      res.status(500).json({ error: error.message || "Delete failed" });
     }
   });
 }

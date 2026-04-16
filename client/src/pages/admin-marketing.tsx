@@ -254,6 +254,10 @@ export default function AdminMarketing() {
     queryKey: ["/api/admin/marketing/queue"],
   });
 
+  const { data: musicTracks = [] } = useQuery<any[]>({
+    queryKey: ["/api/admin/brand/music"],
+  });
+
   // ── Prompt mutations ──────────────────────────────────────────────
   const createPromptMut = useMutation({
     mutationFn: (data: {
@@ -340,12 +344,12 @@ export default function AdminMarketing() {
 
 
   const generateImageMut = useMutation({
-    mutationFn: async ({ id, model, duration }: { id: string; model: string; duration: string }) => {
+    mutationFn: async ({ id, model, duration, audioEnabled, musicUrl, musicVolume }: { id: string; model: string; duration: string; audioEnabled?: boolean; musicUrl?: string | null; musicVolume?: number }) => {
       const response = await fetch(`/api/admin/marketing/queue/${id}/generate-image`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({ model, duration }),
+        body: JSON.stringify({ model, duration, audioEnabled, musicUrl, musicVolume }),
       });
       if (!response.ok) {
         const data = await response.json();
@@ -614,8 +618,9 @@ export default function AdminMarketing() {
                       setRejectReason("");
                     }}
                     onDelete={() => setDeleteQueueId(item.id)}
-                    onGenerateImage={(id, model, duration) =>
-                      generateImageMut.mutate({ id, model, duration })
+                    musicTracks={musicTracks}
+                    onGenerateImage={(id, model, duration, opts) =>
+                      generateImageMut.mutate({ id, model, duration, ...(opts ?? {}) })
                     }
                     onRewrite={(topic, platform) =>
                       rewriteMut.mutate({ topic, platform })
@@ -1215,6 +1220,7 @@ function QueueCard({
   onApprove,
   onReject,
   onDelete,
+  musicTracks,
   onGenerateImage,
   onRewrite,
   isApproving,
@@ -1226,7 +1232,8 @@ function QueueCard({
   onApprove: () => void;
   onReject: () => void;
   onDelete: () => void;
-  onGenerateImage: (id: string, model: string, duration: string) => void;
+  musicTracks: any[];
+  onGenerateImage: (id: string, model: string, duration: string, opts?: { audioEnabled?: boolean; musicUrl?: string | null; musicVolume?: number }) => void;
   onRewrite: (topic: string, platform: string) => void;
   isApproving: boolean;
   isRejecting: boolean;
@@ -1236,6 +1243,9 @@ function QueueCard({
   const [selectedVideoQuality, setSelectedVideoQuality] = useState("recommended");
   const [selectedImageModel, setSelectedImageModel] = useState<string>("");
   const [selectedDuration, setSelectedDuration] = useState("8");
+  const [audioEnabled, setAudioEnabled] = useState(false);
+  const [selectedMusicId, setSelectedMusicId] = useState<string>("");
+  const [musicVolume, setMusicVolume] = useState(40);
   const [showPreview, setShowPreview] = useState(false);
   const [showRegenPanel, setShowRegenPanel] = useState(false);
   const [koCaption, setKoCaption] = useState<string | null>(null);
@@ -1589,12 +1599,93 @@ function QueueCard({
                   </div>
                 </div>
 
+                {/* Audio selector */}
+                <div>
+                  <p className="text-xs text-gray-500 mb-1.5">배경음악</p>
+                  <div className="flex gap-2 mb-2">
+                    <button
+                      onClick={() => setAudioEnabled(false)}
+                      data-testid={`button-audio-off-${item.id}`}
+                      className={`flex-1 py-1.5 px-2 rounded-lg text-xs font-medium border transition-colors ${
+                        !audioEnabled
+                          ? "border-green-600 bg-green-50 text-green-700"
+                          : "border-gray-200 text-gray-500 hover:border-gray-300"
+                      }`}
+                    >
+                      🔇 없음
+                      <div className="text-xs opacity-60">~$0.90/8초</div>
+                    </button>
+                    <button
+                      onClick={() => setAudioEnabled(true)}
+                      data-testid={`button-audio-on-${item.id}`}
+                      className={`flex-1 py-1.5 px-2 rounded-lg text-xs font-medium border transition-colors ${
+                        audioEnabled
+                          ? "border-green-600 bg-green-50 text-green-700"
+                          : "border-gray-200 text-gray-500 hover:border-gray-300"
+                      }`}
+                    >
+                      🎵 있음
+                      <div className="text-xs opacity-60">~$1.34/8초</div>
+                    </button>
+                  </div>
+                  {audioEnabled && (
+                    <div className="space-y-2 pl-1">
+                      <select
+                        value={selectedMusicId}
+                        onChange={(e) => setSelectedMusicId(e.target.value)}
+                        className="w-full text-xs border rounded-lg px-2 py-1.5 bg-white"
+                        data-testid={`select-music-${item.id}`}
+                      >
+                        <option value="">음악 선택...</option>
+                        {musicTracks.filter((m: any) => m.isActive).map((m: any) => {
+                          let meta: any = {};
+                          try { meta = JSON.parse(m.content ?? "{}"); } catch {}
+                          return (
+                            <option key={m.id} value={m.id}>
+                              {m.title}{meta.mood ? ` · ${meta.mood}` : ""}
+                            </option>
+                          );
+                        })}
+                      </select>
+                      {musicTracks.filter((m: any) => m.isActive).length === 0 && (
+                        <p className="text-xs text-amber-600">
+                          활성 음악이 없습니다. 브랜드 스튜디오 → 음악 라이브러리에서 업로드하세요.
+                        </p>
+                      )}
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-gray-500 w-10">볼륨</span>
+                        <input
+                          type="range"
+                          min={0}
+                          max={100}
+                          value={musicVolume}
+                          onChange={(e) => setMusicVolume(Number(e.target.value))}
+                          className="flex-1"
+                          data-testid={`input-music-volume-${item.id}`}
+                        />
+                        <span className="text-xs text-gray-700 w-8 text-right">{musicVolume}%</span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
                 {/* Generate video button */}
                 <Button
                   size="sm"
                   onClick={() => {
                     const qualityOption = VIDEO_QUALITY_OPTIONS.find(q => q.value === selectedVideoQuality);
-                    onGenerateImage(item.id, qualityOption?.model || "kling-3", selectedDuration);
+                    const selectedTrack = musicTracks.find((m: any) => m.id === selectedMusicId);
+                    let musicUrl: string | null = null;
+                    if (audioEnabled && selectedTrack) {
+                      try {
+                        musicUrl = JSON.parse(selectedTrack.content ?? "{}").url ?? null;
+                      } catch {}
+                    }
+                    onGenerateImage(item.id, qualityOption?.model || "kling-3", selectedDuration, {
+                      audioEnabled,
+                      musicUrl,
+                      musicVolume,
+                    });
                   }}
                   disabled={isGeneratingImage}
                   className="w-full gap-1.5 h-8 text-xs"

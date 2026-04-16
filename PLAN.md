@@ -1,13 +1,14 @@
 # SpoiltDogs — Build Plan & Change Log
 
-## Stack
+## Stack (as of 2026-04-16)
 - React 18 + Vite + Express 5 (NOT Next.js)
 - Routing: wouter | Styling: Tailwind + shadcn/ui | Icons: Lucide React
-- DB: PostgreSQL via Drizzle ORM
+- Hosting: Railway (Nixpacks → `node dist/index.cjs`, port 8080). Domain `spoiltdogs.com.au` via CrazyDomains + Cloudflare DNS.
+- DB: Supabase Postgres (pooler) via Drizzle ORM
 - Auth: Supabase Auth
-- Payments: Stripe + Afterpay
-- AI: Claude (claude-sonnet-4-5), FAL.AI (nano-banana-2/edit, nano-banana-pro/edit, nano-banana/edit, ideogram, kling)
-- Storage: local `/uploads/` via Express static (Supabase Storage DNS unreachable)
+- Payments: Stripe (keys via env vars, no Replit sync) + Afterpay
+- AI: Claude (claude-sonnet-4-5), FAL.AI (nano-banana-2/edit, nano-banana-pro/edit, nano-banana/edit, ideogram, kling), OpenAI `gpt-4o-mini`
+- Storage: Supabase Storage buckets (`uploads`, `generated-images`, `training-images`, `generated-videos`)
 
 ---
 
@@ -67,8 +68,7 @@
 
 ### File Upload
 - `POST /api/admin/brand/images/upload` uses multer memoryStorage
-- Writes to `client/public/uploads/` (served at `/uploads/filename`)
-- Supabase Storage NOT used for uploads (DNS unreachable)
+- Uploads to Supabase Storage (`uploads` bucket); public URL returned
 
 ### Auto-Model Logic (generate-image route)
 - `card_news` → ideogram (no reference images)
@@ -79,8 +79,7 @@
 
 ### Nano Banana Image Generation
 - Endpoint: `fal-ai/nano-banana-2` (text-to-image) or `fal-ai/nano-banana-2/edit` (with reference images)
-- Reference images: up to 5 Gukdung training images passed as `image_urls[]`
-- Relative `/uploads/` paths converted to absolute `https://{REPLIT_DEV_DOMAIN}/uploads/` before passing to FAL.AI
+- Reference images: up to 5 Gukdung training images passed as `image_urls[]` using Supabase Storage public URLs
 - LoRA approach deprecated in favor of reference-image approach (nano-banana models support direct image references)
 
 ### AdminLayout
@@ -93,7 +92,8 @@
 
 ### WooCommerce Emulator
 - Consumer Keys: `ck_ff47ac93...`, `cs_1af7c5ee...`
-- `MAKE_WEBHOOK_URL` in Replit Secrets (SNS delivery only)
+- Supplier detection via User-Agent (AutoDS vs Syncee)
+- Endpoints live under `/wp-json/wc/v3/*`; OAuth callback tries JSON first, falls back to form-urlencoded
 
 ---
 
@@ -262,9 +262,17 @@
 
 ## Pending
 
+- Phase 2.5-I: Kling O1/O3 영상 파이프라인 교체 (아래 섹션) — 다음 작업
 - Caption inline edit feature
 - Phase 2.6 Content Scheduler
 - Phase 2.7 Meta/TikTok SNS publishing
+
+## Post-Replit Migration Debt (2026-04-14~)
+- ✅ Railway 배포, Supabase Postgres/Storage 전환, 커스텀 도메인 연결 완료
+- ✅ Stripe 키 env 기반 전환 (`stripe-replit-sync` 제거, `[stripe] Stripe configured via env vars` 로그 확인)
+- ✅ WooCommerce 에뮬레이터 AutoDS/Syncee User-Agent 분기
+- [ ] OpenAI 호출 경로: Replit modelfarm proxy → 실제 `OPENAI_API_KEY` 사용으로 검증 필요
+- [ ] 남아있는 `REPLIT_*` 환경변수 참조/로컬 `client/public/uploads/` 쓰기 경로 정리 (project_replit_debt 메모리 참조)
 
 ---
 
@@ -299,33 +307,34 @@
 
 ### 구현 체크리스트
 
-#### Phase 2.5-I-1: 브랜드 스튜디오 음악 라이브러리
-- [ ] 브랜드 스튜디오에 "🎵 음악 라이브러리" 탭 추가
-- [ ] 음악 파일 업로드 (MP3, WAV) → Supabase Storage `brand-music` 버킷
-- [ ] 업로드 음악 목록 표시 (제목, 분위기, 길이, 미리듣기 버튼)
-- [ ] 음악 삭제 기능
-- [ ] DB: `brand_context`에 type `"brand_music"` 추가 (URL, 제목, 설명 저장)
+#### Phase 2.5-I-1: 브랜드 스튜디오 음악 라이브러리 ✅ (2026-04-16)
+- [x] 브랜드 스튜디오 "🎵 음악 라이브러리" 탭 추가 (6번째 탭)
+- [x] 음악 파일 업로드 (MP3/WAV, 50MB) → Supabase Storage `brand-music` 버킷
+- [x] 업로드 목록 표시 (제목, 분위기 배지, `m:ss` 길이, HTML5 `<audio>` 미리듣기)
+- [x] 활성/비활성 스위치, 삭제 버튼 (Storage + DB row 동시 삭제)
+- [x] DB: `brand_context` type=`brand_music`, content는 `{url, mood, durationSec, fileName, sizeBytes}` JSON
+- [x] Duration 추출: `music-metadata` npm 패키지
+- [x] 엔드포인트: `GET/POST/PATCH/DELETE /api/admin/brand/music[...]`
 
-#### Phase 2.5-I-2: 큐 카드 오디오 선택 UI
-- [ ] 릴스/틱톡 타입 큐 카드에 오디오 토글 추가
-  - 오디오 없음 → Kling O1, $0.90/8초
-  - 오디오 있음 → Kling O3, $1.34/8초
-- [ ] 오디오 있음 선택 시 배경음악 드롭다운 표시
-  - 브랜드 스튜디오 음악 라이브러리에서 선택
-  - 음악 볼륨 슬라이더 (0~100%, 기본 40%)
-- [ ] 비용 실시간 표시 ("예상 비용: $0.90")
+#### Phase 2.5-I-2: 큐 카드 오디오 선택 UI ✅ (2026-04-16)
+- [x] 릴스/틱톡 타입 큐 카드에 오디오 토글 추가 (없음/있음, 비용 표시)
+- [x] 오디오 있음 선택 시 배경음악 드롭다운 (활성 트랙만)
+- [x] 음악 볼륨 슬라이더 (0~100%, 기본 40%)
+- [x] 활성 음악 없을 때 안내 메시지
+- [x] `generateImageMut` 가 `audioEnabled/musicUrl/musicVolume` 전달 (백엔드 수신은 2.5-I-3)
 
-#### Phase 2.5-I-3: 서버 영상 생성 로직
-- [ ] `falService.ts`에 `generateVideoWithKling()` 함수 추가
-  - 오디오 없음: `fal-ai/kling-video/o1/reference-to-video` 호출
-  - 오디오 있음: `fal-ai/kling-video/o3` 호출
-  - 국둥이 참조 사진 최대 7장 직접 전달 (Nano Banana 단계 없음)
-- [ ] FFmpeg 음악 합성 서비스 추가 (`musicMixService.ts`)
-  - 영상 URL + 음악 URL → FFmpeg 합성
-  - 음량 조절 파라미터 적용
-  - 최종 영상 Supabase Storage 저장
-- [ ] `adminRoutes.ts` 영상 생성 엔드포인트 업데이트
-  - `audioEnabled`, `musicUrl`, `musicVolume` 파라미터 수신
-  - 오디오 선택에 따라 O1/O3 자동 분기
+#### Phase 2.5-I-3: 서버 영상 생성 로직 ✅ (2026-04-16)
+- [x] `falService.ts`에 `generateVideoWithKlingO1()` 추가
+  - `fal-ai/kling-video/o1/reference-to-video` 단일 모델 (Option A: 항상 O1, 오디오 켬이면 FFmpeg 합성)
+  - 국둥이 참조 사진 최대 7장 직접 전달 (Nano Banana 단계 생략)
+  - 비용: $0.112/sec = $0.896/8초
+- [x] FFmpeg 음악 합성 서비스 (`musicMixService.ts`)
+  - 영상/음악 임시 다운로드 → ffmpeg 합성 → Supabase `videos` 버킷 업로드
+  - `volume=0~1.0` 필터로 음량 조절, `-shortest` 로 영상 길이에 맞춤
+- [x] `nixpacks.toml` 추가 — Railway 빌드에 `ffmpeg` 포함
+- [x] `adminRoutes.ts` `/generate-image` 라우트 업데이트
+  - `audioEnabled/musicUrl/musicVolume` 수신
+  - 비디오 콘텐츠 → 참조 이미지 최대 7장 로드
+  - 오디오 켬 + 음악 URL 있을 때만 FFmpeg 합성 시도 (실패해도 무음 영상 fallback)
 
-우선순위: 브랜드 아이덴티티 저장 기능 완료 후 진행
+**상태**: 브랜드 아이덴티티 저장 기능은 2026-04-02 완료 (2.5-R 섹션 참조). 2.5-I 착수 가능.

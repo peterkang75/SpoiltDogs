@@ -470,6 +470,85 @@ export async function generateVideo({
   }
 }
 
+// ── Kling O1 reference-to-video (단일 단계, 참조 최대 7장, 무음) ───────
+export async function generateVideoWithKlingO1({
+  prompt,
+  caption,
+  referenceImageUrls = [],
+  aspectRatio = "9:16",
+  duration = "8",
+  gukdungProfile,
+  imageGuidelines,
+}: {
+  prompt: string;
+  caption?: string;
+  referenceImageUrls?: string[];
+  aspectRatio?: string;
+  duration?: string;
+  gukdungProfile?: string;
+  imageGuidelines?: string;
+}): Promise<{ videoUrl: string; videoPrompt: string }> {
+  try {
+    let motionPrompt = prompt;
+    if (caption) {
+      try {
+        const { convertCaptionToVideoPrompt } = await import("./claudeMarketingService");
+        motionPrompt = await convertCaptionToVideoPrompt({
+          caption,
+          gukdungProfile,
+          imageGuidelines,
+        });
+      } catch (err) {
+        console.warn("[KlingO1] Caption conversion failed, using original prompt:", err);
+      }
+    }
+
+    const refs = referenceImageUrls.slice(0, 7);
+    if (refs.length === 0) throw new Error("KlingO1 requires at least one reference image");
+
+    const refMentions = refs.map((_, i) => `@Image${i + 1}`).join(", ");
+    const finalPrompt =
+      `Recreate the exact same dog shown in ${refMentions} (same breed, fur color, face, body). ` +
+      `${motionPrompt}. Real-time speed, natural motion, photorealistic.`;
+
+    // Kling duration: only "5" or "10"
+    const klingDuration = duration === "5" ? "5" : "10";
+
+    console.log(`[KlingO1] Submitting ${refs.length} refs, duration=${klingDuration}s, ar=${aspectRatio}`);
+
+    const result = (await fal.run("fal-ai/kling-video/o1/reference-to-video", {
+      input: {
+        prompt: finalPrompt,
+        image_urls: refs,
+        duration: klingDuration,
+        aspect_ratio: aspectRatio,
+      },
+    })) as any;
+
+    const videoUrl =
+      result.video?.url || result.video_url || result.url || "";
+    if (!videoUrl) throw new Error("KlingO1 returned no video URL");
+
+    const filename = `video_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+    const permanentUrl = await saveVideoFromUrl(videoUrl, filename);
+
+    return { videoUrl: permanentUrl, videoPrompt: motionPrompt };
+  } catch (error: any) {
+    const body = JSON.stringify(error?.body?.detail || error?.body || "") + (error?.message || "");
+    console.error(`[KlingO1] Error status=${error?.status} msg=${error?.message}`);
+    if (
+      error?.status === 403 ||
+      body.includes("Exhausted balance") ||
+      body.includes("locked") ||
+      body.includes("balance") ||
+      body.includes("credit")
+    ) {
+      throw new Error("CREDIT_EXHAUSTED:fal.ai");
+    }
+    throw error;
+  }
+}
+
 export async function submitLoRATraining({
   imageUrls,
   triggerWord = "GUKDUNG",

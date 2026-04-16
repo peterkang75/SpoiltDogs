@@ -10,6 +10,7 @@ const BUCKETS = {
   videos: "generated-videos",
   uploads: "uploads",
   training: "training-images",
+  music: "brand-music",
 };
 
 export async function ensureBucketsExist() {
@@ -17,9 +18,13 @@ export async function ensureBucketsExist() {
     try {
       const { error } = await supabase.storage.getBucket(name);
       if (error && (error.message.includes("not found") || error.message.includes("does not exist"))) {
+        const fileSizeLimit =
+          key === "videos" ? 524288000 :
+          key === "music" ? 52428800 :
+          52428800;
         const { error: createErr } = await supabase.storage.createBucket(name, {
           public: true,
-          fileSizeLimit: key === "videos" ? 524288000 : 52428800,
+          fileSizeLimit,
         });
         if (createErr) {
           console.warn(`[Storage] Could not create bucket "${name}":`, createErr.message);
