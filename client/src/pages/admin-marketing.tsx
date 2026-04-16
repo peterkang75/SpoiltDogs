@@ -1282,21 +1282,24 @@ function QueueCard({
   const [videoProgress, setVideoProgress] = useState<{ stage: string; percent: number } | null>(null);
 
   useEffect(() => {
-    if (item.status !== "generating") {
+    if (item.status !== "generating" && !isGeneratingImage) {
       setVideoProgress(null);
       return;
     }
+    // Start polling immediately when generating starts
     const poll = setInterval(async () => {
       try {
         const res = await fetch(`/api/admin/marketing/queue/${item.id}/progress`, { credentials: "include" });
         if (res.ok) {
           const data = await res.json();
-          setVideoProgress(data);
+          if (data.percent > 0) {
+            setVideoProgress(data);
+          }
         }
       } catch {}
-    }, 3000);
+    }, 2000);
     return () => clearInterval(poll);
-  }, [item.status, item.id]);
+  }, [item.status, item.id, isGeneratingImage]);
   const { toast } = useToast();
 
   const translateMut = useMutation({
@@ -1768,7 +1771,7 @@ function QueueCard({
                 </Button>
 
                 {/* Video generation progress bar */}
-                {item.status === "generating" && videoProgress && (
+                {(item.status === "generating" || isGeneratingImage) && videoProgress && (
                   <div className="mt-2 space-y-1">
                     <div className="flex justify-between items-center">
                       <span className="text-xs text-blue-700 font-medium">{videoProgress.stage}</span>
