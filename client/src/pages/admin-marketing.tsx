@@ -1278,28 +1278,54 @@ function QueueCard({
   const [koCaption, setKoCaption] = useState<string | null>(null);
   const [koHashtags, setKoHashtags] = useState<string | null>(null);
 
-  // Video generation progress tracking
+  // Video/Image generation progress tracking
   const [videoProgress, setVideoProgress] = useState<{ stage: string; percent: number } | null>(null);
+  const [isLocalGenerating, setIsLocalGenerating] = useState(false);
 
+  // Track when generation starts locally (survives mutation completion)
   useEffect(() => {
-    if (item.status !== "generating" && !isGeneratingImage) {
-      setVideoProgress(null);
-      return;
+    if (isGeneratingImage && !isLocalGenerating) {
+      setIsLocalGenerating(true);
     }
-    // Start polling immediately when generating starts
+  }, [isGeneratingImage]);
+
+  // Stop local tracking when item status leaves "generating"
+  useEffect(() => {
+    if (isLocalGenerating && item.status !== "generating" && !isGeneratingImage) {
+      // Small delay to allow final status check
+      const timer = setTimeout(() => {
+        setIsLocalGenerating(false);
+        setVideoProgress(null);
+      }, 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [item.status, isGeneratingImage, isLocalGenerating]);
+
+  // Poll progress while generating
+  const shouldPoll = isLocalGenerating || item.status === "generating" || isGeneratingImage;
+  useEffect(() => {
+    if (!shouldPoll) return;
+    // Immediate first fetch
+    (async () => {
+      try {
+        const res = await fetch(`/api/admin/marketing/queue/${item.id}/progress`, { credentials: "include" });
+        if (res.ok) {
+          const data = await res.json();
+          setVideoProgress(data);
+        }
+      } catch {}
+    })();
     const poll = setInterval(async () => {
       try {
         const res = await fetch(`/api/admin/marketing/queue/${item.id}/progress`, { credentials: "include" });
         if (res.ok) {
           const data = await res.json();
-          if (data.percent > 0) {
-            setVideoProgress(data);
-          }
+          setVideoProgress(data);
         }
       } catch {}
     }, 2000);
     return () => clearInterval(poll);
-  }, [item.status, item.id, isGeneratingImage]);
+  }, [shouldPoll, item.id]);
   const { toast } = useToast();
 
   const translateMut = useMutation({
@@ -1771,7 +1797,7 @@ function QueueCard({
                 </Button>
 
                 {/* Video generation progress bar */}
-                {(item.status === "generating" || isGeneratingImage) && videoProgress && (
+                {shouldPoll && videoProgress && (
                   <div className="mt-2 space-y-1">
                     <div className="flex justify-between items-center">
                       <span className="text-xs text-blue-700 font-medium">{videoProgress.stage}</span>
