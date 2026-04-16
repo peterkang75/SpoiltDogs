@@ -1,7 +1,6 @@
 import type { Express, Request, Response, NextFunction } from "express";
-import session from "express-session";
-import pgSession from "connect-pg-simple";
-import pg from "pg";
+import jwt from "jsonwebtoken";
+import cookieParser from "cookie-parser";
 import { storage } from "./storage";
 import { db } from "./db";
 import { profiles as profilesTable } from "@shared/schema";
@@ -30,7 +29,7 @@ async function prodProxy(path: string): Promise<any> {
         redirect: "manual",
       });
       const cookies = loginRes.headers.getSetCookie?.() || [];
-      const sid = cookies.find((c: string) => c.includes("connect.sid"));
+      const sid = cookies.find((c: string) => c.includes("admin_token") || c.includes("connect.sid"));
       if (sid) {
         prodSessionCookie = sid.split(";")[0];
       }
@@ -55,20 +54,24 @@ async function prodProxy(path: string): Promise<any> {
   }
 }
 
-declare module "express-session" {
-  interface SessionData {
-    isAdmin?: boolean;
+const JWT_COOKIE = "admin_token";
+const JWT_MAX_AGE = 30 * 24 * 60 * 60;
+
+function isAdminFromToken(req: Request): boolean {
+  const token = req.cookies?.[JWT_COOKIE];
+  if (!token) return false;
+  try {
+    const payload = jwt.verify(token, process.env.SESSION_SECRET!) as any;
+    return payload.isAdmin === true;
+  } catch {
+    return false;
   }
 }
 
 function requireAdmin(req: Request, res: Response, next: NextFunction) {
-  if (req.session?.isAdmin) {
-    return next();
-  }
+  if (isAdminFromToken(req)) return next();
   const apiKey = req.headers["x-api-key"];
-  if (apiKey && apiKey === process.env.ADMIN_PASSWORD) {
-    return next();
-  }
+  if (apiKey && apiKey === process.env.ADMIN_PASSWORD) return next();
   return res.status(401).json({ error: "Unauthorized" });
 }
 
@@ -99,35 +102,7 @@ export function registerAdminRoutes(app: Express) {
   }
 
   app.set("trust proxy", 1);
-
-  const PgStore = pgSession(session);
-  const sessionPool = new pg.Pool({
-    connectionString: process.env.DATABASE_URL,
-    ssl: { rejectUnauthorized: false },
-  });
-  sessionPool.on("error", (err) => console.error("[Session Pool] error:", err.message));
-
-  const pgStore = new PgStore({
-    pool: sessionPool,
-    tableName: "admin_sessions",
-    createTableIfMissing: true,
-  });
-  pgStore.on("error", (err: Error) => console.error("[PgStore] error:", err.message));
-
-  app.use(
-    session({
-      store: pgStore,
-      secret: process.env.SESSION_SECRET,
-      resave: false,
-      saveUninitialized: false,
-      cookie: {
-        secure: process.env.NODE_ENV === "production",
-        httpOnly: true,
-        maxAge: 30 * 24 * 60 * 60 * 1000,
-        sameSite: "lax",
-      },
-    }),
-  );
+  app.use(cookieParser());
 
   app.post("/api/admin/login", (req, res) => {
     const { password } = req.body;
@@ -135,15 +110,16 @@ export function registerAdminRoutes(app: Express) {
       return res.status(503).json({ error: "Admin password not configured" });
     }
     if (password === process.env.ADMIN_PASSWORD) {
-      req.session.isAdmin = true;
-      req.session.save((err) => {
-        if (err) {
-          console.error("[Login] Session save error:", err.message);
-          return res.status(500).json({ error: "Session save failed" });
-        }
-        return res.json({ success: true });
+      const token = jwt.sign({ isAdmin: true }, process.env.SESSION_SECRET!, {
+        expiresIn: JWT_MAX_AGE,
       });
-      return;
+      res.cookie(JWT_COOKIE, token, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "lax",
+        maxAge: JWT_MAX_AGE * 1000,
+      });
+      return res.json({ success: true });
     }
     return res.status(401).json({ error: "Invalid password" });
   });
@@ -152,18 +128,25 @@ export function registerAdminRoutes(app: Express) {
     if (!process.env.ADMIN_PASSWORD) {
       return res.status(503).json({ error: "Admin password not configured" });
     }
-    req.session.isAdmin = true;
+    const token = jwt.sign({ isAdmin: true }, process.env.SESSION_SECRET!, {
+      expiresIn: JWT_MAX_AGE,
+    });
+    res.cookie(JWT_COOKIE, token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      maxAge: JWT_MAX_AGE * 1000,
+    });
     return res.json({ success: true });
   });
 
-  app.post("/api/admin/logout", (req, res) => {
-    req.session.destroy(() => {
-      res.json({ success: true });
-    });
+  app.post("/api/admin/logout", (_req, res) => {
+    res.clearCookie(JWT_COOKIE);
+    res.json({ success: true });
   });
 
   app.get("/api/admin/me", (req, res) => {
-    res.json({ isAdmin: !!req.session?.isAdmin });
+    res.json({ isAdmin: isAdminFromToken(req) });
   });
 
   app.get("/api/admin/profiles", requireAdmin, async (_req, res) => {
