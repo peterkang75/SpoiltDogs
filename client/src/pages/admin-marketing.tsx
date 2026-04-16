@@ -73,8 +73,10 @@ const PLATFORM_META: Record<string, { label: string; color: string }> = {
 
 const STATUS_META: Record<string, { label: string; color: string }> = {
   pending: { label: "대기중", color: "bg-amber-100 text-amber-700" },
+  generating: { label: "생성중 ⏳", color: "bg-blue-100 text-blue-700" },
   approved: { label: "승인됨", color: "bg-green-100 text-green-700" },
   rejected: { label: "반려됨", color: "bg-red-100 text-red-700" },
+  failed: { label: "실패", color: "bg-red-100 text-red-700" },
 };
 
 const CONTENT_TYPE_META: Record<string, { label: string; color: string }> = {
@@ -252,6 +254,8 @@ export default function AdminMarketing() {
     MarketingQueue[]
   >({
     queryKey: ["/api/admin/marketing/queue"],
+    refetchInterval: (query) =>
+      query.state.data?.some((item: any) => item.status === "generating") ? 10000 : false,
   });
 
   const { data: musicTracks = [] } = useQuery<any[]>({
@@ -363,6 +367,27 @@ export default function AdminMarketing() {
       queryClient.invalidateQueries({
         queryKey: ["/api/admin/marketing/queue"],
       });
+      if (data.status === "generating") {
+        toast({
+          title: "영상 생성 시작",
+          description: "2~5분 후 자동으로 완료됩니다. 페이지를 떠나도 괜찮습니다.",
+        });
+        const pollInterval = setInterval(async () => {
+          const res = await fetch(`/api/admin/marketing/queue/${variables.id}`, { credentials: "include" });
+          if (!res.ok) { clearInterval(pollInterval); return; }
+          const item = await res.json();
+          if (item.status !== "generating") {
+            clearInterval(pollInterval);
+            queryClient.invalidateQueries({ queryKey: ["/api/admin/marketing/queue"] });
+            if (item.videoUrl) {
+              toast({ title: "영상 생성 완료!" });
+            } else {
+              toast({ title: "영상 생성 실패", variant: "destructive" });
+            }
+          }
+        }, 15000);
+        return;
+      }
       if (variables.model === "card_news") {
         toast({
           title: "카드뉴스 생성 완료",
@@ -628,8 +653,9 @@ export default function AdminMarketing() {
                     isApproving={approveMut.isPending}
                     isRejecting={rejectMut.isPending}
                     isGeneratingImage={
-                      generateImageMut.isPending &&
-                      generateImageMut.variables?.id === item.id
+                      (generateImageMut.isPending &&
+                      generateImageMut.variables?.id === item.id) ||
+                      item.status === "generating"
                     }
                     isRewriting={rewriteMut.isPending}
                   />

@@ -1417,6 +1417,16 @@ Respond in JSON format:
     res.status(201).json(item);
   });
 
+  app.get(
+    "/api/admin/marketing/queue/:id",
+    requireAdmin,
+    async (req, res) => {
+      const item = await storage.getMarketingQueueItem(req.params.id);
+      if (!item) return res.status(404).json({ error: "Queue item not found" });
+      res.json(item);
+    },
+  );
+
   app.patch(
     "/api/admin/marketing/queue/:id/approve",
     requireAdmin,
@@ -1614,50 +1624,56 @@ Respond in JSON format:
         }
 
         if (isVideo) {
-          // ── Kling O1 reference-to-video (참조 7장 직접 전달, 무음) ──
+          // ── Kling O1 reference-to-video (비동기 — 즉시 응답, 백그라운드 생성) ──
           const gukdungProfile = brandContext
             .filter((i) => i.isActive && i.type === "gukdung_profile")
             .map((i) => i.content)
             .join("\n");
 
-          const { generateVideoWithKlingO1 } = await import("./services/falService");
-          const result = await generateVideoWithKlingO1({
-            prompt: prompt,
-            caption: item.caption || "",
-            motionDirective: motionDirective || "",
-            referenceImageUrls: referenceImages,
-            aspectRatio: "9:16",
-            duration,
-            gukdungProfile,
-            imageGuidelines: imageGuidelineText,
-          });
+          await storage.updateMarketingQueueItem(id, { status: "generating" } as any);
+          res.json({ success: true, status: "generating", message: "영상 생성을 시작했습니다. 완료까지 2~5분 소요됩니다." });
 
-          let finalVideoUrl = result.videoUrl;
-          if (audioEnabled && musicUrl) {
+          (async () => {
             try {
-              const { mixVideoWithMusic } = await import("./services/musicMixService");
-              finalVideoUrl = await mixVideoWithMusic({
-                videoUrl: result.videoUrl,
-                musicUrl,
-                musicVolume: Number(musicVolume) || 40,
+              const { generateVideoWithKlingO1 } = await import("./services/falService");
+              const result = await generateVideoWithKlingO1({
+                prompt: prompt,
+                caption: item.caption || "",
+                motionDirective: motionDirective || "",
+                referenceImageUrls: referenceImages,
+                aspectRatio: "9:16",
+                duration,
+                gukdungProfile,
+                imageGuidelines: imageGuidelineText,
               });
-              console.log("[KlingO1] Music mixed:", finalVideoUrl);
-            } catch (mixErr: any) {
-              console.error("[KlingO1] Music mix failed, returning silent video:", mixErr?.message);
-            }
-          }
 
-          const updateData: Record<string, string | null> = {
-            videoUrl: finalVideoUrl,
-            imagePrompt: result.videoPrompt || item.imagePrompt || null,
-          };
-          const updated = await storage.updateMarketingQueueItem(id, updateData as any);
-          res.json({
-            success: true,
-            videoUrl: finalVideoUrl,
-            videoPrompt: result.videoPrompt || null,
-            item: updated,
-          });
+              let finalVideoUrl = result.videoUrl;
+              if (audioEnabled && musicUrl) {
+                try {
+                  const { mixVideoWithMusic } = await import("./services/musicMixService");
+                  finalVideoUrl = await mixVideoWithMusic({
+                    videoUrl: result.videoUrl,
+                    musicUrl,
+                    musicVolume: Number(musicVolume) || 40,
+                  });
+                  console.log("[KlingO1] Music mixed:", finalVideoUrl);
+                } catch (mixErr: any) {
+                  console.error("[KlingO1] Music mix failed, returning silent video:", mixErr?.message);
+                }
+              }
+
+              await storage.updateMarketingQueueItem(id, {
+                videoUrl: finalVideoUrl,
+                imagePrompt: result.videoPrompt || item.imagePrompt || null,
+                status: "approved",
+              } as any);
+              console.log(`[KlingO1] Video saved for queue item ${id}`);
+            } catch (bgErr: any) {
+              console.error(`[KlingO1] Background generation failed: ${bgErr?.message}`);
+              await storage.updateMarketingQueueItem(id, { status: "failed" } as any).catch(() => {});
+            }
+          })();
+          return;
         } else {
           // ── Standard image generation ─────────────────────────────────────
           const { generateImage } = await import("./services/falService");
