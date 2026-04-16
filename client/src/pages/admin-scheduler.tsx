@@ -284,6 +284,20 @@ function MonthlyCalendarTab() {
     },
   });
 
+  const runNowMut = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", "/api/admin/schedule/run-now");
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/schedule/items", viewYear, viewMonth] });
+      toast({ title: "오늘 스케줄 실행 완료", description: "마케팅 큐에서 생성된 항목을 확인하세요" });
+    },
+    onError: (err: any) => {
+      toast({ title: "실행 실패", description: err.message, variant: "destructive" });
+    },
+  });
+
   const prevMonth = () => {
     if (viewMonth === 1) { setViewYear(viewYear - 1); setViewMonth(12); }
     else setViewMonth(viewMonth - 1);
@@ -337,6 +351,19 @@ function MonthlyCalendarTab() {
           </Button>
         </div>
         <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => runNowMut.mutate()}
+            disabled={runNowMut.isPending}
+            className="gap-1 text-purple-700 border-purple-300 hover:bg-purple-50"
+          >
+            {runNowMut.isPending ? (
+              <><Loader2 className="h-4 w-4 animate-spin" /> 실행중...</>
+            ) : (
+              <><Sparkles className="h-4 w-4" /> 오늘 스케줄 실행</>
+            )}
+          </Button>
           {draftCount > 0 && (
             <Button
               variant="outline"

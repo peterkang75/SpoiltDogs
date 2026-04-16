@@ -2317,6 +2317,18 @@ JSON 형식으로만 응답:
     }
   });
 
+  // Manual trigger for scheduler (testing)
+  app.post("/api/admin/schedule/run-now", requireAdmin, async (_req: Request, res: Response) => {
+    try {
+      const { processScheduledItems } = await import("./services/schedulerService");
+      await processScheduledItems();
+      res.json({ success: true, message: "스케줄 실행 완료" });
+    } catch (error: any) {
+      console.error("Manual schedule run error:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   // Approve all draft items for a month
   app.post("/api/admin/schedule/approve-all", requireAdmin, async (req: Request, res: Response) => {
     try {

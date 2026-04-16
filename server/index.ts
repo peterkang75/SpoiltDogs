@@ -134,6 +134,10 @@ app.use((req, res, next) => {
     cleanupOldContent().catch(console.error);
   }, 24 * 60 * 60 * 1000);
 
+  // Content scheduler cron
+  const { startScheduler } = await import("./services/schedulerService");
+  startScheduler();
+
   const uploadsDir = path.join(process.cwd(), "client", "public", "uploads");
   if (!fs.existsSync(uploadsDir)) {
     fs.mkdirSync(uploadsDir, { recursive: true });
