@@ -8,6 +8,7 @@ import {
   Users,
   Megaphone,
   Palette,
+  CalendarDays,
   LogOut,
   Menu,
   X,
@@ -23,6 +24,7 @@ const menuItems = [
   { label: "CRM", icon: Users, href: "/admin/crm" },
   { label: "마케팅", icon: Megaphone, href: "/admin/marketing" },
   { label: "브랜드 스튜디오", icon: Palette, href: "/admin/brand-studio" },
+  { label: "스케줄러", icon: CalendarDays, href: "/admin/scheduler" },
   // ── Add new admin menu items here as features are built ──
 ];
 

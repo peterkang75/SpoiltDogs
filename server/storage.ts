@@ -11,11 +11,14 @@ import {
   type MarketingQueue, type InsertMarketingQueue,
   type BrandContext, type InsertBrandContext,
   type GukdungImage, type InsertGukdungImage,
+  type ContentScheduleTemplate, type InsertContentScheduleTemplate,
+  type ContentScheduleItem, type InsertContentScheduleItem,
   users, categories, products, cartItems, orders, profiles, messages, productSourcing,
   marketingPrompts, marketingQueue, brandContext, gukdungImages,
+  contentScheduleTemplate, contentScheduleItem,
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, desc, sql } from "drizzle-orm";
+import { eq, desc, and, sql } from "drizzle-orm";
 import { randomUUID } from "crypto";
 
 export interface IStorage {
@@ -94,6 +97,19 @@ export interface IStorage {
   createGukdungImage(data: InsertGukdungImage): Promise<GukdungImage>;
   updateGukdungImage(id: string, data: Partial<InsertGukdungImage>): Promise<GukdungImage | undefined>;
   deleteGukdungImage(id: string): Promise<void>;
+
+  getScheduleTemplates(): Promise<ContentScheduleTemplate[]>;
+  createScheduleTemplate(data: InsertContentScheduleTemplate): Promise<ContentScheduleTemplate>;
+  updateScheduleTemplate(id: string, data: Partial<InsertContentScheduleTemplate>): Promise<ContentScheduleTemplate | undefined>;
+  deleteScheduleTemplate(id: string): Promise<void>;
+
+  getScheduleItems(year: number, month: number): Promise<ContentScheduleItem[]>;
+  getScheduleItem(id: string): Promise<ContentScheduleItem | undefined>;
+  createScheduleItem(data: InsertContentScheduleItem): Promise<ContentScheduleItem>;
+  createScheduleItems(data: InsertContentScheduleItem[]): Promise<ContentScheduleItem[]>;
+  updateScheduleItem(id: string, data: Partial<InsertContentScheduleItem>): Promise<ContentScheduleItem | undefined>;
+  deleteScheduleItem(id: string): Promise<void>;
+  deleteScheduleItemsByMonth(year: number, month: number): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -474,6 +490,61 @@ export class DatabaseStorage implements IStorage {
 
   async deleteGukdungImage(id: string): Promise<void> {
     await db.delete(gukdungImages).where(eq(gukdungImages.id, id));
+  }
+
+  // Content Schedule Template
+  async getScheduleTemplates(): Promise<ContentScheduleTemplate[]> {
+    return db.select().from(contentScheduleTemplate).orderBy(contentScheduleTemplate.dayOfWeek);
+  }
+
+  async createScheduleTemplate(data: InsertContentScheduleTemplate): Promise<ContentScheduleTemplate> {
+    const [row] = await db.insert(contentScheduleTemplate).values(data).returning();
+    return row;
+  }
+
+  async updateScheduleTemplate(id: string, data: Partial<InsertContentScheduleTemplate>): Promise<ContentScheduleTemplate | undefined> {
+    const [row] = await db.update(contentScheduleTemplate).set(data).where(eq(contentScheduleTemplate.id, id)).returning();
+    return row;
+  }
+
+  async deleteScheduleTemplate(id: string): Promise<void> {
+    await db.delete(contentScheduleTemplate).where(eq(contentScheduleTemplate.id, id));
+  }
+
+  // Content Schedule Items
+  async getScheduleItems(year: number, month: number): Promise<ContentScheduleItem[]> {
+    return db.select().from(contentScheduleItem)
+      .where(and(eq(contentScheduleItem.year, year), eq(contentScheduleItem.month, month)))
+      .orderBy(contentScheduleItem.scheduledDate);
+  }
+
+  async getScheduleItem(id: string): Promise<ContentScheduleItem | undefined> {
+    const [row] = await db.select().from(contentScheduleItem).where(eq(contentScheduleItem.id, id));
+    return row;
+  }
+
+  async createScheduleItem(data: InsertContentScheduleItem): Promise<ContentScheduleItem> {
+    const [row] = await db.insert(contentScheduleItem).values(data).returning();
+    return row;
+  }
+
+  async createScheduleItems(data: InsertContentScheduleItem[]): Promise<ContentScheduleItem[]> {
+    if (data.length === 0) return [];
+    return db.insert(contentScheduleItem).values(data).returning();
+  }
+
+  async updateScheduleItem(id: string, data: Partial<InsertContentScheduleItem>): Promise<ContentScheduleItem | undefined> {
+    const [row] = await db.update(contentScheduleItem).set({ ...data, updatedAt: new Date() }).where(eq(contentScheduleItem.id, id)).returning();
+    return row;
+  }
+
+  async deleteScheduleItem(id: string): Promise<void> {
+    await db.delete(contentScheduleItem).where(eq(contentScheduleItem.id, id));
+  }
+
+  async deleteScheduleItemsByMonth(year: number, month: number): Promise<void> {
+    await db.delete(contentScheduleItem)
+      .where(and(eq(contentScheduleItem.year, year), eq(contentScheduleItem.month, month)));
   }
 }
 

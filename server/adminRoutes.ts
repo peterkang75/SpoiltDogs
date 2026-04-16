@@ -2148,4 +2148,189 @@ Respond ONLY with a JSON object:
       res.status(500).json({ error: error.message || "Delete failed" });
     }
   });
+
+  // ─── Content Schedule Template ─────────────────────────────
+  app.get("/api/admin/schedule/templates", requireAdmin, async (_req: Request, res: Response) => {
+    try {
+      const templates = await storage.getScheduleTemplates();
+      res.json(templates);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.post("/api/admin/schedule/templates", requireAdmin, async (req: Request, res: Response) => {
+    try {
+      const { dayOfWeek, platform, contentType } = req.body;
+      const template = await storage.createScheduleTemplate({ dayOfWeek, platform, contentType });
+      res.json(template);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.patch("/api/admin/schedule/templates/:id", requireAdmin, async (req: Request, res: Response) => {
+    try {
+      const template = await storage.updateScheduleTemplate(req.params.id, req.body);
+      res.json(template);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.delete("/api/admin/schedule/templates/:id", requireAdmin, async (req: Request, res: Response) => {
+    try {
+      await storage.deleteScheduleTemplate(req.params.id);
+      res.json({ success: true });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // ─── Content Schedule Items ─────────────────────────────
+  app.get("/api/admin/schedule/items", requireAdmin, async (req: Request, res: Response) => {
+    try {
+      const year = Number(req.query.year);
+      const month = Number(req.query.month);
+      if (!year || !month) return res.status(400).json({ error: "year and month required" });
+      const items = await storage.getScheduleItems(year, month);
+      res.json(items);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.post("/api/admin/schedule/generate", requireAdmin, async (req: Request, res: Response) => {
+    try {
+      const { year, month, theme } = req.body;
+      if (!year || !month || !theme) return res.status(400).json({ error: "year, month, theme required" });
+
+      // Get weekly templates
+      const templates = await storage.getScheduleTemplates();
+      const activeTemplates = templates.filter(t => t.isActive);
+      if (activeTemplates.length === 0) return res.status(400).json({ error: "주간 패턴을 먼저 설정하세요" });
+
+      // Build all scheduled dates for the month
+      const scheduledSlots: { date: string; dayOfWeek: number; platform: string; contentType: string }[] = [];
+      const daysInMonth = new Date(year, month, 0).getDate();
+      for (let d = 1; d <= daysInMonth; d++) {
+        const date = new Date(year, month - 1, d);
+        const dow = date.getDay();
+        const matching = activeTemplates.filter(t => t.dayOfWeek === dow);
+        for (const t of matching) {
+          const dateStr = `${year}-${String(month).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+          scheduledSlots.push({ date: dateStr, dayOfWeek: dow, platform: t.platform, contentType: t.contentType });
+        }
+      }
+
+      if (scheduledSlots.length === 0) return res.status(400).json({ error: "해당 월에 매칭되는 스케줄이 없습니다" });
+
+      // Get brand context for AI
+      const brandContextItems = await storage.getBrandContextItems();
+      const brandVoice = brandContextItems.find(c => c.type === "brand_voice" && c.isActive);
+      const gukdungProfile = brandContextItems.find(c => c.type === "gukdung_profile" && c.isActive);
+
+      // AI generate topics for each slot
+      const dayNames = ["일", "월", "화", "수", "목", "금", "토"];
+      const contentTypeLabels: Record<string, string> = {
+        post: "이미지 포스트", reel: "릴스 영상", story_image: "스토리 이미지",
+        tiktok: "틱톡 영상", card_news: "카드뉴스",
+      };
+
+      const slotDescriptions = scheduledSlots.map((s, i) =>
+        `${i + 1}. ${s.date} (${dayNames[s.dayOfWeek]}) — ${s.platform} ${contentTypeLabels[s.contentType] || s.contentType}`
+      ).join("\n");
+
+      const anthropic = new Anthropic();
+      const aiRes = await anthropic.messages.create({
+        model: "claude-sonnet-4-5-20250514",
+        max_tokens: 4000,
+        system: `You are a social media content planner for an Australian premium dog brand "SpoiltDogs" (스포일트독스). The brand mascot is "국둥이" (Gukdung), a cream-colored Jindo mix rescue dog living in Sydney.
+${gukdungProfile ? `국둥이 프로필: ${gukdungProfile.content}` : ""}
+${brandVoice ? `브랜드 톤: ${brandVoice.content}` : ""}
+
+Generate unique, engaging topic ideas and short descriptions for each content slot. Each topic should be different and relate to the monthly theme. Write in Korean. Return ONLY a JSON array.`,
+        messages: [{
+          role: "user",
+          content: `월간 테마: "${theme}"
+연/월: ${year}년 ${month}월
+
+아래 스케줄 슬롯 각각에 대해 topic(주제, 10자 이내)과 description(설명, 30자 이내)을 생성해주세요.
+콘텐츠 타입에 맞는 주제를 생성하세요 (릴스는 동적인 내용, 포스트는 사진 중심, 카드뉴스는 정보성).
+
+${slotDescriptions}
+
+JSON 형식으로만 응답:
+[{"index": 1, "topic": "...", "description": "..."}, ...]`
+        }],
+      });
+
+      let topics: { index: number; topic: string; description: string }[] = [];
+      const textBlock = aiRes.content.find(b => b.type === "text");
+      if (textBlock && textBlock.type === "text") {
+        const jsonMatch = textBlock.text.match(/\[[\s\S]*\]/);
+        if (jsonMatch) topics = JSON.parse(jsonMatch[0]);
+      }
+
+      // Delete existing items for this month, then create new ones
+      await storage.deleteScheduleItemsByMonth(year, month);
+
+      const itemsToCreate = scheduledSlots.map((slot, i) => {
+        const topicData = topics.find(t => t.index === i + 1);
+        return {
+          year,
+          month,
+          scheduledDate: slot.date,
+          dayOfWeek: slot.dayOfWeek,
+          platform: slot.platform,
+          contentType: slot.contentType,
+          theme,
+          topic: topicData?.topic || "",
+          description: topicData?.description || "",
+          status: "draft" as const,
+        };
+      });
+
+      const created = await storage.createScheduleItems(itemsToCreate);
+      res.json({ count: created.length, items: created });
+    } catch (error: any) {
+      console.error("Schedule generate error:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.patch("/api/admin/schedule/items/:id", requireAdmin, async (req: Request, res: Response) => {
+    try {
+      const item = await storage.updateScheduleItem(req.params.id, req.body);
+      res.json(item);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.delete("/api/admin/schedule/items/:id", requireAdmin, async (req: Request, res: Response) => {
+    try {
+      await storage.deleteScheduleItem(req.params.id);
+      res.json({ success: true });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Approve all draft items for a month
+  app.post("/api/admin/schedule/approve-all", requireAdmin, async (req: Request, res: Response) => {
+    try {
+      const { year, month } = req.body;
+      const items = await storage.getScheduleItems(year, month);
+      const drafts = items.filter(i => i.status === "draft");
+      let count = 0;
+      for (const item of drafts) {
+        await storage.updateScheduleItem(item.id, { status: "approved", approvedAt: new Date() });
+        count++;
+      }
+      res.json({ approved: count });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
 }

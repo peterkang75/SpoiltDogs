@@ -150,6 +150,34 @@ export const gukdungImages = pgTable("gukdung_images", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+// Content Scheduler
+export const contentScheduleTemplate = pgTable("content_schedule_template", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  dayOfWeek: integer("day_of_week").notNull(), // 0=Sun ~ 6=Sat
+  platform: text("platform").notNull(), // instagram, facebook, tiktok
+  contentType: text("content_type").notNull(), // post, reel, story_image, tiktok, card_news
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const contentScheduleItem = pgTable("content_schedule_item", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  year: integer("year").notNull(),
+  month: integer("month").notNull(), // 1-12
+  scheduledDate: text("scheduled_date").notNull(), // YYYY-MM-DD
+  dayOfWeek: integer("day_of_week").notNull(),
+  platform: text("platform").notNull(),
+  contentType: text("content_type").notNull(),
+  theme: text("theme"), // 월간 테마
+  topic: text("topic"), // AI 생성 주제
+  description: text("description"), // 간단한 내용 설명
+  status: text("status").notNull().default("draft"), // draft, approved, generating, generated, failed
+  queueItemId: varchar("queue_item_id").references(() => marketingQueue.id),
+  approvedAt: timestamp("approved_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
 export const insertUserSchema = createInsertSchema(users).pick({
   username: true,
   password: true,
@@ -193,3 +221,10 @@ export type InsertBrandContext = z.infer<typeof insertBrandContextSchema>;
 export type BrandContext = typeof brandContext.$inferSelect;
 export type InsertGukdungImage = z.infer<typeof insertGukdungImageSchema>;
 export type GukdungImage = typeof gukdungImages.$inferSelect;
+
+export const insertContentScheduleTemplateSchema = createInsertSchema(contentScheduleTemplate).omit({ id: true, createdAt: true });
+export const insertContentScheduleItemSchema = createInsertSchema(contentScheduleItem).omit({ id: true, createdAt: true, updatedAt: true });
+export type InsertContentScheduleTemplate = z.infer<typeof insertContentScheduleTemplateSchema>;
+export type ContentScheduleTemplate = typeof contentScheduleTemplate.$inferSelect;
+export type InsertContentScheduleItem = z.infer<typeof insertContentScheduleItemSchema>;
+export type ContentScheduleItem = typeof contentScheduleItem.$inferSelect;

@@ -21,6 +21,7 @@ import AdminProducts from "@/pages/admin-products";
 import AdminMarketing from "@/pages/admin-marketing";
 import AdminBrandStudio from "@/pages/admin-brand-studio";
 import AdminDashboard from "@/pages/admin-dashboard";
+import AdminScheduler from "@/pages/admin-scheduler";
 import AdminLogin from "@/pages/admin-login";
 import Login from "@/pages/login";
 import MyAccount from "@/pages/my-account";
@@ -65,6 +66,7 @@ function Router() {
       <Route path="/admin/products" component={AdminProducts} />
       <Route path="/admin/marketing" component={AdminMarketing} />
       <Route path="/admin/brand-studio" component={AdminBrandStudio} />
+      <Route path="/admin/scheduler" component={AdminScheduler} />
       <Route component={NotFound} />
     </Switch>
   );
