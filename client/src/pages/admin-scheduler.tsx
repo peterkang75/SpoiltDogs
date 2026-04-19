@@ -223,11 +223,20 @@ function WeeklyPatternTab() {
 }
 
 // ─── Monthly Calendar Tab ──────────────────────────────────
+function getSydneyNow(): Date {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Australia/Sydney",
+    year: "numeric", month: "2-digit", day: "2-digit",
+    hour: "2-digit", minute: "2-digit", second: "2-digit",
+    hour12: false,
+  }).formatToParts(new Date());
+  const get = (type: string) => Number(parts.find(p => p.type === type)?.value ?? 0);
+  return new Date(get("year"), get("month") - 1, get("day"), get("hour"), get("minute"), get("second"));
+}
+
 function MonthlyCalendarTab() {
   const { toast } = useToast();
-  const now = new Date();
-  const sydneyOffset = new Date().toLocaleString("en-AU", { timeZone: "Australia/Sydney" });
-  const sydneyDate = new Date(sydneyOffset);
+  const sydneyDate = getSydneyNow();
   const [viewYear, setViewYear] = useState(sydneyDate.getFullYear());
   const [viewMonth, setViewMonth] = useState(sydneyDate.getMonth() + 1);
   const [theme, setTheme] = useState("");
@@ -239,7 +248,9 @@ function MonthlyCalendarTab() {
     queryKey: ["/api/admin/schedule/items", viewYear, viewMonth],
     queryFn: async () => {
       const res = await fetch(`/api/admin/schedule/items?year=${viewYear}&month=${viewMonth}`, { credentials: "include" });
-      return res.json();
+      if (!res.ok) return [];
+      const data = await res.json();
+      return Array.isArray(data) ? data : [];
     },
   });
 
