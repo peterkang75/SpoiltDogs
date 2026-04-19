@@ -120,6 +120,7 @@ const CONTEXT_TYPE_META: Record<string, { label: string; tab: string }> = {
   brand_voice: { label: "브랜드 보이스", tab: "voice" },
   campaign_memory: { label: "캠페인 메모리", tab: "memory" },
   post_guideline: { label: "포스트 가이드라인", tab: "memory" },
+  image_guideline: { label: "이미지 가이드라인", tab: "images" },
 };
 
 function Skeleton({ className }: { className?: string }) {
@@ -1412,20 +1413,11 @@ export default function AdminBrandStudio() {
           </DialogHeader>
           <div className="space-y-4 py-2">
             {!editingContext && (
-              <div>
-                <Label className="mb-1 block">타입</Label>
-                <Select value={ctxType} onValueChange={setCtxType}>
-                  <SelectTrigger data-testid="ctx-type-select">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="gukdung_profile">Gukdung 프로필</SelectItem>
-                    <SelectItem value="brand_voice">브랜드 보이스</SelectItem>
-                    <SelectItem value="campaign_memory">캠페인 메모리</SelectItem>
-                    <SelectItem value="post_guideline">포스트 가이드라인</SelectItem>
-                    <SelectItem value="image_guideline">이미지 가이드라인</SelectItem>
-                  </SelectContent>
-                </Select>
+              <div className="flex items-center gap-2 text-sm text-stone-500">
+                <span>타입:</span>
+                <span className="font-medium text-stone-700">
+                  {CONTEXT_TYPE_META[ctxType]?.label || ctxType}
+                </span>
               </div>
             )}
             <div>
