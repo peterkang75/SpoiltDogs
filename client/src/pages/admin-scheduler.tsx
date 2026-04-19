@@ -34,6 +34,7 @@ const PLATFORM_OPTIONS = [
   { value: "instagram", label: "Instagram" },
   { value: "facebook", label: "Facebook" },
   { value: "tiktok", label: "TikTok" },
+  { value: "threads", label: "Threads" },
 ];
 
 const CONTENT_TYPE_OPTIONS = [
@@ -48,6 +49,7 @@ const PLATFORM_COLORS: Record<string, string> = {
   instagram: "bg-pink-100 text-pink-700",
   facebook: "bg-blue-100 text-blue-700",
   tiktok: "bg-gray-100 text-gray-700",
+  threads: "bg-purple-100 text-purple-700",
 };
 
 const CONTENT_TYPE_LABELS: Record<string, string> = {
