@@ -82,13 +82,14 @@ function WeeklyPatternTab() {
   const [newDay, setNewDay] = useState("1");
   const [newPlatform, setNewPlatform] = useState("instagram");
   const [newContentType, setNewContentType] = useState("post");
+  const [newTime, setNewTime] = useState("18:00");
 
   const { data: templates = [], isLoading } = useQuery<ContentScheduleTemplate[]>({
     queryKey: ["/api/admin/schedule/templates"],
   });
 
   const createMut = useMutation({
-    mutationFn: (data: { dayOfWeek: number; platform: string; contentType: string }) =>
+    mutationFn: (data: { dayOfWeek: number; platform: string; contentType: string; preferredTime: string }) =>
       apiRequest("POST", "/api/admin/schedule/templates", data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/admin/schedule/templates"] });
@@ -165,9 +166,18 @@ function WeeklyPatternTab() {
             </SelectContent>
           </Select>
         </div>
+        <div className="space-y-1">
+          <label className="text-xs text-gray-500">시간</label>
+          <Input
+            type="time"
+            value={newTime}
+            onChange={(e) => setNewTime(e.target.value)}
+            className="w-28 h-9"
+          />
+        </div>
         <Button
           size="sm"
-          onClick={() => createMut.mutate({ dayOfWeek: Number(newDay), platform: newPlatform, contentType: newContentType })}
+          onClick={() => createMut.mutate({ dayOfWeek: Number(newDay), platform: newPlatform, contentType: newContentType, preferredTime: newTime })}
           disabled={createMut.isPending}
           className="h-9 gap-1"
           style={{ backgroundColor: "#4B9073" }}
@@ -194,6 +204,7 @@ function WeeklyPatternTab() {
                   >
                     <span className="truncate">
                       {CONTENT_TYPE_LABELS[t.contentType] || t.contentType}
+                      <span className="ml-1 opacity-60">{t.preferredTime || "18:00"}</span>
                     </span>
                     <div className="flex items-center gap-0.5 shrink-0">
                       <button
@@ -524,6 +535,9 @@ function MonthlyCalendarTab() {
                                   <span className={`text-[9px] px-1 rounded ${STATUS_COLORS[item.status]}`}>
                                     {STATUS_LABELS[item.status]}
                                   </span>
+                                  {item.scheduledTime && (
+                                    <span className="text-[9px] opacity-60">{item.scheduledTime}</span>
+                                  )}
                                 </div>
                               </div>
                             )}

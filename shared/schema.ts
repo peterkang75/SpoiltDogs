@@ -156,6 +156,7 @@ export const contentScheduleTemplate = pgTable("content_schedule_template", {
   dayOfWeek: integer("day_of_week").notNull(), // 0=Sun ~ 6=Sat
   platform: text("platform").notNull(), // instagram, facebook, tiktok
   contentType: text("content_type").notNull(), // post, reel, story_image, tiktok, card_news
+  preferredTime: text("preferred_time").notNull().default("18:00"), // HH:mm (Sydney time)
   isActive: boolean("is_active").notNull().default(true),
   createdAt: timestamp("created_at").defaultNow(),
 });
@@ -171,6 +172,7 @@ export const contentScheduleItem = pgTable("content_schedule_item", {
   theme: text("theme"), // 월간 테마
   topic: text("topic"), // AI 생성 주제
   description: text("description"), // 간단한 내용 설명
+  scheduledTime: text("scheduled_time"), // HH:mm (Sydney time)
   status: text("status").notNull().default("draft"), // draft, approved, generating, generated, failed
   queueItemId: varchar("queue_item_id").references(() => marketingQueue.id),
   approvedAt: timestamp("approved_at"),

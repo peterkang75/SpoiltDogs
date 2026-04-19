@@ -2211,7 +2211,7 @@ Respond ONLY with a JSON object:
       if (activeTemplates.length === 0) return res.status(400).json({ error: "주간 패턴을 먼저 설정하세요" });
 
       // Build all scheduled dates for the month
-      const scheduledSlots: { date: string; dayOfWeek: number; platform: string; contentType: string }[] = [];
+      const scheduledSlots: { date: string; dayOfWeek: number; platform: string; contentType: string; preferredTime: string }[] = [];
       const daysInMonth = new Date(year, month, 0).getDate();
       for (let d = 1; d <= daysInMonth; d++) {
         const date = new Date(year, month - 1, d);
@@ -2219,7 +2219,7 @@ Respond ONLY with a JSON object:
         const matching = activeTemplates.filter(t => t.dayOfWeek === dow);
         for (const t of matching) {
           const dateStr = `${year}-${String(month).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
-          scheduledSlots.push({ date: dateStr, dayOfWeek: dow, platform: t.platform, contentType: t.contentType });
+          scheduledSlots.push({ date: dateStr, dayOfWeek: dow, platform: t.platform, contentType: t.contentType, preferredTime: t.preferredTime ?? "18:00" });
         }
       }
 
@@ -2287,6 +2287,7 @@ JSON 형식으로만 응답:
           theme,
           topic: topicData?.topic || "",
           description: topicData?.description || "",
+          scheduledTime: slot.preferredTime,
           status: "draft" as const,
         };
       });
