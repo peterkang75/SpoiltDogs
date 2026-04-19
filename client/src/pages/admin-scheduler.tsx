@@ -38,12 +38,21 @@ const PLATFORM_OPTIONS = [
 ];
 
 const CONTENT_TYPE_OPTIONS = [
+  { value: "text", label: "텍스트" },
   { value: "post", label: "이미지 포스트" },
   { value: "reel", label: "릴스 영상" },
   { value: "story_image", label: "스토리" },
   { value: "tiktok", label: "틱톡 영상" },
   { value: "card_news", label: "카드뉴스" },
+  { value: "carousel", label: "캐러셀" },
 ];
+
+const PLATFORM_CONTENT_TYPES: Record<string, string[]> = {
+  instagram: ["post", "reel", "story_image", "card_news", "carousel"],
+  facebook: ["post", "reel", "story_image", "card_news"],
+  tiktok: ["tiktok"],
+  threads: ["text", "post", "carousel"],
+};
 
 const PLATFORM_COLORS: Record<string, string> = {
   instagram: "bg-pink-100 text-pink-700",
@@ -53,11 +62,13 @@ const PLATFORM_COLORS: Record<string, string> = {
 };
 
 const CONTENT_TYPE_LABELS: Record<string, string> = {
+  text: "텍스트",
   post: "포스트",
   reel: "릴스",
   story_image: "스토리",
   tiktok: "틱톡",
   card_news: "카드뉴스",
+  carousel: "캐러셀",
 };
 
 const STATUS_COLORS: Record<string, string> = {
@@ -83,6 +94,10 @@ function WeeklyPatternTab() {
   const [newPlatform, setNewPlatform] = useState("instagram");
   const [newContentType, setNewContentType] = useState("post");
   const [newTime, setNewTime] = useState("18:00");
+
+  const filteredContentTypes = CONTENT_TYPE_OPTIONS.filter(
+    (c) => (PLATFORM_CONTENT_TYPES[newPlatform] || []).includes(c.value)
+  );
 
   const { data: templates = [], isLoading } = useQuery<ContentScheduleTemplate[]>({
     queryKey: ["/api/admin/schedule/templates"],
@@ -142,7 +157,11 @@ function WeeklyPatternTab() {
         </div>
         <div className="space-y-1">
           <label className="text-xs text-gray-500">플랫폼</label>
-          <Select value={newPlatform} onValueChange={setNewPlatform}>
+          <Select value={newPlatform} onValueChange={(v) => {
+            setNewPlatform(v);
+            const allowed = PLATFORM_CONTENT_TYPES[v] || [];
+            if (!allowed.includes(newContentType)) setNewContentType(allowed[0] || "post");
+          }}>
             <SelectTrigger className="w-32 h-9">
               <SelectValue />
             </SelectTrigger>
@@ -160,7 +179,7 @@ function WeeklyPatternTab() {
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {CONTENT_TYPE_OPTIONS.map((c) => (
+              {filteredContentTypes.map((c) => (
                 <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>
               ))}
             </SelectContent>
