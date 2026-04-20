@@ -1425,6 +1425,20 @@ function QueueCard({
   const isFailed = item.status === "failed";
   const canGenerate = isApproved || isFailed;
 
+  // motion_reel + 첨부 영상: pending 포함 언제나 컨트롤 바로 표시
+  const isMotionReelCard = item.contentType === "motion_reel";
+  const hasAttachedVideoSource = isMotionReelCard && !!(
+    (item.videoUrl && !item.imagePrompt) ||
+    item.imagePrompt?.startsWith("[source_video:")
+  );
+  // 컨트롤 표시 조건 (pending 첨부영상도 포함)
+  const showGenerateControls =
+    (canGenerate && ((!item.imageUrl && !item.videoUrl) || showRegenPanel)) ||
+    hasAttachedVideoSource;
+  // "다시 생성하기" 버튼 (첨부 영상 케이스에선 숨김)
+  const showRegenButton =
+    canGenerate && (item.imageUrl || item.videoUrl) && !showRegenPanel && !hasAttachedVideoSource;
+
   return (
     <div
       className="bg-white border border-gray-200 rounded-xl p-5 space-y-3"
@@ -1662,7 +1676,7 @@ function QueueCard({
       ) : null}
 
       {/* Regenerate button — approved/failed + media already exists */}
-      {canGenerate && (item.imageUrl || item.videoUrl) && !showRegenPanel && (
+      {showRegenButton && (
         <div className="pt-1">
           <Button
             size="sm"
@@ -1677,13 +1691,13 @@ function QueueCard({
         </div>
       )}
 
-      {/* Image/Video generation controls — approved/failed + no media yet OR regen panel open */}
-      {canGenerate && ((!item.imageUrl && !item.videoUrl) || showRegenPanel) && (() => {
+      {/* Image/Video generation controls */}
+      {showGenerateControls && (() => {
         const isVideo = item.contentType === "reel" || item.contentType === "tiktok";
         const isMotionReel = item.contentType === "motion_reel";
         return (
           <div className="space-y-2 pt-1">
-            {showRegenPanel && (
+            {showRegenPanel && !hasAttachedVideoSource && (
               <div className="flex items-center justify-between mb-1">
                 <span className="text-xs font-medium text-gray-600">다시 생성하기</span>
                 <button
@@ -1700,15 +1714,27 @@ function QueueCard({
                 {/* Motion Reel pipeline info */}
                 <div className="bg-pink-50 border border-pink-100 rounded-lg p-2.5">
                   <p className="text-xs font-medium text-pink-700 mb-0.5">
-                    🎞️ 모션 Reels (AIDA)
+                    🎞️ {hasAttachedVideoSource ? "실촬영 영상 편집" : "모션 Reels (AIDA)"}
                   </p>
                   <p className="text-xs text-pink-600">
-                    1단계: Claude AIDA 대본 생성<br/>
-                    2단계: Nano Banana 2 배경 이미지<br/>
-                    3단계: Puppeteer 텍스트 오버레이<br/>
-                    4단계: FFmpeg Ken Burns + 음악 합성
+                    {hasAttachedVideoSource ? (
+                      <>
+                        1단계: Claude AIDA 대본 생성<br/>
+                        2단계: 첨부 영상 위에 텍스트 오버레이<br/>
+                        3단계: 배경음악 합성
+                      </>
+                    ) : (
+                      <>
+                        1단계: Claude AIDA 대본 생성<br/>
+                        2단계: Nano Banana 2 배경 이미지<br/>
+                        3단계: Puppeteer 텍스트 오버레이<br/>
+                        4단계: FFmpeg Ken Burns + 음악 합성
+                      </>
+                    )}
                   </p>
-                  <p className="text-xs text-pink-500 mt-1">20초 · 1080×1920 · ~$0.04+음악</p>
+                  <p className="text-xs text-pink-500 mt-1">
+                    {hasAttachedVideoSource ? "실촬영 영상 · 텍스트+음악만" : "20초 · 1080×1920 · ~$0.04+음악"}
+                  </p>
                 </div>
 
                 {/* Audio selector for motion reel */}
