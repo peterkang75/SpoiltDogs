@@ -297,7 +297,7 @@ async function generateSingleImageReel({
 
     const args: string[] = [
       "-y",
-      "-loop", "1", "-t", String(DURATION), "-i", bgPath,
+      "-loop", "1", "-i", bgPath,
       "-loop", "1", "-i", t1Path,
       "-loop", "1", "-i", t2Path,
       "-loop", "1", "-i", t3Path,
@@ -387,15 +387,17 @@ async function generateMultiImageReel({
         `[bg][txt]overlay=0:0[v]`,
       ].join(";");
 
+      const segFrames = Math.ceil(SEG_DURATION * FPS);
       await runFfmpeg([
         "-y",
-        "-loop", "1", "-t", String(SEG_DURATION), "-i", imgPaths[i],
+        "-loop", "1", "-i", imgPaths[i],
         "-loop", "1", "-i", txtPaths[i],
         "-filter_complex", segFilter,
         "-map", "[v]",
         "-c:v", "libx264", "-preset", "ultrafast", "-crf", "18", "-pix_fmt", "yuv420p",
+        "-frames:v", String(segFrames),
         segPaths[i],
-      ], 300_000);
+      ], 120_000);
     }
 
     // ── Pass 2: Concat segments with xfade + add music ──
@@ -425,7 +427,7 @@ async function generateMultiImageReel({
     }
 
     args.push("-c:v", "libx264", "-preset", "fast", "-crf", "23", "-pix_fmt", "yuv420p", "-t", String(DURATION), oPath);
-    await runFfmpeg(args, 300_000);
+    await runFfmpeg(args, 120_000);
 
     return await uploadResult(oPath);
   } finally {

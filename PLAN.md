@@ -632,10 +632,11 @@ AIDA (Attention-Interest-Desire-Action). 구조만 차용, 표현은 호주 프�
 - 비연결 브라우저 자동 정리 후 재시작
 - `renderHtmlToImage`에 1회 재시도 로직 추가 — 타임아웃 시 브라우저 재시작 후 재시도
 
-## 2026-04-20 — FFmpeg 세그먼트 타임아웃 증가 (Motion Reel 생성 실패 대응 #2)
+## 2026-04-20 — FFmpeg zoompan 프레임 폭주 버그 수정 (Motion Reel 생성 실패 근본 원인)
 
-**문제**: zoompan 필터로 고해상도 이미지 렌더링 시 FFmpeg가 120초 안에 완료되지 못함 (`ffmpeg timed out after 120s`, frame=21209, 177fps)
-**원인**: `motionReelsService.ts`의 세그먼트 렌더링 및 concat 단계에서 `120_000ms` 하드코딩
+**문제**: 멀티 이미지 모션 릴 세그먼트 렌더링 시 FFmpeg가 타임아웃 (`ffmpeg timed out after 120s`, frame=21209)
+**근본 원인**: `-loop 1 -t 5.5 -i image.jpg`가 138개 입력 프레임 생성 → zoompan `d=138`이 **입력 프레임당** 138개 출력 → 138×138 = 19,044 프레임(14분 분량). 5.5초짜리 세그먼트에 14분짜리 영상을 인코딩하고 있었음.
 **수정** (`motionReelsService.ts`):
-- Pass 1 세그먼트 렌더링 타임아웃: 120초 → 300초
-- Pass 2 concat+music 타임아웃: 120초 → 300초
+- 멀티 이미지 세그먼트: `-t SEG_DURATION` 제거, `-frames:v 138` 추가로 출력 프레임 수 정확히 제한
+- 싱글 이미지: 입력에서 불필요한 `-t DURATION` 제거 (출력 `-t 20`이 이미 제한)
+- 세그먼트당 렌더링 시간: ~120초 → ~1-2초로 단축
