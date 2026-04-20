@@ -1398,6 +1398,8 @@ function QueueCard({
   };
   const isPending = item.status === "pending";
   const isApproved = item.status === "approved";
+  const isFailed = item.status === "failed";
+  const canGenerate = isApproved || isFailed;
 
   return (
     <div
@@ -1635,8 +1637,8 @@ function QueueCard({
         </div>
       ) : null}
 
-      {/* Regenerate button — approved + media already exists */}
-      {isApproved && (item.imageUrl || item.videoUrl) && !showRegenPanel && (
+      {/* Regenerate button — approved/failed + media already exists */}
+      {canGenerate && (item.imageUrl || item.videoUrl) && !showRegenPanel && (
         <div className="pt-1">
           <Button
             size="sm"
@@ -1651,8 +1653,8 @@ function QueueCard({
         </div>
       )}
 
-      {/* Image/Video generation controls — approved + no media yet OR regen panel open */}
-      {isApproved && ((!item.imageUrl && !item.videoUrl) || showRegenPanel) && (() => {
+      {/* Image/Video generation controls — approved/failed + no media yet OR regen panel open */}
+      {canGenerate && ((!item.imageUrl && !item.videoUrl) || showRegenPanel) && (() => {
         const isVideo = item.contentType === "reel" || item.contentType === "tiktok";
         const isMotionReel = item.contentType === "motion_reel";
         return (
