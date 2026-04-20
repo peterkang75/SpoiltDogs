@@ -1512,7 +1512,7 @@ Respond in JSON format:
         contentType: contentType ?? "feed_image",
         caption: result.caption,
         hashtags: result.hashtags,
-        imagePrompt: fullImagePrompt,
+        imagePrompt: (safeAttachedVideoUrls.length > 0 || safeAttachedImageUrls.length > 0) ? "" : fullImagePrompt,
         imageUrl: safeAttachedImageUrls[0] || null,
         videoUrl: safeAttachedVideoUrls[0] || null,
         topic: topic.trim(),
