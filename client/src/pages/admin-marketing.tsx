@@ -1752,27 +1752,35 @@ function QueueCard({
                 <div className="space-y-2">
                   <div>
                     <label className="text-xs font-medium text-gray-600 mb-1 block">오버레이 템플릿</label>
-                    <div className="flex gap-2">
-                      <button
-                        onClick={() => setOverlayTemplate("gradient")}
-                        className={`flex-1 py-1.5 px-2 rounded-lg text-xs font-medium border transition-colors ${
-                          overlayTemplate === "gradient"
-                            ? "border-green-700 bg-green-50 text-green-800"
-                            : "border-gray-200 text-gray-500 hover:border-gray-300"
-                        }`}
-                      >
-                        🌿 배경 있음
-                      </button>
-                      <button
-                        onClick={() => setOverlayTemplate("clean")}
-                        className={`flex-1 py-1.5 px-2 rounded-lg text-xs font-medium border transition-colors ${
-                          overlayTemplate === "clean"
-                            ? "border-green-700 bg-green-50 text-green-800"
-                            : "border-gray-200 text-gray-500 hover:border-gray-300"
-                        }`}
-                      >
-                        ✨ 배경 없음
-                      </button>
+                    <div className="grid grid-cols-5 gap-1.5">
+                      {[
+                        { id: "gradient", label: "그라데이션" },
+                        { id: "clean", label: "클린" },
+                        { id: "canva-1", label: "사이드" },
+                        { id: "canva-2", label: "풀오버레이" },
+                        { id: "canva-3", label: "클리어" },
+                      ].map((t) => (
+                        <button
+                          key={t.id}
+                          onClick={() => setOverlayTemplate(t.id)}
+                          className={`rounded-lg border-2 overflow-hidden transition-all ${
+                            overlayTemplate === t.id
+                              ? "border-green-700 ring-1 ring-green-700"
+                              : "border-gray-200 hover:border-gray-300"
+                          }`}
+                        >
+                          <img
+                            src={`/template-${t.id}.png`}
+                            alt={t.label}
+                            className="w-full aspect-[9/16] object-cover"
+                          />
+                          <div className={`text-[10px] py-0.5 text-center font-medium ${
+                            overlayTemplate === t.id ? "text-green-800 bg-green-50" : "text-gray-500"
+                          }`}>
+                            {t.label}
+                          </div>
+                        </button>
+                      ))}
                     </div>
                   </div>
                   <label className="flex items-center gap-2 cursor-pointer">

@@ -1673,7 +1673,7 @@ Respond in JSON format:
                 aidaScript,
                 musicUrl: selectedMusicUrl || undefined,
                 musicVolume: Number(musicVolume) || 30,
-                overlayTemplate: overlayTemplate === "clean" ? "clean" : "gradient",
+                overlayTemplate: (["gradient", "clean", "canva-1", "canva-2", "canva-3"].includes(overlayTemplate) ? overlayTemplate : "gradient") as any,
                 showLabel,
               });
 

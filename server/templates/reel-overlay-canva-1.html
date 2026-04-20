@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&family=Fraunces:opsz,wght@9..144,600;9..144,700&display=swap');
+
+  html, body {
+    margin: 0;
+    padding: 0;
+    width: 1080px;
+    height: 1920px;
+    background: transparent;
+    overflow: hidden;
+    font-family: 'Poppins', sans-serif;
+  }
+
+  .container {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+  }
+
+  .overlay {
+    position: absolute;
+    right: 0;
+    top: 0;
+    bottom: 0;
+    width: 30%;
+    background: linear-gradient(to right, transparent 0%, rgba(26, 58, 46, 0.88) 100%);
+    z-index: 1;
+  }
+
+  .safe-zone {
+    position: absolute;
+    top: 120px;
+    left: 0;
+    right: 0;
+    bottom: 140px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 40px;
+    z-index: 2;
+  }
+
+  .content {
+    max-width: 70%;
+    position: relative;
+    padding-right: 50px;
+  }
+
+  .badge {
+    display: inline-block;
+    background: #FFD54F;
+    color: #1A3A2E;
+    padding: 6px 12px;
+    border-radius: 100px;
+    font-size: 11px;
+    font-weight: 700;
+    margin-bottom: 12px;
+    letter-spacing: 0.05em;
+  }
+
+  .badge:empty {
+    display: none;
+  }
+
+  .text-main {
+    font-family: 'Poppins', sans-serif;
+    font-weight: 700;
+    font-size: 62px;
+    color: #FCF9F1;
+    text-shadow: 0 2px 12px rgba(26, 58, 46, 0.3);
+    margin: 0;
+    line-height: 1.18;
+  }
+
+  .accent-line {
+    position: absolute;
+    right: 0;
+    top: 0;
+    bottom: 0;
+    width: 3px;
+    background: #FFD54F;
+  }
+
+  .brand {
+    position: absolute;
+    bottom: 160px;
+    right: 60px;
+    font-family: 'Fraunces', serif;
+    font-weight: 600;
+    font-size: 18px;
+    color: #FFD54F;
+    z-index: 3;
+    letter-spacing: 0.02em;
+  }
+</style>
+</head>
+<body>
+  <div class="container">
+    <div class="overlay"></div>
+    <div class="safe-zone">
+      <div class="content">
+        <div class="accent-line"></div>
+        <div class="badge">{{label}}</div>
+        <p class="text-main">{{text}}</p>
+      </div>
+    </div>
+    <div class="brand">Spoilt Dogs</div>
+  </div>
+</body>
+</html>

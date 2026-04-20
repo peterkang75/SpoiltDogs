@@ -24,15 +24,27 @@ function escapeHtml(str: string): string {
     .replace(/"/g, "&quot;");
 }
 
-export type OverlayTemplate = "gradient" | "clean";
+export type OverlayTemplate = "gradient" | "clean" | "canva-1" | "canva-2" | "canva-3";
+
+const TEMPLATE_FILES: Record<OverlayTemplate, string> = {
+  gradient: "reel-overlay-gradient.html",
+  clean: "reel-overlay-clean.html",
+  "canva-1": "reel-overlay-canva-1.html",
+  "canva-2": "reel-overlay-canva-2.html",
+  "canva-3": "reel-overlay-canva-3.html",
+};
+
+const NEEDS_DESIGN_SYSTEM = new Set<OverlayTemplate>(["gradient", "clean"]);
 
 function buildOverlayHtml(label: string, text: string, template: OverlayTemplate = "gradient"): string {
-  const fileName = template === "clean" ? "reel-overlay-clean.html" : "reel-overlay-gradient.html";
+  const fileName = TEMPLATE_FILES[template] || TEMPLATE_FILES.gradient;
   const filePath = path.join(TEMPLATE_DIR, fileName);
   let html = readFileSync(filePath, "utf-8");
 
-  const css = loadCSS();
-  html = html.replace(/<link[^>]*design-system\.css[^>]*>/, `<style>${css}</style>`);
+  if (NEEDS_DESIGN_SYSTEM.has(template)) {
+    const css = loadCSS();
+    html = html.replace(/<link[^>]*design-system\.css[^>]*>/, `<style>${css}</style>`);
+  }
 
   html = html.replace(/\{\{label\}\}/g, escapeHtml(label));
   html = html.replace(/\{\{text\}\}/g, escapeHtml(text));
