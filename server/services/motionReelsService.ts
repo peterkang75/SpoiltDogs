@@ -311,7 +311,7 @@ async function generateVideoOverlayReel({
 
     // 실제 영상 길이 감지 → AIDA 타이밍 계산 (최대 20초로 제한)
     const rawDuration = await getVideoDuration(bgPath);
-    const dur = Math.min(rawDuration, 20);
+    const dur = rawDuration;
     const s1 = dur / 4;
     const s2 = dur / 2;
     const s3 = (dur * 3) / 4;
