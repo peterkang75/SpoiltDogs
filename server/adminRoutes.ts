@@ -1630,7 +1630,7 @@ Respond in JSON format:
           const claude = new Anthropic();
 
           const planResponse = await claude.messages.create({
-            model: "claude-sonnet-4-5-20250514",
+            model: "claude-sonnet-4-5",
             max_tokens: 1500,
             system: "You generate structured content plans for social media slides. Return ONLY valid JSON, no markdown.",
             messages: [{
@@ -2296,7 +2296,7 @@ Respond ONLY with a JSON object:
 
       const anthropic = new Anthropic();
       const aiRes = await anthropic.messages.create({
-        model: "claude-sonnet-4-5-20250514",
+        model: "claude-sonnet-4-5",
         max_tokens: 4000,
         system: `You are a social media content planner for an Australian premium dog brand "SpoiltDogs" (스포일트독스). The brand mascot is "국둥이" (Gukdung), a cream-colored Jindo mix rescue dog living in Sydney.
 ${gukdungProfile ? `국둥이 프로필: ${gukdungProfile.content}` : ""}
