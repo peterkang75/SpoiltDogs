@@ -30,12 +30,13 @@ export async function renderHtmlToImage(
   html: string,
   width: number = 1080,
   height: number = 1350,
-  omitBackground: boolean = false,
+  options: { omitBackground?: boolean; deviceScaleFactor?: number } = {},
 ): Promise<Buffer> {
+  const { omitBackground = false, deviceScaleFactor = 2 } = options;
   const b = await getBrowser();
   const page = await b.newPage();
   try {
-    await page.setViewport({ width, height, deviceScaleFactor: 2 });
+    await page.setViewport({ width, height, deviceScaleFactor });
     await page.setContent(html, { waitUntil: "networkidle0", timeout: 15_000 });
     const buffer = await page.screenshot({
       type: "png",

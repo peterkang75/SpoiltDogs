@@ -96,7 +96,7 @@ export async function generateMotionReel({
     const overlayBuffers = await Promise.all(
       overlays.map((o) => {
         const html = buildOverlayHtml(o.label, o.text);
-        return renderHtmlToImage(html, WIDTH, HEIGHT, true);
+        return renderHtmlToImage(html, WIDTH, HEIGHT, { omitBackground: true, deviceScaleFactor: 1 });
       })
     );
 
