@@ -13,7 +13,7 @@ import path from "path";
 import { renderHtmlToImage } from "./templateRenderer";
 import { storage } from "../storage";
 
-const TEMPLATE_DIR = path.join(__dirname, "..", "templates");
+const TEMPLATE_DIR = path.join(process.cwd(), "server", "templates");
 
 function loadCSS(): string {
   return fs.readFileSync(path.join(TEMPLATE_DIR, "design-system.css"), "utf-8");

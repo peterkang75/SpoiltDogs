@@ -5,7 +5,7 @@ import os from "os";
 import { renderHtmlToImage } from "./templateRenderer";
 import { uploadBufferToStorage } from "./storageService";
 
-const TEMPLATE_DIR = path.join(__dirname, "..", "templates");
+const TEMPLATE_DIR = path.join(process.cwd(), "server", "templates");
 const DURATION = 20;
 const FPS = 25;
 const TOTAL_FRAMES = DURATION * FPS;

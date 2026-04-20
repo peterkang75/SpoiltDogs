@@ -50,7 +50,7 @@ export async function renderTemplate(
   width: number = 1080,
   height: number = 1350,
 ): Promise<Buffer> {
-  const templateDir = path.join(__dirname, "..", "templates");
+  const templateDir = path.join(process.cwd(), "server", "templates");
   const templatePath = path.join(templateDir, `${templateName}.html`);
 
   if (!fs.existsSync(templatePath)) {
