@@ -11,6 +11,8 @@ const CONTENT_TYPE_GUIDE: Record<string, string> = {
   story_image:
     "스토리 이미지 (9:16 세로형) — 캡션은 짧고 강렬하게. 스와이프 유도 문구 포함 권장.",
   reel: "릴스/영상 (9:16 세로형) — 캡션은 첫 1-2줄이 핵심. 영상 내용을 보완하는 텍스트. 댓글/공유 유도 문구 포함.",
+  motion_reel:
+    "모션 릴스 (9:16 세로형) — AI 이미지 + Ken Burns 모션 + AIDA 텍스트 오버레이. 캡션은 AIDA 구조 (Attention→Interest→Desire→Action)를 자연스럽게 녹인 80-150자. imagePrompt는 세로형 배경 이미지 묘사.",
   card_news:
     "카드뉴스 (텍스트 포함 이미지) — 캡션은 카드 내용을 요약. imagePrompt에는 각 슬라이드 텍스트 내용도 포함할 것.",
   tiktok:
@@ -21,6 +23,7 @@ const ASPECT_RATIO_HINT: Record<string, string> = {
   feed_image: "square format, 1:1 ratio",
   story_image: "vertical format, 9:16 ratio",
   reel: "vertical format, 9:16 ratio",
+  motion_reel: "vertical format, 9:16 ratio, leave bottom 40% visually simple for text overlay",
   card_news: "square format, include text overlay area",
   tiktok: "vertical format, 9:16 ratio",
 };
@@ -194,4 +197,101 @@ ${imageGuidelines ? `Visual style: ${imageGuidelines}` : ""}`,
     .join("");
 
   return text.trim();
+}
+
+// ── AIDA Script Generator for Motion Reels ──────────────────────────────────
+export interface AIDAScript {
+  attention: string;
+  interest: string;
+  desire: string;
+  action: string;
+}
+
+export async function generateAIDAScript({
+  caption,
+  topic,
+  brandVoice,
+  postGuidelines,
+}: {
+  caption: string;
+  topic?: string;
+  brandVoice?: string;
+  postGuidelines?: string;
+}): Promise<AIDAScript> {
+  const client = new Anthropic({
+    apiKey: process.env.ANTHROPIC_API_KEY,
+  });
+
+  const message = await client.messages.create({
+    model: "claude-sonnet-4-5",
+    max_tokens: 500,
+    system: `You write AIDA-structured text overlays for Instagram Reels.
+Target: Australian 30-40s premium pet owners.
+Brand tone: Quiet Confidence — understated, observational, no hard sell.
+Reference brands: Aesop, Bellroy, Frank Body.
+
+Rules:
+- Each step is displayed as a TEXT OVERLAY on a 20-second Reel (5 seconds each)
+- Keep each step SHORT — max 2 lines on screen (under 80 characters)
+- Language: English (Australian English)
+- No emojis, no exclamation marks, no ALL CAPS
+- No Korean, no educational tone, no "Did you know" patterns
+- Attention: observational hook, quiet confidence
+- Interest: empathy, "this brand gets me" feeling
+- Desire: sensory, scene-based — show the after, not the features
+- Action: gentle invitation, never pushy
+
+${brandVoice ? `\nBrand voice:\n${brandVoice}` : ""}
+${postGuidelines ? `\nPost guidelines:\n${postGuidelines}` : ""}
+
+Return ONLY valid JSON, no markdown. Start with {`,
+    messages: [
+      {
+        role: "user",
+        content: `Create AIDA text overlays for a Motion Reel about: ${topic || caption}
+
+Caption context: ${caption}
+
+Return JSON:
+{
+  "attention": "hook text (max 80 chars)",
+  "interest": "empathy text (max 80 chars)",
+  "desire": "sensory desire text (max 80 chars)",
+  "action": "gentle CTA text (max 60 chars)"
+}`,
+      },
+    ],
+  });
+
+  const text = message.content
+    .filter((block) => block.type === "text")
+    .map((block) => (block as any).text)
+    .join("");
+
+  const jsonMatch = text.match(/\{[\s\S]*\}/);
+  if (!jsonMatch) {
+    return {
+      attention: "Some moments speak for themselves.",
+      interest: "The quiet details that make all the difference.",
+      desire: "Crafted for dogs who deserve the finer things.",
+      action: "Discover more. Link in bio.",
+    };
+  }
+
+  try {
+    const parsed = JSON.parse(jsonMatch[0]);
+    return {
+      attention: parsed.attention || "Some moments speak for themselves.",
+      interest: parsed.interest || "The quiet details that make all the difference.",
+      desire: parsed.desire || "Crafted for dogs who deserve the finer things.",
+      action: parsed.action || "Discover more. Link in bio.",
+    };
+  } catch {
+    return {
+      attention: "Some moments speak for themselves.",
+      interest: "The quiet details that make all the difference.",
+      desire: "Crafted for dogs who deserve the finer things.",
+      action: "Discover more. Link in bio.",
+    };
+  }
 }

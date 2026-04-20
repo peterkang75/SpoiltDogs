@@ -1596,14 +1596,101 @@ Respond in JSON format:
         } else if (contentType === "reel" || contentType === "tiktok") {
           autoModel = "kling-3";
           aspectRatio = "9:16";
-        } else if (contentType === "story_image") {
+        } else if (contentType === "story_image" || contentType === "motion_reel") {
           autoModel = "nano-banana-2";
           aspectRatio = "9:16";
         }
 
         const selectedModel = modelOverride || autoModel;
         const isMultiSlide = contentType === "card_news" || contentType === "carousel";
+        const isMotionReel = contentType === "motion_reel";
         const isVideo = contentType === "reel" || contentType === "tiktok";
+
+        if (isMotionReel) {
+          // ── Motion Reel: Nano Banana 2 → AIDA Script → Puppeteer text → FFmpeg Ken Burns ──
+          console.log(`[Generate] Starting MOTION REEL generation for ${id}`);
+          await storage.updateMarketingQueueItem(id, { status: "generating" } as any);
+          res.json({ success: true, status: "generating", message: "모션 Reels 생성을 시작했습니다. 완료까지 1~2분 소요됩니다." });
+
+          (async () => {
+            try {
+              const { generateImage, setVideoProgress, clearVideoProgress } = await import("./services/falService");
+              const { generateAIDAScript } = await import("./services/claudeMarketingService");
+              const { generateMotionReel } = await import("./services/motionReelsService");
+
+              // Step 1: Generate AIDA script from caption
+              setVideoProgress(id, "AIDA 대본 생성 중", 10);
+              const brandVoiceText = brandContext
+                .filter((i) => i.isActive && i.type === "brand_voice")
+                .map((i) => i.content)
+                .join("\n");
+              const postGuidelineText = brandContext
+                .filter((i) => i.isActive && i.type === "post_guideline")
+                .map((i) => i.content)
+                .join("\n");
+
+              const aidaScript = await generateAIDAScript({
+                caption: item.caption || "",
+                topic: item.topic || "",
+                brandVoice: brandVoiceText,
+                postGuidelines: postGuidelineText,
+              });
+              console.log("[MotionReel] AIDA script:", JSON.stringify(aidaScript));
+
+              // Step 2: Generate 9:16 background image with Nano Banana 2
+              setVideoProgress(id, "배경 이미지 생성 중", 25);
+              const cleanPrompt = (item.imagePrompt || item.caption || "")
+                .replace(/text overlay[^.]*\./gi, "")
+                .replace(/text at (top|bottom)[^.]*\./gi, "")
+                .trim()
+                + ". NO text, NO words, NO typography. Clean composition, visually simple lower half for text overlay.";
+
+              const imgResult = await generateImage({
+                prompt: cleanPrompt +
+                  (imageGuidelineText ? `\n\nSTRICT VISUAL REQUIREMENTS:\n${imageGuidelineText}` : ""),
+                referenceImageUrls: referenceImages,
+                model: "nano-banana-2",
+                aspectRatio: "9:16",
+              });
+
+              if (!imgResult.imageUrl) {
+                throw new Error("Background image generation failed");
+              }
+              console.log("[MotionReel] Background image:", imgResult.imageUrl);
+
+              // Step 3: Compose motion reel (Puppeteer text overlays + FFmpeg Ken Burns + music)
+              setVideoProgress(id, "모션 영상 합성 중", 50);
+              let selectedMusicUrl: string | null = null;
+              if (audioEnabled && musicUrl) {
+                selectedMusicUrl = musicUrl;
+              }
+
+              const videoUrl = await generateMotionReel({
+                imageUrl: imgResult.imageUrl,
+                aidaScript,
+                musicUrl: selectedMusicUrl || undefined,
+                musicVolume: Number(musicVolume) || 30,
+              });
+
+              setVideoProgress(id, "완료", 100);
+
+              await storage.updateMarketingQueueItem(id, {
+                imageUrl: imgResult.imageUrl,
+                videoUrl,
+                imagePrompt: `[AIDA Script]\nAttention: ${aidaScript.attention}\nInterest: ${aidaScript.interest}\nDesire: ${aidaScript.desire}\nAction: ${aidaScript.action}`,
+                status: "approved",
+              } as any);
+              console.log(`[MotionReel] Saved for queue item ${id}`);
+              clearVideoProgress(id);
+            } catch (bgErr: any) {
+              console.error(`[MotionReel] Generation failed:`, bgErr?.message, bgErr?.stack);
+              const { clearVideoProgress } = await import("./services/falService");
+              clearVideoProgress(id);
+              await storage.updateMarketingQueueItem(id, { status: "failed" } as any).catch(() => {});
+            }
+          })();
+          return;
+        }
 
         if (isMultiSlide) {
           // ── Card News / Carousel: Nano Banana 2 → Puppeteer multi-slide ──

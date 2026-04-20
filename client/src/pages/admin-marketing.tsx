@@ -82,11 +82,12 @@ const STATUS_META: Record<string, { label: string; color: string }> = {
 };
 
 const CONTENT_TYPE_META: Record<string, { label: string; color: string }> = {
-  feed_image:  { label: "📸 피드",     color: "bg-purple-100 text-purple-700" },
-  story_image: { label: "⭕ 스토리",   color: "bg-orange-100 text-orange-700" },
-  reel:        { label: "🎬 릴스",     color: "bg-red-100 text-red-700" },
-  card_news:   { label: "🃏 카드뉴스", color: "bg-cyan-100 text-cyan-700" },
-  tiktok:      { label: "🎵 틱톡",     color: "bg-slate-100 text-slate-700" },
+  feed_image:   { label: "📸 피드",       color: "bg-purple-100 text-purple-700" },
+  story_image:  { label: "⭕ 스토리",     color: "bg-orange-100 text-orange-700" },
+  reel:         { label: "🎬 릴스",       color: "bg-red-100 text-red-700" },
+  motion_reel:  { label: "🎞️ 모션릴스",   color: "bg-pink-100 text-pink-700" },
+  card_news:    { label: "🃏 카드뉴스",   color: "bg-cyan-100 text-cyan-700" },
+  tiktok:       { label: "🎵 틱톡",       color: "bg-slate-100 text-slate-700" },
 };
 
 const VIDEO_DURATION_OPTIONS = [
@@ -167,6 +168,15 @@ const POST_FORMAT_OPTIONS = [
     model: "kling",
     aspectRatio: "9:16",
     description: "세로형 영상 · Kling",
+  },
+  {
+    value: "instagram_motion_reel",
+    label: "🎞️ 모션 Reels (AIDA)",
+    platform: "instagram",
+    contentType: "motion_reel",
+    model: "nano-banana-2",
+    aspectRatio: "9:16",
+    description: "AI 이미지 + Ken Burns + AIDA 텍스트 · $0.04",
   },
   {
     value: "facebook_post",
@@ -1356,11 +1366,10 @@ function QueueCard({
 
   useEffect(() => {
     const isVideo = item.contentType === "reel" || item.contentType === "tiktok";
-    if (!isVideo) {
+    if (!isVideo && item.contentType !== "motion_reel") {
       if (item.contentType === "card_news") setSelectedImageModel("ideogram");
       else setSelectedImageModel("nano-banana-2");
     }
-    // video default is already "recommended"
   }, [item.contentType]);
 
   // Auto-close regen panel when generation finishes (isGeneratingImage flips false)
@@ -1540,7 +1549,7 @@ function QueueCard({
       {item.imagePrompt && (
         <div className="bg-gray-50 rounded-lg px-3 py-2">
           <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-0.5">
-            {item.videoUrl ? "VIDEO MOTION PROMPT" : "IMAGE PROMPT"}
+            {item.contentType === "motion_reel" ? "AIDA SCRIPT" : item.videoUrl ? "VIDEO MOTION PROMPT" : "IMAGE PROMPT"}
           </p>
           <p className="text-xs text-gray-500 leading-relaxed">
             {item.imagePrompt}
@@ -1642,6 +1651,7 @@ function QueueCard({
       {/* Image/Video generation controls — approved + no media yet OR regen panel open */}
       {isApproved && ((!item.imageUrl && !item.videoUrl) || showRegenPanel) && (() => {
         const isVideo = item.contentType === "reel" || item.contentType === "tiktok";
+        const isMotionReel = item.contentType === "motion_reel";
         return (
           <div className="space-y-2 pt-1">
             {showRegenPanel && (
@@ -1656,7 +1666,138 @@ function QueueCard({
                 </button>
               </div>
             )}
-            {isVideo ? (
+            {isMotionReel ? (
+              <>
+                {/* Motion Reel pipeline info */}
+                <div className="bg-pink-50 border border-pink-100 rounded-lg p-2.5">
+                  <p className="text-xs font-medium text-pink-700 mb-0.5">
+                    🎞️ 모션 Reels (AIDA)
+                  </p>
+                  <p className="text-xs text-pink-600">
+                    1단계: Claude AIDA 대본 생성<br/>
+                    2단계: Nano Banana 2 배경 이미지<br/>
+                    3단계: Puppeteer 텍스트 오버레이<br/>
+                    4단계: FFmpeg Ken Burns + 음악 합성
+                  </p>
+                  <p className="text-xs text-pink-500 mt-1">20초 · 1080×1920 · ~$0.04+음악</p>
+                </div>
+
+                {/* Audio selector for motion reel */}
+                <div>
+                  <p className="text-xs text-gray-500 mb-1.5">배경음악</p>
+                  <div className="flex gap-2 mb-2">
+                    <button
+                      onClick={() => setAudioEnabled(false)}
+                      className={`flex-1 py-1.5 px-2 rounded-lg text-xs font-medium border transition-colors ${
+                        !audioEnabled
+                          ? "border-pink-600 bg-pink-50 text-pink-700"
+                          : "border-gray-200 text-gray-500 hover:border-gray-300"
+                      }`}
+                    >
+                      🔇 없음
+                    </button>
+                    <button
+                      onClick={() => setAudioEnabled(true)}
+                      className={`flex-1 py-1.5 px-2 rounded-lg text-xs font-medium border transition-colors ${
+                        audioEnabled
+                          ? "border-pink-600 bg-pink-50 text-pink-700"
+                          : "border-gray-200 text-gray-500 hover:border-gray-300"
+                      }`}
+                    >
+                      🎵 있음
+                    </button>
+                  </div>
+                  {audioEnabled && (
+                    <div className="space-y-2 pl-1">
+                      <select
+                        value={selectedMusicId}
+                        onChange={(e) => setSelectedMusicId(e.target.value)}
+                        className="w-full text-xs border rounded-lg px-2 py-1.5 bg-white"
+                      >
+                        <option value="">음악 선택...</option>
+                        {musicTracks.filter((m: any) => m.isActive).map((m: any) => {
+                          let meta: any = {};
+                          try { meta = JSON.parse(m.content ?? "{}"); } catch {}
+                          return (
+                            <option key={m.id} value={m.id}>
+                              {m.title}{meta.mood ? ` · ${meta.mood}` : ""}
+                            </option>
+                          );
+                        })}
+                      </select>
+                      {musicTracks.filter((m: any) => m.isActive).length === 0 && (
+                        <p className="text-xs text-amber-600">
+                          활성 음악이 없습니다. 브랜드 스튜디오 → 음악 라이브러리에서 업로드하세요.
+                        </p>
+                      )}
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-gray-500 w-10">볼륨</span>
+                        <input
+                          type="range"
+                          min={0}
+                          max={100}
+                          value={musicVolume}
+                          onChange={(e) => setMusicVolume(Number(e.target.value))}
+                          className="flex-1"
+                        />
+                        <span className="text-xs text-gray-700 w-8 text-right">{musicVolume}%</span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Generate motion reel button */}
+                <Button
+                  size="sm"
+                  onClick={() => {
+                    const selectedTrack = musicTracks.find((m: any) => m.id === selectedMusicId);
+                    let mUrl: string | null = null;
+                    if (audioEnabled && selectedTrack) {
+                      try {
+                        mUrl = JSON.parse(selectedTrack.content ?? "{}").url ?? null;
+                      } catch {}
+                    }
+                    onGenerateImage(item.id, "nano-banana-2", "20", {
+                      audioEnabled,
+                      musicUrl: mUrl,
+                      musicVolume,
+                    });
+                  }}
+                  disabled={isGeneratingImage}
+                  className="w-full gap-1.5 h-8 text-xs"
+                  style={{ backgroundColor: "#1a3a2e", color: "#FCF9F1" }}
+                  data-testid={`button-generate-image-${item.id}`}
+                >
+                  {isGeneratingImage ? (
+                    <>
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      모션 Reels 생성 중...
+                    </>
+                  ) : (
+                    <>
+                      <Film className="h-3.5 w-3.5" />
+                      모션 Reels 생성
+                    </>
+                  )}
+                </Button>
+
+                {/* Progress bar */}
+                {shouldPoll && videoProgress && (
+                  <div className="mt-2 space-y-1">
+                    <div className="flex justify-between items-center">
+                      <span className="text-xs text-pink-700 font-medium">{videoProgress.stage}</span>
+                      <span className="text-xs text-pink-600">{videoProgress.percent}%</span>
+                    </div>
+                    <div className="w-full bg-pink-100 rounded-full h-2 overflow-hidden">
+                      <div
+                        className="bg-pink-500 h-2 rounded-full transition-all duration-700 ease-out"
+                        style={{ width: `${videoProgress.percent}%` }}
+                      />
+                    </div>
+                  </div>
+                )}
+              </>
+            ) : isVideo ? (
               <>
                 {/* Quality selector */}
                 <div>
@@ -2090,7 +2231,7 @@ function InstagramPreview({
   item: MarketingQueue;
   onClose: () => void;
 }) {
-  const isVideo = item.contentType === "reel" || item.contentType === "tiktok";
+  const isVideo = item.contentType === "reel" || item.contentType === "tiktok" || item.contentType === "motion_reel";
   const isStory = item.contentType === "story_image";
   const caption = item.caption || "";
   const hashtags = item.hashtags || "";

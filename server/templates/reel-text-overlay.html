@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<link rel="stylesheet" href="design-system.css">
+<style>
+  html, body {
+    margin: 0;
+    padding: 0;
+    width: 1080px;
+    height: 1920px;
+    background: transparent;
+    overflow: hidden;
+  }
+
+  .container {
+    width: 1080px;
+    height: 1920px;
+    position: relative;
+  }
+
+  .gradient {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 55%;
+    background: linear-gradient(to top, rgba(0,0,0,0.75) 0%, rgba(0,0,0,0.4) 50%, transparent 100%);
+  }
+
+  .content {
+    position: absolute;
+    bottom: 140px;
+    left: 64px;
+    right: 64px;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+  }
+
+  .aida-label {
+    font-family: var(--font-body);
+    font-size: 22px;
+    font-weight: 700;
+    color: var(--color-accent);
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+  }
+
+  .aida-text {
+    font-family: var(--font-heading);
+    font-size: 52px;
+    font-weight: 700;
+    color: #ffffff;
+    line-height: 1.25;
+  }
+
+  .brand-mark {
+    position: absolute;
+    bottom: 220px;
+    left: 64px;
+    font-family: var(--font-heading);
+    font-size: 24px;
+    font-weight: 600;
+    color: var(--color-accent);
+    opacity: 0.8;
+  }
+</style>
+</head>
+<body>
+  <div class="container">
+    <div class="gradient"></div>
+    <div class="content">
+      <div class="aida-label">{{label}}</div>
+      <div class="aida-text">{{text}}</div>
+    </div>
+    <div class="brand-mark">Spoilt Dogs</div>
+  </div>
+</body>
+</html>

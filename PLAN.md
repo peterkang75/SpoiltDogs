@@ -1,6 +1,6 @@
 # SpoiltDogs — Build Plan & Change Log
 
-## Stack (as of 2026-04-16)
+## Stack (as of 2026-04-20)
 - React 18 + Vite + Express 5 (NOT Next.js)
 - Routing: wouter | Styling: Tailwind + shadcn/ui | Icons: Lucide React
 - Hosting: Railway (Nixpacks → `node dist/index.cjs`, port 8080). Domain `spoiltdogs.com.au` via CrazyDomains + Cloudflare DNS.
@@ -8,7 +8,9 @@
 - Auth: Supabase Auth
 - Payments: Stripe (keys via env vars, no Replit sync) + Afterpay
 - AI: Claude (claude-sonnet-4-5), FAL.AI (nano-banana-2/edit, nano-banana-pro/edit, nano-banana/edit, ideogram, kling), OpenAI `gpt-4o-mini`
+- Rendering: Puppeteer (HTML→PNG 이미지 합성), FFmpeg (영상+음악 합성, Ken Burns 모션)
 - Storage: Supabase Storage buckets (`uploads`, `generated-images`, `training-images`, `generated-videos`)
+- ~~Sharp~~: 제거됨 — Puppeteer로 완전 교체 (2026-04-20). `cardNewsService.ts`는 데드 코드
 
 ---
 
@@ -70,9 +72,9 @@
 - `POST /api/admin/brand/images/upload` uses multer memoryStorage
 - Uploads to Supabase Storage (`uploads` bucket); public URL returned
 
-### Auto-Model Logic (generate-image route)
-- `card_news` → ideogram (no reference images)
-- `reel` | `tiktok` → kling (no reference images)
+### Auto-Model Logic (generate-image route, updated 2026-04-20)
+- `card_news` | `carousel` → **isMultiSlide 파이프라인**: Nano Banana 2 → Claude 슬라이드 플랜 → Puppeteer 렌더링 → slideUrls 저장
+- `reel` | `tiktok` → Kling O1 reference-to-video (참조 이미지 최대 7장)
 - `story_image` → nano-banana-2, aspectRatio 9:16
 - else → nano-banana-2, aspectRatio 1:1
 - Manual override via `model` field in POST body
@@ -225,19 +227,10 @@
   - `useEffect`: 비디오 타입엔 `selectedImageModel` 세팅 안 함 (별도 `selectedVideoQuality` 사용)
 - **`generateVideo()` 기본 모델** (`falService.ts`): `veo2-img2vid` → `kling-3-img2vid` (슬로우 모션 방지 + 속도/품질 균형)
 
-#### 2.5-T 2-Step Card News Pipeline (2026-04-02)
-- **`generateCardNews()` 함수** (`falService.ts`):
-  - Step 1: `fal-ai/nano-banana-2(/edit)` → 국둥이 이미지 생성 (reference images 포함)
-  - Step 2: **Sharp** → 생성된 이미지에 SVG 텍스트 오버레이 합성 (상단 그라데이션 + 흰색 볼드 텍스트)
-  - 최종 이미지 Supabase Storage 업로드 → `imageUrl` 반환
-  - CREDIT_EXHAUSTED 감지 포함
-  - **파일**: `server/services/cardNewsService.ts`; npm 패키지: `sharp`, `@types/sharp`
-- **`adminRoutes.ts`**: `isCardNews` 분기 (`isVideo` 체크 이전에 처리)
-  - `textLines` = caption 첫 2줄 (최대 40자, # 해시태그 제외)
-  - `generateCardNewsImage()` 호출 → `imageUrl` DB 저장
-- **QueueCard UI** (`admin-marketing.tsx`):
-  - card_news 타입: 파란색 안내 박스 + "카드뉴스 생성" 버튼 (`model = "card_news"`)
-  - `onSuccess`: `variables.model === "card_news"` 시 "카드뉴스 생성 완료 / 국둥이 이미지 + 텍스트 합성 완료" 토스트
+#### 2.5-T 2-Step Card News Pipeline (2026-04-02) — ⚠️ Phase 2.7에서 교체됨
+- ~~**Sharp 기반**~~ → **Phase 2.7 Puppeteer 멀티슬라이드로 완전 교체** (2026-04-20)
+- `cardNewsService.ts` + `sharp` 패키지는 데드 코드 (삭제 예정)
+- 현재 카드뉴스 파이프라인: Phase 2.7-D 참조 (Nano Banana 2 → Claude 플랜 → Puppeteer → Supabase)
 
 #### 2.5-R 브랜드 아이덴티티 탭 (2026-04-02)
 - **파일**: `client/src/pages/admin-brand-studio.tsx`, `server/adminRoutes.ts`, `server/services/cardNewsService.ts`
@@ -262,12 +255,14 @@
 
 ## Pending
 
-- Phase 2.5-I: Kling O1/O3 영상 파이프라인 교체 (아래 섹션) — ✅ 완료
-- Phase 2.5-J: 고정 배경 합성 (Inpainting) — 배경 라이브러리 + 마스크 편집기 + FAL inpaint 모델로 국둥이 합성. 배경 일치도 90~95% 목표. 개발 5~7일 예상.
-- Caption inline edit feature
-- Phase 2.6 Content Scheduler (아래 섹션) — 진행 중
-- Phase 2.7 Puppeteer 디자인 시스템 + 멀티슬라이드 파이프라인 — ✅ 완료
+- ~~Phase 2.5-I: Kling O1/O3 영상 파이프라인 교체~~ — ✅ 완료
+- ~~Phase 2.7 Puppeteer 디자인 시스템 + 멀티슬라이드 파이프라인~~ — ✅ 완료
+- Phase 2.5-J: 고정 배경 합성 (Inpainting) — 배경 라이브러리 + 마스크 편집기 + FAL inpaint 모델로 국둥이 합성. 배경 일치도 90~95% 목표.
+- Phase 2.6 Content Scheduler — 진행 중 (카피 자동 생성 완료, 이미지/영상 자동 생성 미완)
 - Phase 2.8 Meta/TikTok SNS publishing
+- **Phase 2.9 모션 Reels 파이프라인** — ✅ 2.9-A MVP 완료 (2026-04-20), 2.9-B/C 미완
+- Caption inline edit feature
+- `cardNewsService.ts` + `sharp` 패키지 정리 (데드 코드 제거)
 
 ## Post-Replit Migration Debt (2026-04-14~)
 - ✅ Railway 배포, Supabase Postgres/Storage 전환, 커스텀 도메인 연결 완료
@@ -285,7 +280,7 @@
 
 **절대 건드리지 않는 것:**
 - 이미지 생성 파이프라인 (Nano Banana 2/edit) — 현재 세팅 유지
-- 카드뉴스 생성 (Nano Banana + Sharp) — 현재 세팅 유지
+- 카드뉴스 생성 (Nano Banana + Puppeteer 멀티슬라이드) — Phase 2.7에서 Sharp→Puppeteer 교체 완료
 - 이미지 관련 모든 코드
 
 ### 새로운 영상 파이프라인
@@ -437,3 +432,179 @@
 - [x] 카드뉴스/캐러셀 생성 버튼 통합 (3단계 파이프라인 설명)
 - [x] 생성 완료 토스트: 슬라이드 수 표시
 - [x] 기존 단일 이미지/비디오 표시와 충돌 없이 공존
+
+#### 2.7-F: Railway 배포 + 버그픽스 (2026-04-20)
+- [x] `nixpacks.toml` — Puppeteer 시스템 라이브러리 21종 추가 (nss, freetype, harfbuzz, gtk3 등)
+  - Puppeteer 번들 Chromium 사용 (시스템 Chromium 아님), nixPkgs는 공유 라이브러리만 제공
+  - `PUPPETEER_EXECUTABLE_PATH` env var 지원 (선택적 오버라이드)
+- [x] Railway 빌드 성공 (첫 빌드: `ca-certificates` Nix 오류 → chromium/ca-certificates 제거로 해결)
+- [x] Claude 모델 ID 버그픽스: `claude-sonnet-4-5-20250514` → `claude-sonnet-4-5` (2곳)
+  - `adminRoutes.ts` L1633: 슬라이드 컨텐츠 플랜 생성
+  - `adminRoutes.ts` L2299: 기타 Claude 호출
+  - 증상: 슬라이드 생성 시 404 "model not found" 에러
+- [ ] 슬라이드 생성 E2E 테스트 (배포 확인 후 검증 필요)
+
+---
+
+## 인스타그램 콘텐츠 전략 (2026-04-20)
+
+### 타겟 및 시장 정의
+- 주 타겟: 호주 30-40대 프리미엄 반려견 보호자
+- 시장 특성: 호주 Instagram 사용자는 직설적·캐주얼 톤에 반응. 한국식 교육형 카드뉴스 포맷은 부적합
+- 브랜드 포지션: Quiet Confidence (조용한 자신감) — 허세 없는 프리미엄
+
+### 알고리즘 핵심 원칙
+
+Instagram 알고리즘이 판단하는 것은 콘텐츠 제작 도구(AI vs 실촬영)가 아니라 "행동 유발력"이다.
+
+알고리즘이 실제로 측정하는 것 (가중치 순):
+1. Watch time — 끝까지 보는가
+2. Sends per reach — DM으로 공유되는가
+3. Saves — 나중에 다시 보려고 저장하는가
+4. Likes per reach — 보조 신호
+
+### AI 콘텐츠 관련 사실관계
+- Instagram "Made with AI" 라벨 부착 가능하나, 라벨 자체가 노출 차단 사유는 아님
+- Adam Mosseri 2025-12 "raw, real human content" 발언 = "저품질 AI 양산 금지"의 의미 (AI 금지가 아님)
+- 80% 노출 감소 데이터 = aggregator/저품질 AI 대량생산 계정 기준. 자체 브랜드 콘텐츠는 직접 대상 아님
+- Nano Banana 2 SynthID 워터마크: 감지 가능하나 노출 차단되지 않음
+
+### Spoilt Dogs 실질적 의미
+- AI 이미지 사용 두려워할 필요 없음 → Nano Banana 2 파이프라인 유지
+- 핵심: "이 콘텐츠가 타겟 고객의 저장/공유를 유발하는가"
+- Reels가 Single Image 대비 3-5배 engagement (watch time 측정 가능해서)
+- Ken Burns 같은 정적 이미지 + 모션도 Reels로 인식 → 같은 알고리즘 이점
+
+### 콘텐츠 포맷 전환 계획
+
+| 기간 | Single Image | Carousel | Reels |
+|------|-------------|----------|-------|
+| 현재 → 3개월 | 50% | 30% | 20% |
+| 3 → 6개월 | 20% | 30% | 50% |
+| 6개월 이후 | 15% | 35% | 50% |
+
+월 30개 게시물 최종 목표:
+- 이미지 + 모션 Reels (AI 이미지 기반): 15개 (50%)
+- UGC 재공유: 8개 (27%)
+- 실제 촬영 Reels (월 1회 배치 촬영): 5개 (17%)
+- 정적 이미지 피드 (그리드 미학 유지): 2개 (6%)
+
+---
+
+## AIDA 프레임워크 (호주 시장 버전)
+
+AIDA (Attention-Interest-Desire-Action). 구조만 차용, 표현은 호주 프리미엄 시장 최적화.
+타겟: 호주 30-40대 프리미엄 반려견 보호자
+톤: Quiet Confidence — 절제된 자신감, 관찰자적 시선
+참고 브랜드: Aesop, Bellroy, Frank Body
+
+### 글로벌 원칙
+1. 한국식 교육조/설교조 금지 ("99%가 모르는 OO하는 법" 금지 → 조용한 확신, 전문가적 관찰)
+2. 이모지 절제. 필요 시 🐾 정도만
+3. 해시태그 3-5개, 캡션 마지막 배치 (필수: #SpoiltDogs #AustralianDogs)
+4. CTA는 자연스럽게. Push 금지 ("Link in bio", "Available now at spoiltdogs.com.au")
+
+### AIDA 4단계
+| 단계 | 목표 | 피할 것 | 권장 |
+|------|------|--------|------|
+| Attention | 조용한 확신으로 주목 | "Hi everyone!", 과장 | 관찰형, 디테일형, 감각형 |
+| Interest | "이 브랜드는 나를 이해한다" | 브랜드 자랑 | 일상 관찰, 작은 디테일 공감 |
+| Desire | 구매 후 만족감 | 성분 나열, 뻔한 문구 | 장면 묘사, 감각적 표현 |
+| Action | 조용한 초대 | "Buy now!", "50% OFF!" | "Discover the range. Link in bio." |
+
+### 절대 금지 표현
+- "Hey guys!", "Hi everyone!", "Swipe up", "Click NOW"
+- 느낌표 2개 이상 연속, 과장 형용사 ("AMAZING", "BEST EVER")
+- 한국식 번역투 ("~해보세요", "~하지 않으셨나요?")
+
+### 글자 수 가이드
+- Hook (첫 줄): 최대 60자 | 전체 캡션: 80-150자 | 문단: 2-3문장
+
+> **적용**: Brand Studio `post_guideline`에 AIDA 가이드라인 반영 필요
+
+---
+
+## Phase 2.9 모션 Reels 파이프라인
+
+### 배경
+- Single Image는 알고리즘상 불리 (engagement 측정 어려움)
+- 실촬영은 운영 부담, AI 영상(Kling)은 강아지 얼굴 일관성 한계
+- 해결: AI 정적 이미지 + Puppeteer 텍스트 렌더링 + FFmpeg 모션/음악 합성
+
+### 기술 스택 역할 구분
+
+| 도구 | 역할 | 비고 |
+|------|------|------|
+| Nano Banana 2/edit | 이미지 생성 | 설정 변경 금지 |
+| Puppeteer | 이미지 합성 (텍스트, 레이아웃, 브랜드 토큰) | Phase 2.7 카드뉴스 시스템 재사용 |
+| FFmpeg | 영상 합성 (Ken Burns, 텍스트 애니메이션, 음악) | Phase 2.5-I 음악 합성 코드 재사용 |
+| Brand Studio 음악 라이브러리 | 배경 음악 소스 | ✅ Phase 2.5-I-1 구현 완료 |
+| Brand Studio 브랜드 아이덴티티 | 색상/폰트 설정 | ✅ Phase 2.5-R 구현 완료 |
+| Kling O1/O3 | 실제 영상 생성 | 별도 파이프라인, 독립 |
+
+### Phase 2.9-A: MVP (이미지 1장 + Ken Burns + AIDA 텍스트) ✅ (2026-04-20)
+
+**범위:**
+- Freeform Post "게시 형태"에 "모션 Reels" 옵션 추가
+- 이미지 1장 + Ken Burns 효과
+- AIDA 텍스트 4단계 (5초씩 순차)
+- 배경 음악 1곡
+- 길이: 20초 고정, 해상도: 1080x1920 (9:16)
+
+**파이프라인:**
+1. Claude → AIDA 4단계 대본 생성 (Attention, Interest, Desire, Action)
+2. Nano Banana 2/edit → 세로 9:16 이미지 생성
+3. Puppeteer → 텍스트 레이어 4장 PNG 사전 렌더링 (Brand Identity 색상/폰트 적용)
+4. FFmpeg → 영상 합성:
+   - Ken Burns 줌인 (1.0x → 1.15x, 20초)
+   - 텍스트 레이어 시간별 오버레이 (0-5초: Attention, 5-10초: Interest, 10-15초: Desire, 15-20초: Action)
+   - 각 텍스트 페이드 인(0.5초) + 페이드 아웃(0.5초)
+5. Brand Studio 음악 합성 (볼륨 0.3, 끝에 페이드 아웃)
+6. Supabase Storage 저장
+
+**구현 완료 (2026-04-20):**
+- [x] `server/services/motionReelsService.ts` — 파이프라인 오케스트레이터 (Puppeteer 4장 렌더 → FFmpeg 합성 → Supabase 업로드)
+- [x] `server/services/claudeMarketingService.ts` — `generateAIDAScript()` 함수 + `AIDAScript` 인터페이스, Quiet Confidence 톤
+- [x] `server/templates/reel-text-overlay.html` — AIDA 텍스트 오버레이 템플릿 (1080×1920, 투명 배경, 하단 그라데이션)
+- [x] `server/adminRoutes.ts` — `isMotionReel` 분기, 비동기 백그라운드 생성 + 진행률 추적
+- [x] `client/src/pages/admin-marketing.tsx` — 모션 Reels UI (AIDA 파이프라인 안내, 음악 선택, 볼륨 슬라이더, 진행률 바)
+- [x] FFmpeg zoompan `-loop 1 -t 20` 입력 제한 (무한 스트림 방지)
+- [x] Instagram Reels UI 하단 영역 고려한 brand-mark 위치 조정 (60px → 220px)
+
+**의존성 (모두 구현 완료):**
+- [x] Brand Studio 음악 라이브러리 (Phase 2.5-I-1)
+- [x] Brand Studio 브랜드 아이덴티티 (Phase 2.5-R)
+- [x] Puppeteer 렌더링 엔진 (Phase 2.7-A)
+- [x] FFmpeg 음악 합성 (Phase 2.5-I-3)
+
+**제약사항:**
+- 이미지 생성 설정 절대 수정 금지
+- 기존 Puppeteer 카드뉴스 파이프라인 파괴 금지 (재사용만)
+- Kling O1/O3 코드와 분리
+
+### Phase 2.9-B: 효과 다양화
+- [ ] 4-5가지 모션 효과: Ken Burns, Pan (L→R, R→L), Zoom In, Zoom Out
+- [ ] Claude가 대본 분위기 분석 → 효과 자동 매칭
+  - 관찰형 → Ken Burns / 감성형 → 느린 Pan / 강조형 → Zoom In
+
+### Phase 2.9-C: 고급 기능
+- [ ] 이미지 여러 장 연결 (슬라이드쇼 + FFmpeg xfade 전환)
+- [ ] 가변 길이 (대본 길이에 따라 15-30초 자동 조정)
+- [ ] Puppeteer 애니메이션 프레임 캡처로 정교한 텍스트 모션 (우선순위 낮음)
+- [ ] 음악 비트 동기화 (우선순위 낮음)
+
+---
+
+## 운영 준비 사항
+
+### UGC 수집
+- 고객 제품 발송 시 #MySpoiltDog 해시태그 안내 카드 동봉
+- UGC 재공유 목표: 월 8개 (전체의 27%)
+
+### 콘텐츠 촬영
+- 월 1회 Gukdung 배치 촬영 루틴 수립
+- 실촬영 Reels 목표: 월 5개 (전체의 17%)
+
+### Brand Ambassador
+- 단골 고객 5-10명 지정
+- 제품 리뷰/일상 콘텐츠 제공 대가로 할인 또는 무료 제품
