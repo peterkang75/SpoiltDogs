@@ -1612,28 +1612,42 @@ Respond in JSON format:
         const isVideo = contentType === "reel" || contentType === "tiktok";
 
         // ── 첨부 미디어 감지 ──────────────────────────────────────────────────
-        // imagePrompt가 비어있고 imageUrl이 있으면 사용자가 실제 사진을 첨부한 것
-        // (Claude는 첨부 파일이 있을 때 imagePrompt를 "" 로 반환)
-        const hasAttachedImage = !!(item.imageUrl && !item.imagePrompt);
-        // videoUrl이 이미 설정되어 있으면 첨부된 영상
-        const hasAttachedVideo = !!item.videoUrl;
+        // 초기 감지: imagePrompt가 비어있고 imageUrl/videoUrl이 있으면 첨부 파일
+        // 재생성 감지: imagePrompt에 [source_xxx:url] 마커 (최초 생성 후 저장됨)
+        const sourceVideoMatch = item.imagePrompt?.match(/^\[source_video:([^\]]+)\]/);
+        const sourceImageMatch = item.imagePrompt?.match(/^\[source_image:([^\]]+)\]/);
+        const attachedSourceVideoUrl = sourceVideoMatch?.[1] ?? null;
+        const attachedSourceImageUrl = sourceImageMatch?.[1] ?? null;
+
+        // videoUrl이 있고 imagePrompt가 없으면 최초 첨부 영상
+        const hasAttachedVideo = !!(
+          (item.videoUrl && !item.imagePrompt) || attachedSourceVideoUrl
+        );
+        // imageUrl이 있고 imagePrompt 없으면 최초 첨부 사진 (영상이 없을 때만)
+        const hasAttachedImage = !hasAttachedVideo && !!(
+          (item.imageUrl && !item.imagePrompt) || attachedSourceImageUrl
+        );
+
+        // 실제 사용할 소스 URL
+        const resolvedSourceVideoUrl = attachedSourceVideoUrl || (hasAttachedVideo ? item.videoUrl : null);
+        const resolvedSourceImageUrl = attachedSourceImageUrl || (hasAttachedImage ? item.imageUrl : null);
 
         // ── [1] 릴스/틱톡 + 첨부 영상 → Kling 생략, 음악 합성만 ────────────
-        if (isVideo && hasAttachedVideo) {
-          console.log(`[Generate] ATTACHED VIDEO detected for ${id} — skipping Kling, music-only path`);
+        if (isVideo && hasAttachedVideo && resolvedSourceVideoUrl) {
+          console.log(`[Generate] ATTACHED VIDEO (reel) for ${id} — skipping Kling, music-only path`);
           await storage.updateMarketingQueueItem(id, { status: "generating" } as any);
           res.json({ success: true, status: "generating", message: "첨부 영상에 음악을 합성합니다." });
 
           (async () => {
             try {
               const { setVideoProgress, clearVideoProgress } = await import("./services/falService");
-              let finalVideoUrl = item.videoUrl!;
+              let finalVideoUrl = resolvedSourceVideoUrl;
 
               if (audioEnabled && musicUrl) {
                 setVideoProgress(id, "음악 합성 중", 50);
                 const { mixVideoWithMusic } = await import("./services/musicMixService");
                 finalVideoUrl = await mixVideoWithMusic({
-                  videoUrl: item.videoUrl!,
+                  videoUrl: resolvedSourceVideoUrl,
                   musicUrl,
                   musicVolume: Number(musicVolume) || 40,
                 });
@@ -1641,7 +1655,12 @@ Respond in JSON format:
               }
 
               setVideoProgress(id, "완료", 100);
-              await storage.updateMarketingQueueItem(id, { videoUrl: finalVideoUrl, status: "approved" } as any);
+              // 소스 영상 URL을 imageUrl로 보존 (썸네일 대용)
+              await storage.updateMarketingQueueItem(id, {
+                videoUrl: finalVideoUrl,
+                imageUrl: resolvedSourceVideoUrl,
+                status: "approved",
+              } as any);
               clearVideoProgress(id);
             } catch (bgErr: any) {
               console.error(`[AttachedVideo] Failed:`, bgErr?.message);
@@ -1655,7 +1674,7 @@ Respond in JSON format:
 
         // ── [2] 일반 이미지 타입 + 첨부 사진 → 생성 없이 승인 ───────────────
         if (!isMotionReel && !isVideo && !isMultiSlide && hasAttachedImage) {
-          console.log(`[Generate] ATTACHED IMAGE detected for ${id} — skipping AI generation`);
+          console.log(`[Generate] ATTACHED IMAGE (feed) for ${id} — skipping AI generation`);
           await storage.updateMarketingQueueItem(id, { status: "approved" } as any);
           res.json({ success: true, status: "approved", message: "첨부된 사진을 사용합니다." });
           return;
@@ -1695,22 +1714,29 @@ Respond in JSON format:
               });
               console.log("[MotionReel] AIDA script:", JSON.stringify(aidaScript));
 
-              // Step 2: Generate background images (첨부 사진이 있으면 AI 생성 생략)
-              const cleanPrompt = (item.imagePrompt || item.caption || "")
+              // Step 2: Generate background images (첨부 사진/영상이 있으면 AI 생성 생략)
+              const cleanPrompt = (item.imagePrompt?.replace(/^\[source_(image|video):[^\]]+\]\n?/, "") || item.caption || "")
                 .replace(/text overlay[^.]*\./gi, "")
                 .replace(/text at (top|bottom)[^.]*\./gi, "")
+                .replace(/^\[AIDA Script\][\s\S]*/, "")
                 .trim()
                 + ". NO text, NO words, NO typography. Single unified composition, one continuous scene with one dog. NO grid, NO collage, NO split-screen, NO multi-panel, NO photo montage. Clean composition, visually simple lower half for text overlay.";
               const guidelineSuffix = imageGuidelineText ? `\n\nSTRICT VISUAL REQUIREMENTS:\n${imageGuidelineText}` : "";
 
               let imageUrlsForReel: string[] = [];
               let primaryImageUrl = "";
+              let sourceVideoUrlForReel: string | null = null;
 
-              if (hasAttachedImage) {
-                // 실제 사진 첨부 → AI 생성 생략, 단일 이미지 모드로 전환
-                console.log(`[MotionReel] Using attached image: ${item.imageUrl}`);
+              if (hasAttachedVideo && resolvedSourceVideoUrl) {
+                // 실촬영 영상 첨부 → Ken Burns 없이 영상 위에 텍스트+음악만
+                console.log(`[MotionReel] Using attached VIDEO: ${resolvedSourceVideoUrl}`);
+                setVideoProgress(id, "첨부 영상 위에 텍스트 합성 중", 30);
+                sourceVideoUrlForReel = resolvedSourceVideoUrl;
+              } else if (hasAttachedImage && resolvedSourceImageUrl) {
+                // 실촬영 사진 첨부 → AI 생성 생략, Ken Burns 적용
+                console.log(`[MotionReel] Using attached image: ${resolvedSourceImageUrl}`);
                 setVideoProgress(id, "첨부 이미지 사용 중", 30);
-                primaryImageUrl = item.imageUrl!;
+                primaryImageUrl = resolvedSourceImageUrl;
               } else if (aidaScript.sceneHints && aidaScript.sceneHints.length === 4) {
                 // Multi-image: generate 4 scene variations in parallel.
                 // Pass exactly ONE reference image per scene (round-robin) to prevent
@@ -1783,7 +1809,8 @@ Respond in JSON format:
               console.log(`[MotionReel] Motion effect: ${motionEffect} → ${resolvedEffect}, images: ${imageUrlsForReel.length || 1}`);
 
               const videoUrl = await generateMotionReel({
-                imageUrl: primaryImageUrl,
+                imageUrl: sourceVideoUrlForReel ? undefined : (primaryImageUrl || undefined),
+                videoUrl: sourceVideoUrlForReel || undefined,
                 imageUrls: imageUrlsForReel.length === 4 ? imageUrlsForReel : undefined,
                 aidaScript,
                 musicUrl: selectedMusicUrl || undefined,
@@ -1795,10 +1822,16 @@ Respond in JSON format:
 
               setVideoProgress(id, "완료", 100);
 
+              // 소스 URL을 imagePrompt 앞에 마커로 저장 → 재생성 시 소스 추적
+              const sourceMarker = sourceVideoUrlForReel
+                ? `[source_video:${sourceVideoUrlForReel}]\n`
+                : (resolvedSourceImageUrl ? `[source_image:${resolvedSourceImageUrl}]\n` : "");
+              const aidaSummary = `[AIDA Script]\nAttention: ${aidaScript.attention}\nInterest: ${aidaScript.interest}\nDesire: ${aidaScript.desire}\nAction: ${aidaScript.action}${imageUrlsForReel.length === 4 ? "\n[Multi-image: 4 scenes]" : ""}`;
+
               await storage.updateMarketingQueueItem(id, {
-                imageUrl: primaryImageUrl,
+                imageUrl: sourceVideoUrlForReel ? null : primaryImageUrl,
                 videoUrl,
-                imagePrompt: `[AIDA Script]\nAttention: ${aidaScript.attention}\nInterest: ${aidaScript.interest}\nDesire: ${aidaScript.desire}\nAction: ${aidaScript.action}${imageUrlsForReel.length === 4 ? "\n[Multi-image: 4 scenes]" : ""}`,
+                imagePrompt: `${sourceMarker}${aidaSummary}`,
                 status: "approved",
               } as any);
               console.log(`[MotionReel] Saved for queue item ${id}`);

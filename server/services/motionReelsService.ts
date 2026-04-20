@@ -188,10 +188,34 @@ function buildSegmentMotionFilter(
   }
 }
 
+// ── ffprobe: get video duration ─────────────────────────────────────────────
+
+function getVideoDuration(filePath: string): Promise<number> {
+  return new Promise((resolve) => {
+    const proc = spawn("ffprobe", [
+      "-v", "quiet", "-print_format", "json", "-show_streams", filePath,
+    ], { stdio: ["ignore", "pipe", "ignore"] });
+    let stdout = "";
+    proc.stdout.on("data", (d) => { stdout += d.toString(); });
+    proc.on("close", () => {
+      try {
+        const data = JSON.parse(stdout);
+        const s = (data.streams as any[]).find((s) => s.codec_type === "video") ?? data.streams[0];
+        const dur = parseFloat(s?.duration ?? "0");
+        resolve(isNaN(dur) || dur <= 0 ? 20 : dur);
+      } catch {
+        resolve(20);
+      }
+    });
+    proc.on("error", () => resolve(20));
+  });
+}
+
 // ── Main Pipeline ───────────────────────────────────────────────────────────
 
 export interface MotionReelInput {
-  imageUrl: string;
+  imageUrl?: string;         // AI-generated or attached image (for Ken Burns)
+  videoUrl?: string;         // Attached real video (skip Ken Burns, overlay text on video)
   imageUrls?: string[];
   aidaScript: {
     attention: string;
@@ -209,6 +233,7 @@ export interface MotionReelInput {
 export async function generateMotionReel(input: MotionReelInput): Promise<string> {
   const {
     imageUrl,
+    videoUrl,
     imageUrls,
     aidaScript,
     musicUrl,
@@ -218,12 +243,129 @@ export async function generateMotionReel(input: MotionReelInput): Promise<string
     motionEffect = "zoom-in",
   } = input;
 
+  // 실제 영상 첨부 → 텍스트+음악 오버레이만 (Ken Burns 없음)
+  if (videoUrl) {
+    return generateVideoOverlayReel({ videoUrl, aidaScript, musicUrl, musicVolume, overlayTemplate, showLabel });
+  }
+
   const images = imageUrls && imageUrls.length === 4 ? imageUrls as [string, string, string, string] : null;
 
   if (images) {
     return generateMultiImageReel({ images, aidaScript, musicUrl, musicVolume, overlayTemplate, showLabel });
   }
-  return generateSingleImageReel({ imageUrl, aidaScript, musicUrl, musicVolume, overlayTemplate, showLabel, motionEffect });
+  return generateSingleImageReel({ imageUrl: imageUrl!, aidaScript, musicUrl, musicVolume, overlayTemplate, showLabel, motionEffect });
+}
+
+// ── Video Overlay Reel (실제 영상 위에 AIDA 텍스트 + 음악) ─────────────────
+
+async function generateVideoOverlayReel({
+  videoUrl,
+  aidaScript,
+  musicUrl,
+  musicVolume,
+  overlayTemplate,
+  showLabel,
+}: {
+  videoUrl: string;
+  aidaScript: MotionReelInput["aidaScript"];
+  musicUrl?: string;
+  musicVolume: number;
+  overlayTemplate: OverlayTemplate;
+  showLabel: boolean;
+}): Promise<string> {
+  const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "motion-vid-"));
+  const bgPath = path.join(tmp, "bg.mp4");
+  const t1Path = path.join(tmp, "t1.png");
+  const t2Path = path.join(tmp, "t2.png");
+  const t3Path = path.join(tmp, "t3.png");
+  const t4Path = path.join(tmp, "t4.png");
+  const mPath = path.join(tmp, "music.mp3");
+  const oPath = path.join(tmp, "output.mp4");
+
+  try {
+    console.log(`[MotionReel] Video overlay mode (template=${overlayTemplate})`);
+
+    const overlays = [
+      { label: showLabel ? "Attention" : "", text: aidaScript.attention },
+      { label: showLabel ? "Interest" : "", text: aidaScript.interest },
+      { label: showLabel ? "Desire" : "", text: aidaScript.desire },
+      { label: "", text: aidaScript.action },
+    ];
+
+    const overlayBuffers = await Promise.all(
+      overlays.map((o) => {
+        const html = buildOverlayHtml(o.label, o.text, overlayTemplate);
+        return renderHtmlToImage(html, WIDTH, HEIGHT, { omitBackground: true, deviceScaleFactor: 1 });
+      })
+    );
+
+    const downloads: Promise<void>[] = [downloadToFile(videoUrl, bgPath)];
+    if (musicUrl) downloads.push(downloadToFile(musicUrl, mPath));
+    downloads.push(
+      fs.writeFile(t1Path, overlayBuffers[0]),
+      fs.writeFile(t2Path, overlayBuffers[1]),
+      fs.writeFile(t3Path, overlayBuffers[2]),
+      fs.writeFile(t4Path, overlayBuffers[3]),
+    );
+    await Promise.all(downloads);
+
+    // 실제 영상 길이 감지 → AIDA 타이밍 계산 (최대 20초로 제한)
+    const rawDuration = await getVideoDuration(bgPath);
+    const dur = Math.min(rawDuration, 20);
+    const s1 = dur / 4;
+    const s2 = dur / 2;
+    const s3 = (dur * 3) / 4;
+    console.log(`[MotionReel] Video duration: ${rawDuration.toFixed(1)}s → using ${dur.toFixed(1)}s. Segments: 0/${s1.toFixed(1)}/${s2.toFixed(1)}/${s3.toFixed(1)}`);
+
+    const volume = Math.max(0, Math.min(100, musicVolume)) / 100;
+    const fadeDur = (dur - 2) > 0 ? dur - 2 : dur * 0.9;
+
+    const filterComplex: string[] = [
+      // 영상 크기를 1080×1920으로 맞춤 (실촬영 영상은 해상도가 다를 수 있음)
+      `[0:v]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,setsar=1[bg]`,
+      `[1:v]format=rgba,fade=t=in:st=0:d=0.5:alpha=1,fade=t=out:st=${(s1 - 0.5).toFixed(2)}:d=0.5:alpha=1[t1]`,
+      `[2:v]format=rgba,fade=t=in:st=${s1.toFixed(2)}:d=0.5:alpha=1,fade=t=out:st=${(s2 - 0.5).toFixed(2)}:d=0.5:alpha=1[t2]`,
+      `[3:v]format=rgba,fade=t=in:st=${s2.toFixed(2)}:d=0.5:alpha=1,fade=t=out:st=${(s3 - 0.5).toFixed(2)}:d=0.5:alpha=1[t3]`,
+      `[4:v]format=rgba,fade=t=in:st=${s3.toFixed(2)}:d=0.5:alpha=1,fade=t=out:st=${(dur - 0.5).toFixed(2)}:d=0.5:alpha=1[t4]`,
+      `[bg][t1]overlay=0:0[o1]`,
+      `[o1][t2]overlay=0:0[o2]`,
+      `[o2][t3]overlay=0:0[o3]`,
+      `[o3][t4]overlay=0:0[v]`,
+    ];
+
+    const musicIdx = 5;
+    const args: string[] = [
+      "-y",
+      "-i", bgPath,
+      "-loop", "1", "-i", t1Path,
+      "-loop", "1", "-i", t2Path,
+      "-loop", "1", "-i", t3Path,
+      "-loop", "1", "-i", t4Path,
+    ];
+
+    if (musicUrl) {
+      args.push("-i", mPath);
+      filterComplex.push(`[${musicIdx}:a]volume=${volume.toFixed(2)},afade=t=out:st=${fadeDur.toFixed(2)}:d=2[a]`);
+      // 원본 영상 오디오가 있으면 믹스
+      filterComplex[filterComplex.length - 1]; // [a] label already set
+      args.push("-filter_complex", filterComplex.join(";"));
+      args.push("-map", "[v]", "-map", "[a]");
+      args.push("-c:a", "aac", "-b:a", "192k");
+    } else {
+      args.push("-filter_complex", filterComplex.join(";"));
+      args.push("-map", "[v]");
+      // 원본 오디오 보존
+      args.push("-map", "0:a?");
+      args.push("-c:a", "aac", "-b:a", "192k");
+    }
+
+    args.push("-c:v", "libx264", "-preset", "medium", "-crf", "23", "-pix_fmt", "yuv420p", "-t", dur.toFixed(2), oPath);
+    await runFfmpeg(args);
+
+    return await uploadResult(oPath);
+  } finally {
+    await fs.rm(tmp, { recursive: true, force: true }).catch(() => {});
+  }
 }
 
 // ── Single-Image Reel (original MVP pipeline) ──────────────────────────────
