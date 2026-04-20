@@ -1673,6 +1673,12 @@ Respond in JSON format:
                   .map((r) => r.status === "fulfilled" ? r.value.imageUrl : null)
                   .filter((url): url is string => !!url);
 
+                const failedReasons = results
+                  .map((r, i) => r.status === "rejected" ? `Image ${i + 1}: ${r.reason?.message || r.reason}` : null)
+                  .filter(Boolean);
+                if (failedReasons.length > 0) {
+                  console.error("[MotionReel] Failed images:", failedReasons.join("; "));
+                }
                 console.log(`[MotionReel] ${successUrls.length}/4 images generated successfully`);
 
                 if (successUrls.length === 4) {

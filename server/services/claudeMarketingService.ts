@@ -226,7 +226,7 @@ export async function generateAIDAScript({
 
   const message = await client.messages.create({
     model: "claude-sonnet-4-5",
-    max_tokens: 500,
+    max_tokens: 800,
     system: `You write AIDA-structured text overlays for Instagram Reels.
 Target: Australian 30-40s premium pet owners.
 Brand tone: Quiet Confidence — understated, observational, no hard sell.
