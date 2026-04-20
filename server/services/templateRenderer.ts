@@ -1,6 +1,7 @@
 import puppeteer, { type Browser } from "puppeteer";
 import path from "path";
 import fs from "fs";
+import { execSync } from "child_process";
 
 let browser: Browser | null = null;
 
@@ -23,8 +24,14 @@ async function getBrowser(): Promise<Browser> {
   };
 
   // Railway/Nixpacks: use system Chromium instead of bundled one
+  // (bundled Chromium segfaults on NixOS due to non-standard dynamic linker)
   if (process.env.PUPPETEER_EXECUTABLE_PATH) {
     launchOptions.executablePath = process.env.PUPPETEER_EXECUTABLE_PATH;
+  } else {
+    try {
+      const chromiumPath = execSync("which chromium", { encoding: "utf-8" }).trim();
+      if (chromiumPath) launchOptions.executablePath = chromiumPath;
+    } catch {}
   }
 
   browser = await puppeteer.launch(launchOptions);
