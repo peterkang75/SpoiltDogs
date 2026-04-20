@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<link rel="stylesheet" href="design-system.css">
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap');
+
+  html, body {
+    margin: 0;
+    padding: 0;
+    width: 1080px;
+    height: 1920px;
+    background: transparent;
+    overflow: hidden;
+  }
+
+  .container {
+    width: 1080px;
+    height: 1920px;
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .content {
+    text-align: center;
+    padding: 0 80px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 20px;
+  }
+
+  .aida-label {
+    display: inline-flex;
+    background: var(--color-accent);
+    color: var(--color-primary);
+    font-family: 'Poppins', var(--font-body);
+    font-size: 20px;
+    font-weight: 700;
+    padding: 8px 28px;
+    border-radius: 100px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+  }
+
+  .aida-label:empty {
+    display: none;
+  }
+
+  .aida-text {
+    font-family: 'Poppins', var(--font-body);
+    font-size: 54px;
+    font-weight: 700;
+    color: var(--color-primary);
+    line-height: 1.28;
+    text-shadow: 0 2px 20px rgba(255,255,255,0.85), 0 0 50px rgba(255,255,255,0.5);
+  }
+
+  .brand {
+    position: absolute;
+    bottom: 200px;
+    right: 64px;
+    font-family: var(--font-heading);
+    font-size: 22px;
+    font-weight: 600;
+    color: var(--color-accent);
+    text-shadow: 0 1px 8px rgba(0,0,0,0.3);
+  }
+</style>
+</head>
+<body>
+  <div class="container">
+    <div class="content">
+      <div class="aida-label">{{label}}</div>
+      <div class="aida-text">{{text}}</div>
+    </div>
+    <div class="brand">Spoilt Dogs</div>
+  </div>
+</body>
+</html>

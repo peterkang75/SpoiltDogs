@@ -360,12 +360,12 @@ export default function AdminMarketing() {
 
 
   const generateImageMut = useMutation({
-    mutationFn: async ({ id, model, duration, audioEnabled, musicUrl, musicVolume, motionDirective }: { id: string; model: string; duration: string; audioEnabled?: boolean; musicUrl?: string | null; musicVolume?: number; motionDirective?: string }) => {
+    mutationFn: async ({ id, model, duration, audioEnabled, musicUrl, musicVolume, motionDirective, overlayTemplate, showAidaLabel }: { id: string; model: string; duration: string; audioEnabled?: boolean; musicUrl?: string | null; musicVolume?: number; motionDirective?: string; overlayTemplate?: string; showAidaLabel?: boolean }) => {
       const response = await fetch(`/api/admin/marketing/queue/${id}/generate-image`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({ model, duration, audioEnabled, musicUrl, musicVolume, motionDirective }),
+        body: JSON.stringify({ model, duration, audioEnabled, musicUrl, musicVolume, motionDirective, overlayTemplate, showAidaLabel }),
       });
       if (!response.ok) {
         const data = await response.json();
@@ -1276,7 +1276,7 @@ function QueueCard({
   onReject: () => void;
   onDelete: () => void;
   musicTracks: any[];
-  onGenerateImage: (id: string, model: string, duration: string, opts?: { audioEnabled?: boolean; musicUrl?: string | null; musicVolume?: number; motionDirective?: string }) => void;
+  onGenerateImage: (id: string, model: string, duration: string, opts?: { audioEnabled?: boolean; musicUrl?: string | null; musicVolume?: number; motionDirective?: string; overlayTemplate?: string; showAidaLabel?: boolean }) => void;
   onRewrite: (topic: string, platform: string) => void;
   isApproving: boolean;
   isRejecting: boolean;
@@ -1290,6 +1290,8 @@ function QueueCard({
   const [audioEnabled, setAudioEnabled] = useState(false);
   const [selectedMusicId, setSelectedMusicId] = useState<string>("");
   const [musicVolume, setMusicVolume] = useState(40);
+  const [overlayTemplate, setOverlayTemplate] = useState<string>("gradient");
+  const [showAidaLabel, setShowAidaLabel] = useState(false);
   const [imageMusicDuration, setImageMusicDuration] = useState("10");
   const [showPreview, setShowPreview] = useState(false);
   const [showRegenPanel, setShowRegenPanel] = useState(false);
@@ -1746,6 +1748,44 @@ function QueueCard({
                   )}
                 </div>
 
+                {/* Overlay template & label */}
+                <div className="space-y-2">
+                  <div>
+                    <label className="text-xs font-medium text-gray-600 mb-1 block">오버레이 템플릿</label>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => setOverlayTemplate("gradient")}
+                        className={`flex-1 py-1.5 px-2 rounded-lg text-xs font-medium border transition-colors ${
+                          overlayTemplate === "gradient"
+                            ? "border-green-700 bg-green-50 text-green-800"
+                            : "border-gray-200 text-gray-500 hover:border-gray-300"
+                        }`}
+                      >
+                        🌿 배경 있음
+                      </button>
+                      <button
+                        onClick={() => setOverlayTemplate("clean")}
+                        className={`flex-1 py-1.5 px-2 rounded-lg text-xs font-medium border transition-colors ${
+                          overlayTemplate === "clean"
+                            ? "border-green-700 bg-green-50 text-green-800"
+                            : "border-gray-200 text-gray-500 hover:border-gray-300"
+                        }`}
+                      >
+                        ✨ 배경 없음
+                      </button>
+                    </div>
+                  </div>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={showAidaLabel}
+                      onChange={(e) => setShowAidaLabel(e.target.checked)}
+                      className="rounded border-gray-300"
+                    />
+                    <span className="text-xs text-gray-600">AIDA 라벨 표시 (Attention, Interest...)</span>
+                  </label>
+                </div>
+
                 {/* Generate motion reel button */}
                 <Button
                   size="sm"
@@ -1761,6 +1801,8 @@ function QueueCard({
                       audioEnabled,
                       musicUrl: mUrl,
                       musicVolume,
+                      overlayTemplate,
+                      showAidaLabel,
                     });
                   }}
                   disabled={isGeneratingImage}

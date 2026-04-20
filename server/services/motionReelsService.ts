@@ -24,8 +24,11 @@ function escapeHtml(str: string): string {
     .replace(/"/g, "&quot;");
 }
 
-function buildOverlayHtml(label: string, text: string): string {
-  const filePath = path.join(TEMPLATE_DIR, "reel-text-overlay.html");
+export type OverlayTemplate = "gradient" | "clean";
+
+function buildOverlayHtml(label: string, text: string, template: OverlayTemplate = "gradient"): string {
+  const fileName = template === "clean" ? "reel-overlay-clean.html" : "reel-overlay-gradient.html";
+  const filePath = path.join(TEMPLATE_DIR, fileName);
   let html = readFileSync(filePath, "utf-8");
 
   const css = loadCSS();
@@ -67,6 +70,8 @@ export interface MotionReelInput {
   };
   musicUrl?: string;
   musicVolume?: number;
+  overlayTemplate?: OverlayTemplate;
+  showLabel?: boolean;
 }
 
 export async function generateMotionReel({
@@ -74,6 +79,8 @@ export async function generateMotionReel({
   aidaScript,
   musicUrl,
   musicVolume = 30,
+  overlayTemplate = "gradient",
+  showLabel = false,
 }: MotionReelInput): Promise<string> {
   const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "motion-reel-"));
   const bgPath = path.join(tmp, "bg.jpg");
@@ -87,15 +94,15 @@ export async function generateMotionReel({
   try {
     console.log("[MotionReel] Step 1: Rendering text overlay PNGs with Puppeteer");
     const overlays = [
-      { label: "Attention", text: aidaScript.attention },
-      { label: "Interest", text: aidaScript.interest },
-      { label: "Desire", text: aidaScript.desire },
+      { label: showLabel ? "Attention" : "", text: aidaScript.attention },
+      { label: showLabel ? "Interest" : "", text: aidaScript.interest },
+      { label: showLabel ? "Desire" : "", text: aidaScript.desire },
       { label: "", text: aidaScript.action },
     ];
 
     const overlayBuffers = await Promise.all(
       overlays.map((o) => {
-        const html = buildOverlayHtml(o.label, o.text);
+        const html = buildOverlayHtml(o.label, o.text, overlayTemplate);
         return renderHtmlToImage(html, WIDTH, HEIGHT, { omitBackground: true, deviceScaleFactor: 1 });
       })
     );

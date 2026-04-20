@@ -1540,6 +1540,8 @@ Respond in JSON format:
           musicUrl = null,
           musicVolume = 40,
           motionDirective = "",
+          overlayTemplate = "gradient",
+          showAidaLabel: rawShowAidaLabel = false,
         } = req.body;
 
         // audioEnabled can come as string "true" from JSON
@@ -1665,11 +1667,14 @@ Respond in JSON format:
                 selectedMusicUrl = musicUrl;
               }
 
+              const showLabel = rawShowAidaLabel === true || rawShowAidaLabel === "true";
               const videoUrl = await generateMotionReel({
                 imageUrl: imgResult.imageUrl,
                 aidaScript,
                 musicUrl: selectedMusicUrl || undefined,
                 musicVolume: Number(musicVolume) || 30,
+                overlayTemplate: overlayTemplate === "clean" ? "clean" : "gradient",
+                showLabel,
               });
 
               setVideoProgress(id, "완료", 100);

@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<link rel="stylesheet" href="design-system.css">
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap');
+
+  html, body {
+    margin: 0;
+    padding: 0;
+    width: 1080px;
+    height: 1920px;
+    background: transparent;
+    overflow: hidden;
+  }
+
+  .container {
+    width: 1080px;
+    height: 1920px;
+    position: relative;
+  }
+
+  .gradient {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 50%;
+    background: linear-gradient(to top, rgba(26,58,46,0.88) 0%, rgba(26,58,46,0.55) 45%, transparent 100%);
+  }
+
+  .content {
+    position: absolute;
+    bottom: 300px;
+    left: 64px;
+    right: 64px;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+  }
+
+  .aida-label {
+    display: inline-flex;
+    align-self: flex-start;
+    background: var(--color-accent);
+    color: var(--color-primary);
+    font-family: 'Poppins', var(--font-body);
+    font-size: 20px;
+    font-weight: 700;
+    padding: 8px 28px;
+    border-radius: 100px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+  }
+
+  .aida-label:empty {
+    display: none;
+  }
+
+  .aida-text {
+    font-family: 'Poppins', var(--font-body);
+    font-size: 50px;
+    font-weight: 700;
+    color: #ffffff;
+    line-height: 1.3;
+  }
+
+  .brand {
+    position: absolute;
+    bottom: 200px;
+    right: 64px;
+    font-family: var(--font-heading);
+    font-size: 22px;
+    font-weight: 600;
+    color: var(--color-accent);
+    text-shadow: 0 1px 6px rgba(0,0,0,0.4);
+  }
+</style>
+</head>
+<body>
+  <div class="container">
+    <div class="gradient"></div>
+    <div class="content">
+      <div class="aida-label">{{label}}</div>
+      <div class="aida-text">{{text}}</div>
+    </div>
+    <div class="brand">Spoilt Dogs</div>
+  </div>
+</body>
+</html>
