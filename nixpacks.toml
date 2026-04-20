@@ -1,6 +1,2 @@
 [phases.setup]
-nixPkgs = ["nodejs_20", "ffmpeg", "chromium", "nss", "freetype", "harfbuzz", "ca-certificates", "fontconfig"]
-
-[variables]
-PUPPETEER_SKIP_DOWNLOAD = "true"
-PUPPETEER_EXECUTABLE_PATH = "/nix/var/nix/profiles/default/bin/chromium"
+nixPkgs = ["nodejs_20", "ffmpeg", "nss", "freetype", "harfbuzz", "fontconfig", "xorg.libX11", "xorg.libXcomposite", "xorg.libXdamage", "xorg.libXext", "xorg.libXrandr", "xorg.libXtst", "glib", "dbus", "at-spi2-atk", "cups", "libdrm", "mesa", "expat", "alsa-lib", "pango", "cairo", "gtk3"]
