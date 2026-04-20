@@ -619,3 +619,15 @@ AIDA (Attention-Interest-Desire-Action). 구조만 차용, 표현은 호주 프�
 ### Brand Ambassador
 - 단골 고객 5-10명 지정
 - 제품 리뷰/일상 콘텐츠 제공 대가로 할인 또는 무료 제품
+
+---
+
+## 2026-04-20 — Puppeteer 타임아웃 수정 (Motion Reel 생성 실패 대응)
+
+**문제**: 연속 모션 릴 생성 시 Puppeteer `Page.captureScreenshot timed out` 에러 — FFmpeg 대량 처리 후 리소스 부족으로 브라우저 응답 불가
+**원인**: `protocolTimeout` 미설정 (기본 30초), 브라우저 재사용 시 stale 연결 처리 없음
+**수정** (`templateRenderer.ts`):
+- `protocolTimeout: 120_000` 추가 (30초 → 120초)
+- `--single-process` Chromium 플래그 추가 (Railway 메모리 절약)
+- 비연결 브라우저 자동 정리 후 재시작
+- `renderHtmlToImage`에 1회 재시도 로직 추가 — 타임아웃 시 브라우저 재시작 후 재시도

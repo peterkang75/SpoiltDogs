@@ -6,13 +6,19 @@ let browser: Browser | null = null;
 
 async function getBrowser(): Promise<Browser> {
   if (browser && browser.connected) return browser;
+  if (browser) {
+    try { await browser.close(); } catch {}
+    browser = null;
+  }
   const launchOptions: any = {
     headless: true,
+    protocolTimeout: 120_000,
     args: [
       "--no-sandbox",
       "--disable-setuid-sandbox",
       "--disable-dev-shm-usage",
       "--disable-gpu",
+      "--single-process",
     ],
   };
 
@@ -33,20 +39,33 @@ export async function renderHtmlToImage(
   options: { omitBackground?: boolean; deviceScaleFactor?: number } = {},
 ): Promise<Buffer> {
   const { omitBackground = false, deviceScaleFactor = 2 } = options;
-  const b = await getBrowser();
-  const page = await b.newPage();
-  try {
-    await page.setViewport({ width, height, deviceScaleFactor });
-    await page.setContent(html, { waitUntil: "networkidle0", timeout: 15_000 });
-    const buffer = await page.screenshot({
-      type: "png",
-      clip: { x: 0, y: 0, width, height },
-      omitBackground,
-    });
-    return Buffer.from(buffer);
-  } finally {
-    await page.close();
+
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const b = await getBrowser();
+    let page;
+    try {
+      page = await b.newPage();
+      await page.setViewport({ width, height, deviceScaleFactor });
+      await page.setContent(html, { waitUntil: "networkidle0", timeout: 15_000 });
+      const buffer = await page.screenshot({
+        type: "png",
+        clip: { x: 0, y: 0, width, height },
+        omitBackground,
+      });
+      return Buffer.from(buffer);
+    } catch (err: any) {
+      if (attempt === 0 && err.message?.includes("timed out")) {
+        console.warn("[templateRenderer] Screenshot timed out, restarting browser and retrying…");
+        try { await b.close(); } catch {}
+        browser = null;
+        continue;
+      }
+      throw err;
+    } finally {
+      await page?.close().catch(() => {});
+    }
   }
+  throw new Error("renderHtmlToImage: unreachable");
 }
 
 /** Render a template file with variable substitution */
