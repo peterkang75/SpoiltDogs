@@ -1645,24 +1645,29 @@ Respond in JSON format:
                 .replace(/text overlay[^.]*\./gi, "")
                 .replace(/text at (top|bottom)[^.]*\./gi, "")
                 .trim()
-                + ". NO text, NO words, NO typography. Clean composition, visually simple lower half for text overlay.";
+                + ". NO text, NO words, NO typography. Single unified composition, one continuous scene with one dog. NO grid, NO collage, NO split-screen, NO multi-panel, NO photo montage. Clean composition, visually simple lower half for text overlay.";
               const guidelineSuffix = imageGuidelineText ? `\n\nSTRICT VISUAL REQUIREMENTS:\n${imageGuidelineText}` : "";
 
               let imageUrlsForReel: string[] = [];
               let primaryImageUrl = "";
 
               if (aidaScript.sceneHints && aidaScript.sceneHints.length === 4) {
-                // Multi-image: generate 4 scene variations in parallel
+                // Multi-image: generate 4 scene variations in parallel.
+                // Pass exactly ONE reference image per scene (round-robin) to prevent
+                // nano-banana-2/edit from collaging multiple refs into a grid.
                 setVideoProgress(id, "4개 장면 이미지 생성 중 (1~2분)", 15);
                 console.log("[MotionReel] Generating 4 scene images in parallel");
 
                 const results = await Promise.allSettled(
                   aidaScript.sceneHints.map((hint, i) => {
                     const scenePrompt = `${cleanPrompt} Scene variation: ${hint}${guidelineSuffix}`;
-                    console.log(`[MotionReel] Image ${i + 1} prompt: ${hint.slice(0, 80)}...`);
+                    const sceneRef = referenceImages.length > 0
+                      ? [referenceImages[i % referenceImages.length]]
+                      : [];
+                    console.log(`[MotionReel] Image ${i + 1} prompt: ${hint.slice(0, 80)}... ref=${sceneRef.length}`);
                     return generateImage({
                       prompt: scenePrompt,
-                      referenceImageUrls: referenceImages,
+                      referenceImageUrls: sceneRef,
                       model: "nano-banana-2",
                       aspectRatio: "9:16",
                     });
@@ -1691,11 +1696,11 @@ Respond in JSON format:
                   throw new Error("All 4 image generations failed");
                 }
               } else {
-                // Single-image fallback (no scene hints)
+                // Single-image fallback (no scene hints) — one ref to avoid collage
                 setVideoProgress(id, "배경 이미지 생성 중", 25);
                 const imgResult = await generateImage({
                   prompt: cleanPrompt + guidelineSuffix,
-                  referenceImageUrls: referenceImages,
+                  referenceImageUrls: referenceImages.slice(0, 1),
                   model: "nano-banana-2",
                   aspectRatio: "9:16",
                 });

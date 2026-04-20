@@ -632,6 +632,19 @@ AIDA (Attention-Interest-Desire-Action). 구조만 차용, 표현은 호주 프�
 - 비연결 브라우저 자동 정리 후 재시작
 - `renderHtmlToImage`에 1회 재시도 로직 추가 — 타임아웃 시 브라우저 재시작 후 재시도
 
+## 2026-04-20 — 모션 릴 4컷 콜라주 출력 버그 수정
+
+**문제**: 모션 릴 생성 시 각 scene 이미지가 2×2 그리드 콜라주로 나옴 → 4 scene × 4컷 = 16개 사진이 한 영상에 박혀 있는 모양.
+
+**근본 원인**: `nano-banana-2/edit`에 참조 이미지(국둥이 사진)를 최대 5장(`image_urls`)을 통째로 전달 → 모델이 "참조 이미지를 다 보여달라"로 해석해 한 출력 프레임에 그리드/몽타주로 합성. 모션 릴은 4 scene을 병렬로 호출하므로 모든 scene이 동일한 콜라주를 만들어냄.
+
+**수정** (`server/adminRoutes.ts` motion_reel 분기):
+1. **참조 이미지 라운드로빈 1장 제한**: 4 scene 각각 `referenceImages[i % len]` 1장만 전달. 국둥이 얼굴 일관성은 유지하면서 모델이 "여러 장 합성" 해석할 근거 자체를 제거.
+2. **프롬프트 안전장치**: cleanPrompt 끝에 `Single unified composition, one continuous scene with one dog. NO grid, NO collage, NO split-screen, NO multi-panel, NO photo montage.` 추가.
+3. Single-image 폴백도 `referenceImages.slice(0, 1)`로 통일.
+
+**영향 범위**: 모션 릴 전용. 일반 이미지/카드뉴스/Kling 영상 파이프라인은 손대지 않음.
+
 ## 2026-04-20 — 비동기 생성 흐름 CREDIT_EXHAUSTED 알림 복구
 
 **문제**: FAL.AI 잔액 부족 시 모션 릴/영상/이미지 생성이 그냥 "생성 실패" 토스트만 띄우고, 기존에 만들어둔 "잔액 부족 + 충전하러 가기" AlertDialog가 뜨지 않음.
