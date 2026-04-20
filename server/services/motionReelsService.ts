@@ -395,7 +395,7 @@ async function generateMultiImageReel({
         "-map", "[v]",
         "-c:v", "libx264", "-preset", "ultrafast", "-crf", "18", "-pix_fmt", "yuv420p",
         segPaths[i],
-      ], 120_000);
+      ], 300_000);
     }
 
     // ── Pass 2: Concat segments with xfade + add music ──
@@ -425,7 +425,7 @@ async function generateMultiImageReel({
     }
 
     args.push("-c:v", "libx264", "-preset", "fast", "-crf", "23", "-pix_fmt", "yuv420p", "-t", String(DURATION), oPath);
-    await runFfmpeg(args, 120_000);
+    await runFfmpeg(args, 300_000);
 
     return await uploadResult(oPath);
   } finally {
