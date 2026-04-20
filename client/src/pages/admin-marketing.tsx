@@ -391,10 +391,20 @@ export default function AdminMarketing() {
           if (item.status !== "generating") {
             clearInterval(pollInterval);
             queryClient.invalidateQueries({ queryKey: ["/api/admin/marketing/queue"] });
+            const reason: string = item.rejectionReason || "";
+            if (reason.startsWith("CREDIT_EXHAUSTED:")) {
+              const service = reason.split(":")[1] || "FAL.AI";
+              setCreditAlert({
+                open: true,
+                service,
+                chargeUrl: "https://fal.ai/dashboard/usage-billing/credits",
+              });
+              return;
+            }
             if (item.videoUrl || item.imageUrl) {
               toast({ title: "생성 완료!" });
             } else {
-              toast({ title: "생성 실패", variant: "destructive" });
+              toast({ title: "생성 실패", description: reason || undefined, variant: "destructive" });
             }
           }
         }, 10000);

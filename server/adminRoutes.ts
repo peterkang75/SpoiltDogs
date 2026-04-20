@@ -1742,7 +1742,8 @@ Respond in JSON format:
               console.error(`[MotionReel] Generation failed:`, bgErr?.message, bgErr?.stack);
               const { clearVideoProgress } = await import("./services/falService");
               clearVideoProgress(id);
-              await storage.updateMarketingQueueItem(id, { status: "failed" } as any).catch(() => {});
+              const reason = bgErr?.message || "Generation failed";
+              await storage.updateMarketingQueueItem(id, { status: "failed", rejectionReason: reason } as any).catch(() => {});
             }
           })();
           return;
@@ -1888,7 +1889,8 @@ Return JSON in this exact format:
               console.error(`[KlingO1] Error body:`, JSON.stringify(bgErr?.body || ""));
               const { clearVideoProgress } = await import("./services/falService");
               clearVideoProgress(id);
-              await storage.updateMarketingQueueItem(id, { status: "failed" } as any).catch(() => {});
+              const reason = bgErr?.message || "Generation failed";
+              await storage.updateMarketingQueueItem(id, { status: "failed", rejectionReason: reason } as any).catch(() => {});
             }
           })();
           return;
@@ -1968,7 +1970,8 @@ Return JSON in this exact format:
               console.error(`[Image] Error body:`, JSON.stringify(bgErr?.body || ""));
               const { clearVideoProgress } = await import("./services/falService");
               clearVideoProgress(id);
-              await storage.updateMarketingQueueItem(id, { status: "failed" } as any).catch(() => {});
+              const reason = bgErr?.message || "Generation failed";
+              await storage.updateMarketingQueueItem(id, { status: "failed", rejectionReason: reason } as any).catch(() => {});
             }
           })();
           return;

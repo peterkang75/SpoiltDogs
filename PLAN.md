@@ -632,6 +632,19 @@ AIDA (Attention-Interest-Desire-Action). 구조만 차용, 표현은 호주 프�
 - 비연결 브라우저 자동 정리 후 재시작
 - `renderHtmlToImage`에 1회 재시도 로직 추가 — 타임아웃 시 브라우저 재시작 후 재시도
 
+## 2026-04-20 — 비동기 생성 흐름 CREDIT_EXHAUSTED 알림 복구
+
+**문제**: FAL.AI 잔액 부족 시 모션 릴/영상/이미지 생성이 그냥 "생성 실패" 토스트만 띄우고, 기존에 만들어둔 "잔액 부족 + 충전하러 가기" AlertDialog가 뜨지 않음.
+
+**근본 원인**: `/generate-image` 라우트가 비동기 IIFE 패턴(`res.json({status:"generating"}); (async () => {...})();`)을 쓰는데, 200 응답이 먼저 나간 뒤 IIFE 내부에서 `CREDIT_EXHAUSTED:fal.ai` 에러가 던져짐. 라우트 끝의 402 catch 핸들러는 동기 경로에서만 작동하므로 IIFE catch가 에러를 그냥 삼키고 `status: "failed"`만 저장 → 프런트엔드 폴링이 사유를 알 수 없음.
+
+**수정**:
+- `server/adminRoutes.ts` 세 IIFE catch 블록 (motion_reel L1741, video L1886, image L1966) 모두 `bgErr.message`를 `rejectionReason` 컬럼에 저장하도록 변경. CREDIT_EXHAUSTED 외 일반 실패 사유도 보존.
+- `client/src/pages/admin-marketing.tsx` 폴링 루프 (L387~): `item.rejectionReason`이 `CREDIT_EXHAUSTED:`로 시작하면 기존 `setCreditAlert({...})` 다이얼로그를 자동 트리거. 그 외 실패는 사유를 토스트 description으로 표시.
+- `chargeUrl`은 동기 경로와 동일하게 `https://fal.ai/dashboard/usage-billing/credits` 하드코딩 (서비스명만 메시지에서 파싱).
+
+**스키마**: `marketing_queue.rejection_reason` 필드 기존 존재. 마이그레이션 불필요.
+
 ## 2026-04-20 — FFmpeg zoompan 프레임 폭주 버그 수정 (Motion Reel 생성 실패 근본 원인)
 
 **문제**: 멀티 이미지 모션 릴 세그먼트 렌더링 시 FFmpeg가 타임아웃 (`ffmpeg timed out after 120s`, frame=21209)
