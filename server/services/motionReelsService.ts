@@ -211,6 +211,48 @@ function getVideoDuration(filePath: string): Promise<number> {
   });
 }
 
+// iPhone 세로 영상: rotate 메타데이터 감지 → "디스플레이 위해 적용할 CW 회전각"으로 정규화
+// tags.rotate=90 → 90° CW 필요 (그대로)
+// side_data rotation=-90 → 90° CW 필요 (부호 반전)
+function getVideoRotation(filePath: string): Promise<number> {
+  return new Promise((resolve) => {
+    const proc = spawn("ffprobe", [
+      "-v", "quiet", "-print_format", "json", "-show_streams", filePath,
+    ], { stdio: ["ignore", "pipe", "ignore"] });
+    let stdout = "";
+    proc.stdout.on("data", (d) => { stdout += d.toString(); });
+    proc.on("close", () => {
+      try {
+        const data = JSON.parse(stdout);
+        const s = (data.streams as any[]).find((s) => s.codec_type === "video") ?? data.streams[0];
+        let cwRot = 0;
+        // 구식 메타(tags.rotate): 이미 CW 각도 의미
+        const tagRot = parseFloat(s?.tags?.rotate ?? "0");
+        if (!isNaN(tagRot) && tagRot !== 0) cwRot = tagRot;
+        // 신식 메타(side_data_list[].rotation): CCW 각도(display matrix) → 부호 반전
+        const sd = s?.side_data_list?.find((x: any) => typeof x.rotation === "number");
+        if (sd && typeof sd.rotation === "number" && sd.rotation !== 0) cwRot = -sd.rotation;
+        // Normalize to [0, 360)
+        cwRot = ((Math.round(cwRot) % 360) + 360) % 360;
+        resolve(cwRot);
+      } catch {
+        resolve(0);
+      }
+    });
+    proc.on("error", () => resolve(0));
+  });
+}
+
+// "적용할 CW 회전각" → ffmpeg transpose 필터 체인 (빈 문자열이면 회전 없음)
+// transpose=1 = 90° CW, transpose=2 = 90° CCW
+function rotationToTransposeFilter(cwRot: number): string {
+  const n = ((cwRot % 360) + 360) % 360;
+  if (n === 90) return "transpose=1,";
+  if (n === 180) return "transpose=1,transpose=1,";
+  if (n === 270) return "transpose=2,";
+  return "";
+}
+
 // ── Main Pipeline ───────────────────────────────────────────────────────────
 
 export interface MotionReelInput {
@@ -315,14 +357,17 @@ async function generateVideoOverlayReel({
     const s1 = dur / 4;
     const s2 = dur / 2;
     const s3 = (dur * 3) / 4;
-    console.log(`[MotionReel] Video duration: ${rawDuration.toFixed(1)}s → using ${dur.toFixed(1)}s. Segments: 0/${s1.toFixed(1)}/${s2.toFixed(1)}/${s3.toFixed(1)}`);
+    // iPhone 세로 영상 회전 보정 (filter_complex는 auto-rotate 적용 안 될 때가 있음)
+    const cwRotation = await getVideoRotation(bgPath);
+    const rotateFilter = rotationToTransposeFilter(cwRotation);
+    console.log(`[MotionReel] Video duration: ${rawDuration.toFixed(1)}s → using ${dur.toFixed(1)}s. Segments: 0/${s1.toFixed(1)}/${s2.toFixed(1)}/${s3.toFixed(1)}. Rotation: ${cwRotation}° (filter: ${rotateFilter || "none"})`);
 
     const volume = Math.max(0, Math.min(100, musicVolume)) / 100;
     const fadeDur = (dur - 2) > 0 ? dur - 2 : dur * 0.9;
 
     const filterComplex: string[] = [
-      // 영상 크기를 1080×1920으로 맞춤 (실촬영 영상은 해상도가 다를 수 있음)
-      `[0:v]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,setsar=1[bg]`,
+      // 영상 크기를 1080×1920으로 맞춤 + iPhone 세로 영상 회전 보정
+      `[0:v]${rotateFilter}scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,setsar=1[bg]`,
       `[1:v]format=rgba,fade=t=in:st=0:d=0.5:alpha=1,fade=t=out:st=${(s1 - 0.5).toFixed(2)}:d=0.5:alpha=1[t1]`,
       `[2:v]format=rgba,fade=t=in:st=${s1.toFixed(2)}:d=0.5:alpha=1,fade=t=out:st=${(s2 - 0.5).toFixed(2)}:d=0.5:alpha=1[t2]`,
       `[3:v]format=rgba,fade=t=in:st=${s2.toFixed(2)}:d=0.5:alpha=1,fade=t=out:st=${(s3 - 0.5).toFixed(2)}:d=0.5:alpha=1[t3]`,
@@ -336,6 +381,8 @@ async function generateVideoOverlayReel({
     const musicIdx = 5;
     const args: string[] = [
       "-y",
+      // decoder 자동 회전 끄고 filter에서 직접 제어 (중복 회전 방지)
+      "-noautorotate",
       "-i", bgPath,
       "-loop", "1", "-i", t1Path,
       "-loop", "1", "-i", t2Path,
