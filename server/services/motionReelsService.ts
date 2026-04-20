@@ -11,6 +11,8 @@ const FPS = 25;
 const TOTAL_FRAMES = DURATION * FPS;
 const WIDTH = 1080;
 const HEIGHT = 1920;
+const HALF_W = 540;
+const HALF_H = 960;
 
 function loadCSS(): string {
   return readFileSync(path.join(TEMPLATE_DIR, "design-system.css"), "utf-8");
@@ -97,36 +99,36 @@ function buildMotionFilter(effect: MotionEffect): string {
 
   switch (effect) {
     case "zoom-in": {
-      const sw = Math.ceil(WIDTH * 1.2);
-      const sh = Math.ceil(HEIGHT * 1.2);
-      return `[0:v]scale=${sw}:${sh},zoompan=z='min(1+${zoomIncrement}*on\\,1.15)':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=${TOTAL_FRAMES}:s=${WIDTH}x${HEIGHT}:fps=${FPS}[bg]`;
+      const sw = Math.ceil(HALF_W * 1.2);
+      const sh = Math.ceil(HALF_H * 1.2);
+      return `[0:v]scale=${sw}:${sh},zoompan=z='min(1+${zoomIncrement}*on\\,1.15)':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=${TOTAL_FRAMES}:s=${HALF_W}x${HALF_H}:fps=${FPS},scale=${WIDTH}:${HEIGHT}[bg]`;
     }
 
     case "zoom-out": {
-      const sw = Math.ceil(WIDTH * 1.2);
-      const sh = Math.ceil(HEIGHT * 1.2);
-      return `[0:v]scale=${sw}:${sh},zoompan=z='max(1.15-${zoomIncrement}*on\\,1.0)':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=${TOTAL_FRAMES}:s=${WIDTH}x${HEIGHT}:fps=${FPS}[bg]`;
+      const sw = Math.ceil(HALF_W * 1.2);
+      const sh = Math.ceil(HALF_H * 1.2);
+      return `[0:v]scale=${sw}:${sh},zoompan=z='max(1.15-${zoomIncrement}*on\\,1.0)':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=${TOTAL_FRAMES}:s=${HALF_W}x${HALF_H}:fps=${FPS},scale=${WIDTH}:${HEIGHT}[bg]`;
     }
 
     case "pan-right": {
-      const sw = Math.ceil(WIDTH * 1.4);
-      const sh = Math.ceil(HEIGHT * 1.4);
-      const panRange = sw - WIDTH;
-      return `[0:v]scale=${sw}:${sh},crop=${WIDTH}:${HEIGHT}:x='${panRange}*t/${DURATION}':y='(ih-${HEIGHT})/2',fps=${FPS}[bg]`;
+      const sw = Math.ceil(HALF_W * 1.4);
+      const sh = Math.ceil(HALF_H * 1.4);
+      const panRange = sw - HALF_W;
+      return `[0:v]scale=${sw}:${sh},crop=${HALF_W}:${HALF_H}:x='${panRange}*t/${DURATION}':y='(ih-${HALF_H})/2',fps=${FPS},scale=${WIDTH}:${HEIGHT}[bg]`;
     }
 
     case "pan-left": {
-      const sw = Math.ceil(WIDTH * 1.4);
-      const sh = Math.ceil(HEIGHT * 1.4);
-      const panRange = sw - WIDTH;
-      return `[0:v]scale=${sw}:${sh},crop=${WIDTH}:${HEIGHT}:x='${panRange}-${panRange}*t/${DURATION}':y='(ih-${HEIGHT})/2',fps=${FPS}[bg]`;
+      const sw = Math.ceil(HALF_W * 1.4);
+      const sh = Math.ceil(HALF_H * 1.4);
+      const panRange = sw - HALF_W;
+      return `[0:v]scale=${sw}:${sh},crop=${HALF_W}:${HALF_H}:x='${panRange}-${panRange}*t/${DURATION}':y='(ih-${HALF_H})/2',fps=${FPS},scale=${WIDTH}:${HEIGHT}[bg]`;
     }
 
     case "tilt-up": {
-      const sw = Math.ceil(WIDTH * 1.4);
-      const sh = Math.ceil(HEIGHT * 1.4);
-      const tiltRange = sh - HEIGHT;
-      return `[0:v]scale=${sw}:${sh},crop=${WIDTH}:${HEIGHT}:x='(iw-${WIDTH})/2':y='${tiltRange}-${tiltRange}*t/${DURATION}',fps=${FPS}[bg]`;
+      const sw = Math.ceil(HALF_W * 1.4);
+      const sh = Math.ceil(HALF_H * 1.4);
+      const tiltRange = sh - HALF_H;
+      return `[0:v]scale=${sw}:${sh},crop=${HALF_W}:${HALF_H}:x='(iw-${HALF_W})/2':y='${tiltRange}-${tiltRange}*t/${DURATION}',fps=${FPS},scale=${WIDTH}:${HEIGHT}[bg]`;
     }
 
     default:
@@ -154,32 +156,32 @@ function buildSegmentMotionFilter(
 
   switch (effect) {
     case "zoom-in": {
-      const sw = Math.ceil(WIDTH * 1.2);
-      const sh = Math.ceil(HEIGHT * 1.2);
-      return `[${inputIdx}:v]scale=${sw}:${sh},zoompan=z='min(1+${zoomIncrement}*on\\,1.15)':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=${frames}:s=${WIDTH}x${HEIGHT}:fps=${fps}[${outputLabel}]`;
+      const sw = Math.ceil(HALF_W * 1.2);
+      const sh = Math.ceil(HALF_H * 1.2);
+      return `[${inputIdx}:v]scale=${sw}:${sh},zoompan=z='min(1+${zoomIncrement}*on\\,1.15)':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=${frames}:s=${HALF_W}x${HALF_H}:fps=${fps},scale=${WIDTH}:${HEIGHT}[${outputLabel}]`;
     }
     case "zoom-out": {
-      const sw = Math.ceil(WIDTH * 1.2);
-      const sh = Math.ceil(HEIGHT * 1.2);
-      return `[${inputIdx}:v]scale=${sw}:${sh},zoompan=z='max(1.15-${zoomIncrement}*on\\,1.0)':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=${frames}:s=${WIDTH}x${HEIGHT}:fps=${fps}[${outputLabel}]`;
+      const sw = Math.ceil(HALF_W * 1.2);
+      const sh = Math.ceil(HALF_H * 1.2);
+      return `[${inputIdx}:v]scale=${sw}:${sh},zoompan=z='max(1.15-${zoomIncrement}*on\\,1.0)':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=${frames}:s=${HALF_W}x${HALF_H}:fps=${fps},scale=${WIDTH}:${HEIGHT}[${outputLabel}]`;
     }
     case "pan-right": {
-      const sw = Math.ceil(WIDTH * 1.4);
-      const sh = Math.ceil(HEIGHT * 1.4);
-      const panRange = sw - WIDTH;
-      return `[${inputIdx}:v]scale=${sw}:${sh},crop=${WIDTH}:${HEIGHT}:x='${panRange}*t/${segDuration}':y='(ih-${HEIGHT})/2',fps=${fps}[${outputLabel}]`;
+      const sw = Math.ceil(HALF_W * 1.4);
+      const sh = Math.ceil(HALF_H * 1.4);
+      const panRange = sw - HALF_W;
+      return `[${inputIdx}:v]scale=${sw}:${sh},crop=${HALF_W}:${HALF_H}:x='${panRange}*t/${segDuration}':y='(ih-${HALF_H})/2',fps=${fps},scale=${WIDTH}:${HEIGHT}[${outputLabel}]`;
     }
     case "pan-left": {
-      const sw = Math.ceil(WIDTH * 1.4);
-      const sh = Math.ceil(HEIGHT * 1.4);
-      const panRange = sw - WIDTH;
-      return `[${inputIdx}:v]scale=${sw}:${sh},crop=${WIDTH}:${HEIGHT}:x='${panRange}-${panRange}*t/${segDuration}':y='(ih-${HEIGHT})/2',fps=${fps}[${outputLabel}]`;
+      const sw = Math.ceil(HALF_W * 1.4);
+      const sh = Math.ceil(HALF_H * 1.4);
+      const panRange = sw - HALF_W;
+      return `[${inputIdx}:v]scale=${sw}:${sh},crop=${HALF_W}:${HALF_H}:x='${panRange}-${panRange}*t/${segDuration}':y='(ih-${HALF_H})/2',fps=${fps},scale=${WIDTH}:${HEIGHT}[${outputLabel}]`;
     }
     case "tilt-up": {
-      const sw = Math.ceil(WIDTH * 1.4);
-      const sh = Math.ceil(HEIGHT * 1.4);
-      const tiltRange = sh - HEIGHT;
-      return `[${inputIdx}:v]scale=${sw}:${sh},crop=${WIDTH}:${HEIGHT}:x='(iw-${WIDTH})/2':y='${tiltRange}-${tiltRange}*t/${segDuration}',fps=${fps}[${outputLabel}]`;
+      const sw = Math.ceil(HALF_W * 1.4);
+      const sh = Math.ceil(HALF_H * 1.4);
+      const tiltRange = sh - HALF_H;
+      return `[${inputIdx}:v]scale=${sw}:${sh},crop=${HALF_W}:${HALF_H}:x='(iw-${HALF_W})/2':y='${tiltRange}-${tiltRange}*t/${segDuration}',fps=${fps},scale=${WIDTH}:${HEIGHT}[${outputLabel}]`;
     }
     default:
       return buildSegmentMotionFilter(inputIdx, "zoom-in", segDuration, fps, outputLabel);
@@ -391,7 +393,7 @@ async function generateMultiImageReel({
         "-loop", "1", "-i", txtPaths[i],
         "-filter_complex", segFilter,
         "-map", "[v]",
-        "-c:v", "libx264", "-preset", "fast", "-crf", "20", "-pix_fmt", "yuv420p",
+        "-c:v", "libx264", "-preset", "ultrafast", "-crf", "18", "-pix_fmt", "yuv420p",
         segPaths[i],
       ], 120_000);
     }
