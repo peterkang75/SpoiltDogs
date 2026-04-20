@@ -59,13 +59,21 @@ async function downloadToFile(url: string, filePath: string): Promise<void> {
   await fs.writeFile(filePath, buf);
 }
 
-function runFfmpeg(args: string[]): Promise<void> {
+function runFfmpeg(args: string[], timeoutMs = 300_000): Promise<void> {
   return new Promise((resolve, reject) => {
     const proc = spawn("ffmpeg", args, { stdio: ["ignore", "ignore", "pipe"] });
     let stderr = "";
+    let killed = false;
+    const timer = setTimeout(() => {
+      killed = true;
+      proc.kill("SIGKILL");
+      reject(new Error(`ffmpeg timed out after ${timeoutMs / 1000}s. stderr: ${stderr.slice(-500)}`));
+    }, timeoutMs);
     proc.stderr.on("data", (d) => { stderr += d.toString(); });
-    proc.on("error", reject);
+    proc.on("error", (e) => { clearTimeout(timer); reject(e); });
     proc.on("close", (code) => {
+      clearTimeout(timer);
+      if (killed) return;
       if (code === 0) resolve();
       else reject(new Error(`ffmpeg exited ${code}: ${stderr.slice(-800)}`));
     });
@@ -339,7 +347,7 @@ async function generateMultiImageReel({
   const oPath = path.join(tmp, "output.mp4");
 
   try {
-    console.log(`[MotionReel] Multi-image mode (4 images, template=${overlayTemplate})`);
+    console.log(`[MotionReel] Multi-image 2-pass mode (4 images, template=${overlayTemplate})`);
 
     const overlays = [
       { label: showLabel ? "Attention" : "", text: aidaScript.attention },
@@ -357,6 +365,7 @@ async function generateMultiImageReel({
 
     const imgPaths = images.map((_, i) => path.join(tmp, `bg${i}.jpg`));
     const txtPaths = overlayBuffers.map((_, i) => path.join(tmp, `t${i}.png`));
+    const segPaths = [0, 1, 2, 3].map((i) => path.join(tmp, `seg${i}.mp4`));
 
     const downloads: Promise<void>[] = [
       ...images.map((url, i) => downloadToFile(url, imgPaths[i])),
@@ -365,71 +374,56 @@ async function generateMultiImageReel({
     if (musicUrl) downloads.push(downloadToFile(musicUrl, mPath));
     await Promise.all(downloads);
 
-    // 1-pass FFmpeg: 4 images with individual motion → xfade → text overlays
-    const segFps = FPS;
+    // ── Pass 1: Render 4 individual segments (motion + text overlay) ──
+    console.log("[MotionReel] Pass 1: Rendering 4 segments sequentially");
+    for (let i = 0; i < 4; i++) {
+      console.log(`[MotionReel] Segment ${i + 1}/4 (${AIDA_MOTION_ARC[i]})`);
+      const motionFilter = buildSegmentMotionFilter(0, AIDA_MOTION_ARC[i], SEG_DURATION, FPS, "bg");
+      const segFilter = [
+        motionFilter,
+        `[1:v]format=rgba[txt]`,
+        `[bg][txt]overlay=0:0[v]`,
+      ].join(";");
+
+      await runFfmpeg([
+        "-y",
+        "-loop", "1", "-t", String(SEG_DURATION), "-i", imgPaths[i],
+        "-loop", "1", "-i", txtPaths[i],
+        "-filter_complex", segFilter,
+        "-map", "[v]",
+        "-c:v", "libx264", "-preset", "fast", "-crf", "20", "-pix_fmt", "yuv420p",
+        segPaths[i],
+      ], 120_000);
+    }
+
+    // ── Pass 2: Concat segments with xfade + add music ──
+    console.log("[MotionReel] Pass 2: Concatenating with xfade transitions");
     const volume = Math.max(0, Math.min(100, musicVolume)) / 100;
 
-    const filterLines: string[] = [];
+    const concatFilter = [
+      `[0:v][1:v]xfade=transition=fade:duration=${XFADE_DURATION}:offset=${SEG_DURATION - XFADE_DURATION}[x1]`,
+      `[x1][2:v]xfade=transition=fade:duration=${XFADE_DURATION}:offset=${2 * SEG_DURATION - 2 * XFADE_DURATION}[x2]`,
+      `[x2][3:v]xfade=transition=fade:duration=${XFADE_DURATION}:offset=${3 * SEG_DURATION - 3 * XFADE_DURATION}[v]`,
+    ];
 
-    // Motion filters for each segment (5.5s each)
-    for (let i = 0; i < 4; i++) {
-      filterLines.push(
-        buildSegmentMotionFilter(i, AIDA_MOTION_ARC[i], SEG_DURATION, segFps, `s${i}`)
-      );
-    }
-
-    // xfade transitions between segments
-    // offset = segment_end - xfade_duration
-    // seg0: 0–5.5s, seg1: 5.0–10.5s, seg2: 10.0–15.5s, seg3: 15.0–20.5s → trim to 20s
-    filterLines.push(
-      `[s0][s1]xfade=transition=fade:duration=${XFADE_DURATION}:offset=${SEG_DURATION - XFADE_DURATION}[x1]`
-    );
-    filterLines.push(
-      `[x1][s2]xfade=transition=fade:duration=${XFADE_DURATION}:offset=${2 * SEG_DURATION - 2 * XFADE_DURATION}[x2]`
-    );
-    filterLines.push(
-      `[x2][s3]xfade=transition=fade:duration=${XFADE_DURATION}:offset=${3 * SEG_DURATION - 3 * XFADE_DURATION}[bg]`
-    );
-
-    // Text overlay fade timings aligned to actual timeline
-    // seg0: 0–5.0s, seg1: 5.0–10.0s, seg2: 10.0–15.0s, seg3: 15.0–20.0s
-    const textInputBase = 4; // inputs 0–3 are images, 4–7 are text PNGs
-    for (let i = 0; i < 4; i++) {
-      const st = i * 5;
-      const fadeOut = st + 4.5;
-      filterLines.push(
-        `[${textInputBase + i}:v]format=rgba,fade=t=in:st=${st}:d=0.5:alpha=1,fade=t=out:st=${fadeOut}:d=0.5:alpha=1[t${i}]`
-      );
-    }
-
-    // Overlay text on composited background
-    filterLines.push(`[bg][t0]overlay=0:0[o0]`);
-    filterLines.push(`[o0][t1]overlay=0:0[o1]`);
-    filterLines.push(`[o1][t2]overlay=0:0[o2]`);
-    filterLines.push(`[o2][t3]overlay=0:0[v]`);
-
-    // Build args: 4 image inputs + 4 text inputs + optional music
-    const args: string[] = ["-y"];
-    for (let i = 0; i < 4; i++) {
-      args.push("-loop", "1", "-t", String(SEG_DURATION), "-i", imgPaths[i]);
-    }
-    for (let i = 0; i < 4; i++) {
-      args.push("-loop", "1", "-i", txtPaths[i]);
-    }
+    const args: string[] = [
+      "-y",
+      "-i", segPaths[0], "-i", segPaths[1], "-i", segPaths[2], "-i", segPaths[3],
+    ];
 
     if (musicUrl) {
       args.push("-i", mPath);
-      filterLines.push(`[8:a]volume=${volume.toFixed(2)},afade=t=out:st=18:d=2[a]`);
-      args.push("-filter_complex", filterLines.join(";"));
+      concatFilter.push(`[4:a]volume=${volume.toFixed(2)},afade=t=out:st=18:d=2[a]`);
+      args.push("-filter_complex", concatFilter.join(";"));
       args.push("-map", "[v]", "-map", "[a]");
       args.push("-c:a", "aac", "-b:a", "192k");
     } else {
-      args.push("-filter_complex", filterLines.join(";"));
+      args.push("-filter_complex", concatFilter.join(";"));
       args.push("-map", "[v]");
     }
 
-    args.push("-c:v", "libx264", "-preset", "medium", "-crf", "23", "-pix_fmt", "yuv420p", "-t", String(DURATION), "-shortest", oPath);
-    await runFfmpeg(args);
+    args.push("-c:v", "libx264", "-preset", "fast", "-crf", "23", "-pix_fmt", "yuv420p", "-t", String(DURATION), oPath);
+    await runFfmpeg(args, 120_000);
 
     return await uploadResult(oPath);
   } finally {
