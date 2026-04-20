@@ -582,10 +582,13 @@ AIDA (Attention-Interest-Desire-Action). 구조만 차용, 표현은 호주 프�
 - 기존 Puppeteer 카드뉴스 파이프라인 파괴 금지 (재사용만)
 - Kling O1/O3 코드와 분리
 
-### Phase 2.9-B: 효과 다양화
-- [ ] 4-5가지 모션 효과: Ken Burns, Pan (L→R, R→L), Zoom In, Zoom Out
-- [ ] Claude가 대본 분위기 분석 → 효과 자동 매칭
-  - 관찰형 → Ken Burns / 감성형 → 느린 Pan / 강조형 → Zoom In
+### Phase 2.9-B: 효과 다양화 ✅ (2026-04-20)
+- [x] 5가지 모션 효과: Zoom In, Zoom Out, Pan Left, Pan Right, Tilt Up
+  - Zoom: zoompan 필터 (1.2x 스케일), Pan/Tilt: crop 필터 (1.4x 스케일, 떨림 방지)
+- [x] Claude AIDA 대본 생성 시 `suggestedMotion` 자동 추천
+  - 관찰형 → zoom-in / 확장형 → zoom-out / 여정형 → pan-right / 상승형 → tilt-up
+- [x] UI: "AI 자동" 기본값 + 6개 수동 선택 버튼 (3열 그리드)
+- [x] adminRoutes: "auto" → Claude 추천 효과 사용, 수동 선택 시 직접 전달
 
 ### Phase 2.9-C: 고급 기능
 - [ ] 이미지 여러 장 연결 (슬라이드쇼 + FFmpeg xfade 전환)

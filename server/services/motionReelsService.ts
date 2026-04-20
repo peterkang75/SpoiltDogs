@@ -72,6 +72,62 @@ function runFfmpeg(args: string[]): Promise<void> {
   });
 }
 
+// ── Motion Effects ──────────────────────────────────────────────────────────
+
+export type MotionEffect = "zoom-in" | "zoom-out" | "pan-left" | "pan-right" | "tilt-up";
+
+export const MOTION_EFFECTS: Record<MotionEffect, { label: string; labelKo: string }> = {
+  "zoom-in": { label: "Ken Burns Zoom In", labelKo: "줌 인" },
+  "zoom-out": { label: "Ken Burns Zoom Out", labelKo: "줌 아웃" },
+  "pan-left": { label: "Pan Right → Left", labelKo: "좌로 이동" },
+  "pan-right": { label: "Pan Left → Right", labelKo: "우로 이동" },
+  "tilt-up": { label: "Tilt Bottom → Top", labelKo: "위로 이동" },
+};
+
+function buildMotionFilter(effect: MotionEffect): string {
+  const zoomIncrement = (0.15 / TOTAL_FRAMES).toFixed(8);
+
+  switch (effect) {
+    case "zoom-in": {
+      const sw = Math.ceil(WIDTH * 1.2);
+      const sh = Math.ceil(HEIGHT * 1.2);
+      return `[0:v]scale=${sw}:${sh},zoompan=z='min(1+${zoomIncrement}*on\\,1.15)':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=${TOTAL_FRAMES}:s=${WIDTH}x${HEIGHT}:fps=${FPS}[bg]`;
+    }
+
+    case "zoom-out": {
+      const sw = Math.ceil(WIDTH * 1.2);
+      const sh = Math.ceil(HEIGHT * 1.2);
+      return `[0:v]scale=${sw}:${sh},zoompan=z='max(1.15-${zoomIncrement}*on\\,1.0)':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=${TOTAL_FRAMES}:s=${WIDTH}x${HEIGHT}:fps=${FPS}[bg]`;
+    }
+
+    case "pan-right": {
+      const sw = Math.ceil(WIDTH * 1.4);
+      const sh = Math.ceil(HEIGHT * 1.4);
+      const panRange = sw - WIDTH;
+      return `[0:v]scale=${sw}:${sh},crop=${WIDTH}:${HEIGHT}:x='${panRange}*t/${DURATION}':y='(ih-${HEIGHT})/2',fps=${FPS}[bg]`;
+    }
+
+    case "pan-left": {
+      const sw = Math.ceil(WIDTH * 1.4);
+      const sh = Math.ceil(HEIGHT * 1.4);
+      const panRange = sw - WIDTH;
+      return `[0:v]scale=${sw}:${sh},crop=${WIDTH}:${HEIGHT}:x='${panRange}-${panRange}*t/${DURATION}':y='(ih-${HEIGHT})/2',fps=${FPS}[bg]`;
+    }
+
+    case "tilt-up": {
+      const sw = Math.ceil(WIDTH * 1.4);
+      const sh = Math.ceil(HEIGHT * 1.4);
+      const tiltRange = sh - HEIGHT;
+      return `[0:v]scale=${sw}:${sh},crop=${WIDTH}:${HEIGHT}:x='(iw-${WIDTH})/2':y='${tiltRange}-${tiltRange}*t/${DURATION}',fps=${FPS}[bg]`;
+    }
+
+    default:
+      return buildMotionFilter("zoom-in");
+  }
+}
+
+// ── Main Pipeline ───────────────────────────────────────────────────────────
+
 export interface MotionReelInput {
   imageUrl: string;
   aidaScript: {
@@ -84,6 +140,7 @@ export interface MotionReelInput {
   musicVolume?: number;
   overlayTemplate?: OverlayTemplate;
   showLabel?: boolean;
+  motionEffect?: MotionEffect;
 }
 
 export async function generateMotionReel({
@@ -93,6 +150,7 @@ export async function generateMotionReel({
   musicVolume = 30,
   overlayTemplate = "gradient",
   showLabel = false,
+  motionEffect = "zoom-in",
 }: MotionReelInput): Promise<string> {
   const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "motion-reel-"));
   const bgPath = path.join(tmp, "bg.jpg");
@@ -104,7 +162,7 @@ export async function generateMotionReel({
   const oPath = path.join(tmp, "output.mp4");
 
   try {
-    console.log("[MotionReel] Step 1: Rendering text overlay PNGs with Puppeteer");
+    console.log(`[MotionReel] Step 1: Rendering text overlay PNGs (template=${overlayTemplate})`);
     const overlays = [
       { label: showLabel ? "Attention" : "", text: aidaScript.attention },
       { label: showLabel ? "Interest" : "", text: aidaScript.interest },
@@ -134,13 +192,13 @@ export async function generateMotionReel({
     );
     await Promise.all(downloads);
 
-    console.log("[MotionReel] Step 3: FFmpeg compositing (Ken Burns + text overlays + music)");
+    console.log(`[MotionReel] Step 3: FFmpeg compositing (effect=${motionEffect})`);
     const volume = Math.max(0, Math.min(100, musicVolume)) / 100;
 
-    const zoomIncrement = (0.15 / TOTAL_FRAMES).toFixed(8);
+    const motionFilter = buildMotionFilter(motionEffect);
 
     const filterComplex = [
-      `[0:v]scale=${Math.ceil(WIDTH * 1.2)}:${Math.ceil(HEIGHT * 1.2)},zoompan=z='min(1+${zoomIncrement}*on\\,1.15)':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=${TOTAL_FRAMES}:s=${WIDTH}x${HEIGHT}:fps=${FPS}[bg]`,
+      motionFilter,
       `[1:v]format=rgba,fade=t=in:st=0:d=0.5:alpha=1,fade=t=out:st=4.5:d=0.5:alpha=1[t1]`,
       `[2:v]format=rgba,fade=t=in:st=5:d=0.5:alpha=1,fade=t=out:st=9.5:d=0.5:alpha=1[t2]`,
       `[3:v]format=rgba,fade=t=in:st=10:d=0.5:alpha=1,fade=t=out:st=14.5:d=0.5:alpha=1[t3]`,

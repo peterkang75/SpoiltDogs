@@ -205,6 +205,7 @@ export interface AIDAScript {
   interest: string;
   desire: string;
   action: string;
+  suggestedMotion?: "zoom-in" | "zoom-out" | "pan-left" | "pan-right" | "tilt-up";
 }
 
 export async function generateAIDAScript({
@@ -244,6 +245,13 @@ Rules:
 ${brandVoice ? `\nBrand voice:\n${brandVoice}` : ""}
 ${postGuidelines ? `\nPost guidelines:\n${postGuidelines}` : ""}
 
+Also pick the best camera motion effect for this content's mood:
+- "zoom-in": slow zoom into subject — contemplative, focused, intimate
+- "zoom-out": reveal the full scene — expansive, storytelling, dramatic reveal
+- "pan-right": horizontal sweep left→right — journey, progression, discovery
+- "pan-left": horizontal sweep right→left — retrospective, returning, nostalgic
+- "tilt-up": vertical sweep bottom→top — aspirational, uplifting, grand
+
 Return ONLY valid JSON, no markdown. Start with {`,
     messages: [
       {
@@ -257,7 +265,8 @@ Return JSON:
   "attention": "hook text (max 80 chars)",
   "interest": "empathy text (max 80 chars)",
   "desire": "sensory desire text (max 80 chars)",
-  "action": "gentle CTA text (max 60 chars)"
+  "action": "gentle CTA text (max 60 chars)",
+  "suggestedMotion": "one of: zoom-in, zoom-out, pan-left, pan-right, tilt-up"
 }`,
       },
     ],
@@ -278,6 +287,7 @@ Return JSON:
     };
   }
 
+  const validMotions = ["zoom-in", "zoom-out", "pan-left", "pan-right", "tilt-up"] as const;
   try {
     const parsed = JSON.parse(jsonMatch[0]);
     return {
@@ -285,6 +295,7 @@ Return JSON:
       interest: parsed.interest || "The quiet details that make all the difference.",
       desire: parsed.desire || "Crafted for dogs who deserve the finer things.",
       action: parsed.action || "Discover more. Link in bio.",
+      suggestedMotion: validMotions.includes(parsed.suggestedMotion) ? parsed.suggestedMotion : "zoom-in",
     };
   } catch {
     return {

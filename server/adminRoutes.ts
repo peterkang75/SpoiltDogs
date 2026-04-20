@@ -1542,6 +1542,7 @@ Respond in JSON format:
           motionDirective = "",
           overlayTemplate = "gradient",
           showAidaLabel: rawShowAidaLabel = false,
+          motionEffect = "auto",
         } = req.body;
 
         // audioEnabled can come as string "true" from JSON
@@ -1668,6 +1669,12 @@ Respond in JSON format:
               }
 
               const showLabel = rawShowAidaLabel === true || rawShowAidaLabel === "true";
+              const validEffects = ["zoom-in", "zoom-out", "pan-left", "pan-right", "tilt-up"];
+              const resolvedEffect = motionEffect === "auto"
+                ? (aidaScript.suggestedMotion || "zoom-in")
+                : (validEffects.includes(motionEffect) ? motionEffect : "zoom-in");
+              console.log(`[MotionReel] Motion effect: ${motionEffect} → ${resolvedEffect}`);
+
               const videoUrl = await generateMotionReel({
                 imageUrl: imgResult.imageUrl,
                 aidaScript,
@@ -1675,6 +1682,7 @@ Respond in JSON format:
                 musicVolume: Number(musicVolume) || 30,
                 overlayTemplate: (["gradient", "clean", "canva-1", "canva-2", "canva-3"].includes(overlayTemplate) ? overlayTemplate : "gradient") as any,
                 showLabel,
+                motionEffect: resolvedEffect as any,
               });
 
               setVideoProgress(id, "완료", 100);

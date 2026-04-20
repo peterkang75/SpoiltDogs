@@ -360,12 +360,12 @@ export default function AdminMarketing() {
 
 
   const generateImageMut = useMutation({
-    mutationFn: async ({ id, model, duration, audioEnabled, musicUrl, musicVolume, motionDirective, overlayTemplate, showAidaLabel }: { id: string; model: string; duration: string; audioEnabled?: boolean; musicUrl?: string | null; musicVolume?: number; motionDirective?: string; overlayTemplate?: string; showAidaLabel?: boolean }) => {
+    mutationFn: async ({ id, model, duration, audioEnabled, musicUrl, musicVolume, motionDirective, overlayTemplate, showAidaLabel, motionEffect }: { id: string; model: string; duration: string; audioEnabled?: boolean; musicUrl?: string | null; musicVolume?: number; motionDirective?: string; overlayTemplate?: string; showAidaLabel?: boolean; motionEffect?: string }) => {
       const response = await fetch(`/api/admin/marketing/queue/${id}/generate-image`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({ model, duration, audioEnabled, musicUrl, musicVolume, motionDirective, overlayTemplate, showAidaLabel }),
+        body: JSON.stringify({ model, duration, audioEnabled, musicUrl, musicVolume, motionDirective, overlayTemplate, showAidaLabel, motionEffect }),
       });
       if (!response.ok) {
         const data = await response.json();
@@ -1276,7 +1276,7 @@ function QueueCard({
   onReject: () => void;
   onDelete: () => void;
   musicTracks: any[];
-  onGenerateImage: (id: string, model: string, duration: string, opts?: { audioEnabled?: boolean; musicUrl?: string | null; musicVolume?: number; motionDirective?: string; overlayTemplate?: string; showAidaLabel?: boolean }) => void;
+  onGenerateImage: (id: string, model: string, duration: string, opts?: { audioEnabled?: boolean; musicUrl?: string | null; musicVolume?: number; motionDirective?: string; overlayTemplate?: string; showAidaLabel?: boolean; motionEffect?: string }) => void;
   onRewrite: (topic: string, platform: string) => void;
   isApproving: boolean;
   isRejecting: boolean;
@@ -1292,6 +1292,7 @@ function QueueCard({
   const [musicVolume, setMusicVolume] = useState(40);
   const [overlayTemplate, setOverlayTemplate] = useState<string>("gradient");
   const [showAidaLabel, setShowAidaLabel] = useState(false);
+  const [motionEffect, setMotionEffect] = useState<string>("auto");
   const [imageMusicDuration, setImageMusicDuration] = useState("10");
   const [showPreview, setShowPreview] = useState(false);
   const [showRegenPanel, setShowRegenPanel] = useState(false);
@@ -1794,6 +1795,33 @@ function QueueCard({
                   </label>
                 </div>
 
+                {/* Motion effect selector */}
+                <div>
+                  <label className="text-xs font-medium text-gray-600 mb-1 block">카메라 모션</label>
+                  <div className="grid grid-cols-3 gap-1">
+                    {[
+                      { id: "auto", label: "AI 자동", icon: "🤖" },
+                      { id: "zoom-in", label: "줌 인", icon: "🔍" },
+                      { id: "zoom-out", label: "줌 아웃", icon: "🔎" },
+                      { id: "pan-right", label: "우로 이동", icon: "➡️" },
+                      { id: "pan-left", label: "좌로 이동", icon: "⬅️" },
+                      { id: "tilt-up", label: "위로 이동", icon: "⬆️" },
+                    ].map((e) => (
+                      <button
+                        key={e.id}
+                        onClick={() => setMotionEffect(e.id)}
+                        className={`py-1 px-1.5 rounded text-[10px] font-medium border transition-colors ${
+                          motionEffect === e.id
+                            ? "border-green-700 bg-green-50 text-green-800"
+                            : "border-gray-200 text-gray-500 hover:border-gray-300"
+                        }`}
+                      >
+                        {e.icon} {e.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
                 {/* Generate motion reel button */}
                 <Button
                   size="sm"
@@ -1811,6 +1839,7 @@ function QueueCard({
                       musicVolume,
                       overlayTemplate,
                       showAidaLabel,
+                      motionEffect,
                     });
                   }}
                   disabled={isGeneratingImage}
