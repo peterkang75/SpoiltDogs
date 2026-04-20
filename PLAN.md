@@ -590,8 +590,16 @@ AIDA (Attention-Interest-Desire-Action). 구조만 차용, 표현은 호주 프�
 - [x] UI: "AI 자동" 기본값 + 6개 수동 선택 버튼 (3열 그리드)
 - [x] adminRoutes: "auto" → Claude 추천 효과 사용, 수동 선택 시 직접 전달
 
-### Phase 2.9-C: 고급 기능
-- [ ] 이미지 여러 장 연결 (슬라이드쇼 + FFmpeg xfade 전환)
+### Phase 2.9-C-1: 멀티이미지 슬라이드쇼 ✅ (2026-04-20)
+- [x] Claude AIDA 대본에 `sceneHints[4]` 추가 — 같은 장면의 분위기/조명/앵글 미세 변형 4가지
+- [x] 4개 이미지 병렬 생성 (Nano Banana 2 + reference images), Promise.allSettled + 단일이미지 폴백
+- [x] 1-pass FFmpeg 파이프라인: 4개 세그먼트(5.5초) × 개별 모션 → xfade(0.5초) → 텍스트 오버레이 → 20초
+- [x] AIDA 서사 구조 모션 매핑: Attention=zoom-in, Interest=pan-right, Desire=zoom-out, Action=tilt-up
+- [x] `buildSegmentMotionFilter()` — 세그먼트 단위 duration/fps 파라미터화
+- [x] 기존 단일이미지 파이프라인은 `generateSingleImageReel()`로 분리, 완전 호환
+- [x] sceneHints 없는 경우 자동 단일이미지 폴백
+
+### Phase 2.9-C: 미완료 고급 기능
 - [ ] 가변 길이 (대본 길이에 따라 15-30초 자동 조정)
 - [ ] Puppeteer 애니메이션 프레임 캡처로 정교한 텍스트 모션 (우선순위 낮음)
 - [ ] 음악 비트 동기화 (우선순위 낮음)

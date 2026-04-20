@@ -206,6 +206,7 @@ export interface AIDAScript {
   desire: string;
   action: string;
   suggestedMotion?: "zoom-in" | "zoom-out" | "pan-left" | "pan-right" | "tilt-up";
+  sceneHints?: [string, string, string, string];
 }
 
 export async function generateAIDAScript({
@@ -252,6 +253,14 @@ Also pick the best camera motion effect for this content's mood:
 - "pan-left": horizontal sweep right→left — retrospective, returning, nostalgic
 - "tilt-up": vertical sweep bottom→top — aspirational, uplifting, grand
 
+Also generate 4 short image scene descriptions (sceneHints) for multi-image reels.
+Each hint describes a subtle ATMOSPHERIC VARIATION of the SAME scene — same subject, same setting, but different mood/lighting/angle.
+Example: if the topic is "morning walk", hints could be:
+  1. "golden sunrise light filtering through trees, dog looking ahead on path"
+  2. "soft morning mist, dog sniffing wildflowers by the trail"
+  3. "warm sunlight on dewy grass, dog mid-stride with ears perked"
+  4. "gentle backlight silhouette, dog pausing to look back at owner"
+
 Return ONLY valid JSON, no markdown. Start with {`,
     messages: [
       {
@@ -266,7 +275,8 @@ Return JSON:
   "interest": "empathy text (max 80 chars)",
   "desire": "sensory desire text (max 80 chars)",
   "action": "gentle CTA text (max 60 chars)",
-  "suggestedMotion": "one of: zoom-in, zoom-out, pan-left, pan-right, tilt-up"
+  "suggestedMotion": "one of: zoom-in, zoom-out, pan-left, pan-right, tilt-up",
+  "sceneHints": ["scene 1 desc", "scene 2 desc", "scene 3 desc", "scene 4 desc"]
 }`,
       },
     ],
@@ -290,12 +300,16 @@ Return JSON:
   const validMotions = ["zoom-in", "zoom-out", "pan-left", "pan-right", "tilt-up"] as const;
   try {
     const parsed = JSON.parse(jsonMatch[0]);
+    const hints = Array.isArray(parsed.sceneHints) && parsed.sceneHints.length === 4
+      ? parsed.sceneHints as [string, string, string, string]
+      : undefined;
     return {
       attention: parsed.attention || "Some moments speak for themselves.",
       interest: parsed.interest || "The quiet details that make all the difference.",
       desire: parsed.desire || "Crafted for dogs who deserve the finer things.",
       action: parsed.action || "Discover more. Link in bio.",
       suggestedMotion: validMotions.includes(parsed.suggestedMotion) ? parsed.suggestedMotion : "zoom-in",
+      sceneHints: hints,
     };
   } catch {
     return {

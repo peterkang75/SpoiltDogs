@@ -1640,29 +1640,65 @@ Respond in JSON format:
               });
               console.log("[MotionReel] AIDA script:", JSON.stringify(aidaScript));
 
-              // Step 2: Generate 9:16 background image with Nano Banana 2
-              setVideoProgress(id, "배경 이미지 생성 중", 25);
+              // Step 2: Generate background images
               const cleanPrompt = (item.imagePrompt || item.caption || "")
                 .replace(/text overlay[^.]*\./gi, "")
                 .replace(/text at (top|bottom)[^.]*\./gi, "")
                 .trim()
                 + ". NO text, NO words, NO typography. Clean composition, visually simple lower half for text overlay.";
+              const guidelineSuffix = imageGuidelineText ? `\n\nSTRICT VISUAL REQUIREMENTS:\n${imageGuidelineText}` : "";
 
-              const imgResult = await generateImage({
-                prompt: cleanPrompt +
-                  (imageGuidelineText ? `\n\nSTRICT VISUAL REQUIREMENTS:\n${imageGuidelineText}` : ""),
-                referenceImageUrls: referenceImages,
-                model: "nano-banana-2",
-                aspectRatio: "9:16",
-              });
+              let imageUrlsForReel: string[] = [];
+              let primaryImageUrl = "";
 
-              if (!imgResult.imageUrl) {
-                throw new Error("Background image generation failed");
+              if (aidaScript.sceneHints && aidaScript.sceneHints.length === 4) {
+                // Multi-image: generate 4 scene variations in parallel
+                setVideoProgress(id, "4개 장면 이미지 생성 중 (1~2분)", 15);
+                console.log("[MotionReel] Generating 4 scene images in parallel");
+
+                const results = await Promise.allSettled(
+                  aidaScript.sceneHints.map((hint, i) => {
+                    const scenePrompt = `${cleanPrompt} Scene variation: ${hint}${guidelineSuffix}`;
+                    console.log(`[MotionReel] Image ${i + 1} prompt: ${hint.slice(0, 80)}...`);
+                    return generateImage({
+                      prompt: scenePrompt,
+                      referenceImageUrls: referenceImages,
+                      model: "nano-banana-2",
+                      aspectRatio: "9:16",
+                    });
+                  })
+                );
+
+                const successUrls = results
+                  .map((r) => r.status === "fulfilled" ? r.value.imageUrl : null)
+                  .filter((url): url is string => !!url);
+
+                console.log(`[MotionReel] ${successUrls.length}/4 images generated successfully`);
+
+                if (successUrls.length === 4) {
+                  imageUrlsForReel = successUrls;
+                  primaryImageUrl = successUrls[0];
+                } else if (successUrls.length > 0) {
+                  console.log("[MotionReel] Falling back to single-image mode");
+                  primaryImageUrl = successUrls[0];
+                } else {
+                  throw new Error("All 4 image generations failed");
+                }
+              } else {
+                // Single-image fallback (no scene hints)
+                setVideoProgress(id, "배경 이미지 생성 중", 25);
+                const imgResult = await generateImage({
+                  prompt: cleanPrompt + guidelineSuffix,
+                  referenceImageUrls: referenceImages,
+                  model: "nano-banana-2",
+                  aspectRatio: "9:16",
+                });
+                if (!imgResult.imageUrl) throw new Error("Background image generation failed");
+                primaryImageUrl = imgResult.imageUrl;
               }
-              console.log("[MotionReel] Background image:", imgResult.imageUrl);
 
-              // Step 3: Compose motion reel (Puppeteer text overlays + FFmpeg Ken Burns + music)
-              setVideoProgress(id, "모션 영상 합성 중", 50);
+              // Step 3: Compose motion reel
+              setVideoProgress(id, imageUrlsForReel.length === 4 ? "멀티이미지 영상 합성 중" : "모션 영상 합성 중", 50);
               let selectedMusicUrl: string | null = null;
               if (audioEnabled && musicUrl) {
                 selectedMusicUrl = musicUrl;
@@ -1673,10 +1709,11 @@ Respond in JSON format:
               const resolvedEffect = motionEffect === "auto"
                 ? (aidaScript.suggestedMotion || "zoom-in")
                 : (validEffects.includes(motionEffect) ? motionEffect : "zoom-in");
-              console.log(`[MotionReel] Motion effect: ${motionEffect} → ${resolvedEffect}`);
+              console.log(`[MotionReel] Motion effect: ${motionEffect} → ${resolvedEffect}, images: ${imageUrlsForReel.length || 1}`);
 
               const videoUrl = await generateMotionReel({
-                imageUrl: imgResult.imageUrl,
+                imageUrl: primaryImageUrl,
+                imageUrls: imageUrlsForReel.length === 4 ? imageUrlsForReel : undefined,
                 aidaScript,
                 musicUrl: selectedMusicUrl || undefined,
                 musicVolume: Number(musicVolume) || 30,
@@ -1688,9 +1725,9 @@ Respond in JSON format:
               setVideoProgress(id, "완료", 100);
 
               await storage.updateMarketingQueueItem(id, {
-                imageUrl: imgResult.imageUrl,
+                imageUrl: primaryImageUrl,
                 videoUrl,
-                imagePrompt: `[AIDA Script]\nAttention: ${aidaScript.attention}\nInterest: ${aidaScript.interest}\nDesire: ${aidaScript.desire}\nAction: ${aidaScript.action}`,
+                imagePrompt: `[AIDA Script]\nAttention: ${aidaScript.attention}\nInterest: ${aidaScript.interest}\nDesire: ${aidaScript.desire}\nAction: ${aidaScript.action}${imageUrlsForReel.length === 4 ? "\n[Multi-image: 4 scenes]" : ""}`,
                 status: "approved",
               } as any);
               console.log(`[MotionReel] Saved for queue item ${id}`);
