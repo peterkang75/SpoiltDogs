@@ -253,6 +253,22 @@
 - 프롬프트 끝에 "NO text, NO words, NO typography" 명시적 금지 추가
 - Sharp SVG 오버레이에서만 텍스트 렌더링하도록 단일화
 
+## 2026-04-20 — 첨부 미디어 우선 사용 파이프라인
+
+**문제**: Freeform Post에서 실촬영 사진/영상을 첨부해도 "Generate Image" 클릭 시 AI가 새 이미지를 생성해 덮어쓰는 버그
+
+**수정** (`server/adminRoutes.ts`, `client/src/pages/admin-marketing.tsx`):
+- `multer` 파일 크기 한도: 20MB → 50MB (영상 파일 지원)
+- 클라이언트: 첨부 파일을 이미지/영상으로 분리해 업로드, `attachedVideoUrls` 별도 전달
+- `/generate` 라우트: `attachedVideoUrls[0]` → `videoUrl` 저장 (기존 `imageUrl`과 함께)
+- `/generate-image` 라우트: 첨부 미디어 감지 후 3가지 단락처리 추가
+  1. **릴스/틱톡 + 첨부 영상**: Kling 생성 생략 → 첨부 영상 직접 사용, 음악 합성만 실행
+  2. **일반 이미지 + 첨부 사진**: AI 생성 생략 → 바로 `status: "approved"`
+  3. **모션 Reels + 첨부 사진**: Nano Banana 이미지 생성 생략 → 첨부 사진으로 Ken Burns 영상 합성
+- **감지 신호**: `!item.imagePrompt && item.imageUrl` = 첨부 사진, `item.videoUrl` = 첨부 영상
+
+---
+
 ## Pending
 
 - ~~Phase 2.5-I: Kling O1/O3 영상 파이프라인 교체~~ — ✅ 완료

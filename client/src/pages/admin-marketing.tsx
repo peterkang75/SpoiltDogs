@@ -499,6 +499,7 @@ export default function AdminMarketing() {
       model: string;
       additionalInstructions: string;
       attachedImageUrls?: string[];
+      attachedVideoUrls?: string[];
     }) => apiRequest("POST", "/api/admin/marketing/generate", data),
     onSuccess: () => {
       queryClient.invalidateQueries({
@@ -531,21 +532,33 @@ export default function AdminMarketing() {
       POST_FORMAT_OPTIONS[0];
 
     let attachedImageUrls: string[] = [];
+    let attachedVideoUrls: string[] = [];
+
     if (attachedFiles.length > 0) {
       setIsUploadingAttachments(true);
       try {
-        const formData = new FormData();
-        attachedFiles.forEach((f) => formData.append("files", f));
-        formData.append("isTrainingData", "false");
-        const res = await fetch("/api/admin/brand/images/upload", {
-          method: "POST",
-          body: formData,
-          credentials: "include",
-        });
-        if (res.ok) {
+        const imageFiles = attachedFiles.filter((f) => f.type.startsWith("image/"));
+        const videoFiles = attachedFiles.filter((f) => f.type.startsWith("video/"));
+
+        const uploadGroup = async (files: File[]) => {
+          if (files.length === 0) return [];
+          const formData = new FormData();
+          files.forEach((f) => formData.append("files", f));
+          formData.append("isTrainingData", "false");
+          const res = await fetch("/api/admin/brand/images/upload", {
+            method: "POST",
+            body: formData,
+            credentials: "include",
+          });
+          if (!res.ok) return [];
           const data = await res.json();
-          attachedImageUrls = (data.images ?? []).map((img: any) => img.imageUrl as string);
-        }
+          return (data.images ?? []).map((img: any) => img.imageUrl as string);
+        };
+
+        [attachedImageUrls, attachedVideoUrls] = await Promise.all([
+          uploadGroup(imageFiles),
+          uploadGroup(videoFiles),
+        ]);
       } catch (e) {
         console.error("Attachment upload failed:", e);
       } finally {
@@ -561,6 +574,7 @@ export default function AdminMarketing() {
       model: fmt.model,
       additionalInstructions: freeformAdditionalInstructions.trim(),
       attachedImageUrls,
+      attachedVideoUrls,
     });
   }
 

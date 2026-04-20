@@ -11,7 +11,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { sourcingService, type SupplierName } from "./services/sourcingService";
 import multer from "multer";
 
-const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024, files: 100 } });
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 50 * 1024 * 1024, files: 100 } });
 const musicUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 50 * 1024 * 1024, files: 1 } });
 
 let prodSessionCookie: string | null = null;
@@ -1469,7 +1469,7 @@ Respond in JSON format:
 
   // ── Claude Direct Content Generation ─────────────────────────────────────
   app.post("/api/admin/marketing/generate", requireAdmin, async (req, res) => {
-    const { topic, prompt_id, platform, contentType, model, additionalInstructions, attachedImageUrls } = req.body;
+    const { topic, prompt_id, platform, contentType, model, additionalInstructions, attachedImageUrls, attachedVideoUrls } = req.body;
 
     if (!topic || typeof topic !== "string") {
       res.status(400).json({ error: "topic is required" });
@@ -1477,6 +1477,7 @@ Respond in JSON format:
     }
 
     const safeAttachedImageUrls: string[] = Array.isArray(attachedImageUrls) ? attachedImageUrls : [];
+    const safeAttachedVideoUrls: string[] = Array.isArray(attachedVideoUrls) ? attachedVideoUrls : [];
 
     try {
       let promptText = "";
@@ -1513,6 +1514,7 @@ Respond in JSON format:
         hashtags: result.hashtags,
         imagePrompt: fullImagePrompt,
         imageUrl: safeAttachedImageUrls[0] || null,
+        videoUrl: safeAttachedVideoUrls[0] || null,
         topic: topic.trim(),
         status: "pending",
       });
@@ -1609,6 +1611,59 @@ Respond in JSON format:
         const isMotionReel = contentType === "motion_reel";
         const isVideo = contentType === "reel" || contentType === "tiktok";
 
+        // ── 첨부 미디어 감지 ──────────────────────────────────────────────────
+        // imagePrompt가 비어있고 imageUrl이 있으면 사용자가 실제 사진을 첨부한 것
+        // (Claude는 첨부 파일이 있을 때 imagePrompt를 "" 로 반환)
+        const hasAttachedImage = !!(item.imageUrl && !item.imagePrompt);
+        // videoUrl이 이미 설정되어 있으면 첨부된 영상
+        const hasAttachedVideo = !!item.videoUrl;
+
+        // ── [1] 릴스/틱톡 + 첨부 영상 → Kling 생략, 음악 합성만 ────────────
+        if (isVideo && hasAttachedVideo) {
+          console.log(`[Generate] ATTACHED VIDEO detected for ${id} — skipping Kling, music-only path`);
+          await storage.updateMarketingQueueItem(id, { status: "generating" } as any);
+          res.json({ success: true, status: "generating", message: "첨부 영상에 음악을 합성합니다." });
+
+          (async () => {
+            try {
+              const { setVideoProgress, clearVideoProgress } = await import("./services/falService");
+              let finalVideoUrl = item.videoUrl!;
+
+              if (audioEnabled && musicUrl) {
+                setVideoProgress(id, "음악 합성 중", 50);
+                const { mixVideoWithMusic } = await import("./services/musicMixService");
+                finalVideoUrl = await mixVideoWithMusic({
+                  videoUrl: item.videoUrl!,
+                  musicUrl,
+                  musicVolume: Number(musicVolume) || 40,
+                });
+                console.log(`[AttachedVideo] Music mixed: ${finalVideoUrl}`);
+              }
+
+              setVideoProgress(id, "완료", 100);
+              await storage.updateMarketingQueueItem(id, { videoUrl: finalVideoUrl, status: "approved" } as any);
+              clearVideoProgress(id);
+            } catch (bgErr: any) {
+              console.error(`[AttachedVideo] Failed:`, bgErr?.message);
+              const { clearVideoProgress } = await import("./services/falService");
+              clearVideoProgress(id);
+              await storage.updateMarketingQueueItem(id, { status: "failed", rejectionReason: bgErr?.message || "Failed" } as any).catch(() => {});
+            }
+          })();
+          return;
+        }
+
+        // ── [2] 일반 이미지 타입 + 첨부 사진 → 생성 없이 승인 ───────────────
+        if (!isMotionReel && !isVideo && !isMultiSlide && hasAttachedImage) {
+          console.log(`[Generate] ATTACHED IMAGE detected for ${id} — skipping AI generation`);
+          await storage.updateMarketingQueueItem(id, { status: "approved" } as any);
+          res.json({ success: true, status: "approved", message: "첨부된 사진을 사용합니다." });
+          return;
+        }
+
+        // ── [3] 카드뉴스/캐러셀 + 첨부 사진 → Nano Banana 생략, 슬라이드 렌더만 ─
+        // (isMultiSlide 분기 내에서 처리, 플래그만 전달)
+
         if (isMotionReel) {
           // ── Motion Reel: Nano Banana 2 → AIDA Script → Puppeteer text → FFmpeg Ken Burns ──
           console.log(`[Generate] Starting MOTION REEL generation for ${id}`);
@@ -1640,7 +1695,7 @@ Respond in JSON format:
               });
               console.log("[MotionReel] AIDA script:", JSON.stringify(aidaScript));
 
-              // Step 2: Generate background images
+              // Step 2: Generate background images (첨부 사진이 있으면 AI 생성 생략)
               const cleanPrompt = (item.imagePrompt || item.caption || "")
                 .replace(/text overlay[^.]*\./gi, "")
                 .replace(/text at (top|bottom)[^.]*\./gi, "")
@@ -1651,7 +1706,12 @@ Respond in JSON format:
               let imageUrlsForReel: string[] = [];
               let primaryImageUrl = "";
 
-              if (aidaScript.sceneHints && aidaScript.sceneHints.length === 4) {
+              if (hasAttachedImage) {
+                // 실제 사진 첨부 → AI 생성 생략, 단일 이미지 모드로 전환
+                console.log(`[MotionReel] Using attached image: ${item.imageUrl}`);
+                setVideoProgress(id, "첨부 이미지 사용 중", 30);
+                primaryImageUrl = item.imageUrl!;
+              } else if (aidaScript.sceneHints && aidaScript.sceneHints.length === 4) {
                 // Multi-image: generate 4 scene variations in parallel.
                 // Pass exactly ONE reference image per scene (round-robin) to prevent
                 // nano-banana-2/edit from collaging multiple refs into a grid.
