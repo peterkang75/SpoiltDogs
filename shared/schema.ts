@@ -116,6 +116,7 @@ export const marketingQueue = pgTable("marketing_queue", {
   caption: text("caption"),
   hashtags: text("hashtags"),
   imageUrl: text("image_url"),
+  slideUrls: text("slide_urls").array(),
   videoUrl: text("video_url"),
   imagePrompt: text("image_prompt"),
   status: text("status").notNull().default("pending"),

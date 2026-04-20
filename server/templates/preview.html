@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Spoilt Dogs — Template Preview</title>
+<style>
+  body {
+    margin: 0;
+    padding: 40px;
+    background: #e5e5e5;
+    font-family: -apple-system, sans-serif;
+  }
+  h1 {
+    font-size: 28px;
+    margin-bottom: 8px;
+    color: #1a3a2e;
+  }
+  p.sub {
+    color: #666;
+    margin-bottom: 40px;
+  }
+  .section {
+    margin-bottom: 60px;
+  }
+  .section h2 {
+    font-size: 20px;
+    color: #1a3a2e;
+    margin-bottom: 4px;
+  }
+  .section .desc {
+    color: #888;
+    font-size: 14px;
+    margin-bottom: 16px;
+  }
+  .frame-row {
+    display: flex;
+    gap: 24px;
+    overflow-x: auto;
+    padding-bottom: 16px;
+  }
+  .frame {
+    flex-shrink: 0;
+    box-shadow: 0 8px 40px rgba(0,0,0,0.15);
+    border-radius: 8px;
+    overflow: hidden;
+    background: white;
+  }
+  .frame iframe {
+    border: none;
+    display: block;
+  }
+  /* Scale down for preview */
+  .scale-feed {
+    width: 360px;
+    height: 450px;
+  }
+  .scale-feed iframe {
+    width: 1080px;
+    height: 1350px;
+    transform: scale(0.333);
+    transform-origin: top left;
+  }
+  .scale-story {
+    width: 270px;
+    height: 480px;
+  }
+  .scale-story iframe {
+    width: 1080px;
+    height: 1920px;
+    transform: scale(0.25);
+    transform-origin: top left;
+  }
+</style>
+</head>
+<body>
+  <h1>Spoilt Dogs — Template Preview</h1>
+  <p class="sub">All templates render at actual size (1080px) and are scaled down here for preview. Open individual HTML files for full-size view.</p>
+
+  <!-- Card News Series -->
+  <div class="section">
+    <h2>Card News Series (Cover → Body → CTA)</h2>
+    <div class="desc">1080×1350px (4:5) — Instagram feed carousel / card news</div>
+    <div class="frame-row">
+      <div class="frame scale-feed">
+        <iframe src="card-news-cover-sample.html"></iframe>
+      </div>
+      <div class="frame scale-feed">
+        <iframe src="card-news-body-sample.html"></iframe>
+      </div>
+      <div class="frame scale-feed">
+        <iframe src="card-news-cta-sample.html"></iframe>
+      </div>
+    </div>
+  </div>
+
+  <!-- Post Feed -->
+  <div class="section">
+    <h2>Post Feed</h2>
+    <div class="desc">1080×1350px (4:5) — Single image post with text overlay</div>
+    <div class="frame-row">
+      <div class="frame scale-feed">
+        <iframe src="post-feed-sample.html"></iframe>
+      </div>
+    </div>
+  </div>
+
+  <!-- Story -->
+  <div class="section">
+    <h2>Story / Reel Cover</h2>
+    <div class="desc">1080×1920px (9:16) — Instagram/Facebook Story, TikTok</div>
+    <div class="frame-row">
+      <div class="frame scale-story">
+        <iframe src="story-promo-sample.html"></iframe>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

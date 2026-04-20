@@ -266,7 +266,8 @@
 - Phase 2.5-J: 고정 배경 합성 (Inpainting) — 배경 라이브러리 + 마스크 편집기 + FAL inpaint 모델로 국둥이 합성. 배경 일치도 90~95% 목표. 개발 5~7일 예상.
 - Caption inline edit feature
 - Phase 2.6 Content Scheduler (아래 섹션) — 진행 중
-- Phase 2.7 Meta/TikTok SNS publishing
+- Phase 2.7 Puppeteer 디자인 시스템 + 멀티슬라이드 파이프라인 — ✅ 완료
+- Phase 2.8 Meta/TikTok SNS publishing
 
 ## Post-Replit Migration Debt (2026-04-14~)
 - ✅ Railway 배포, Supabase Postgres/Storage 전환, 커스텀 도메인 연결 완료
@@ -388,3 +389,51 @@
 - [x] `POST /api/admin/schedule/run-now` 수동 실행 엔드포인트
 - [x] UI: "오늘 스케줄 실행" 버튼 (테스트용)
 - [ ] 자동 이미지/영상 생성 (현재는 카피만 자동 생성, 이미지는 마케팅 큐에서 수동 생성)
+
+---
+
+## Phase 2.7 Puppeteer 디자인 시스템 + 멀티슬라이드 파이프라인
+
+### 구현 완료 (2026-04-20)
+
+#### 2.7-A: Puppeteer 렌더링 엔진
+- [x] `puppeteer` v24 설치
+- [x] `server/services/templateRenderer.ts` — 싱글턴 브라우저, `renderHtmlToImage()`, `renderTemplate()`, `renderSlides()`, `closeBrowser()`
+- [x] deviceScaleFactor: 2 (레티나), 기본 1080×1350 (4:5)
+
+#### 2.7-B: 브랜드 디자인 시스템
+- [x] `server/templates/design-system.css` — CSS 변수 기반 디자인 토큰
+  - 컬러: Primary `#1a3a2e`, Secondary `#FCF9F1`, Accent `#FFD54F`
+  - 폰트: Fraunces (heading), Inter (body) — Google Fonts
+  - 사이즈 스케일: 8단계 (18px caption ~ 80px display)
+  - 간격: 8px 그리드 (6단계), content-padding 64px
+  - 카드: border-radius 16px, box-shadow
+  - 테마: dark / light / accent
+  - 유틸리티: flex-center, overlay, badge, CTA button
+
+#### 2.7-C: HTML 템플릿 5종
+- [x] `card-news-cover.html` — 커버 슬라이드 (이미지 + 제목 오버레이 + Swipe 힌트)
+- [x] `card-news-body.html` — 본문 슬라이드 (크림배경, 헤딩+본문+팁박스, 페이지번호)
+- [x] `card-news-cta.html` — CTA 마감 슬라이드 (다크배경, CTA버튼, 브랜드)
+- [x] `post-feed.html` — 피드 포스트 (이미지 + 하단 그라데이션 텍스트)
+- [x] `story-promo.html` — 스토리/릴스 (9:16, 이미지 상단 + 프로모 하단)
+- [x] 샘플 프리뷰 파일 + `preview.html` (브라우저 확인용)
+
+#### 2.7-D: 생성 파이프라인 연결
+- [x] `server/services/contentRenderer.ts` — 멀티슬라이드 렌더링 서비스
+  - CSS 인라인화 (Puppeteer file:// 해결)
+  - `renderCardNews(plan, imageUrl)` → Buffer[] (cover + body slides + CTA)
+  - `renderPost()`, `renderStory()` — 단일 이미지 렌더링
+  - `uploadSlides()` — Supabase Storage 배치 업로드
+- [x] `shared/schema.ts` — `marketing_queue`에 `slideUrls` text[] 필드 추가
+- [x] `adminRoutes.ts` — `isMultiSlide` 분기 (card_news + carousel)
+  - Step 1: Nano Banana 2 이미지 생성
+  - Step 2: Claude로 슬라이드 컨텐츠 플랜 JSON 생성
+  - Step 3: Puppeteer 렌더링
+  - Step 4: Supabase 업로드, slideUrls + imageUrl DB 저장
+
+#### 2.7-E: 마케팅 UI 다중 슬라이드 지원
+- [x] QueueCard: `slideUrls` 가로 스크롤 캐러셀 뷰 (슬라이드 수 표시)
+- [x] 카드뉴스/캐러셀 생성 버튼 통합 (3단계 파이프라인 설명)
+- [x] 생성 완료 토스트: 슬라이드 수 표시
+- [x] 기존 단일 이미지/비디오 표시와 충돌 없이 공존

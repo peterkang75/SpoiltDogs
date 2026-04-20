@@ -1602,33 +1602,86 @@ Respond in JSON format:
         }
 
         const selectedModel = modelOverride || autoModel;
-        const isCardNews = contentType === "card_news";
+        const isMultiSlide = contentType === "card_news" || contentType === "carousel";
         const isVideo = contentType === "reel" || contentType === "tiktok";
 
-        if (isCardNews) {
-          // ── Card News: Nano Banana 2 → Sharp text overlay ──
-          const captionLines = (item.caption || "")
-            .split("\n")
-            .map((l: string) => l.trim())
-            .filter((l: string) => l.length > 0 && !l.startsWith("#"));
+        if (isMultiSlide) {
+          // ── Card News / Carousel: Nano Banana 2 → Puppeteer multi-slide ──
+          console.log(`[Generate] Starting multi-slide generation for ${id}, type=${contentType}`);
 
-          const textLines = captionLines.slice(0, 2).map((l: string) =>
-            l.length > 28 ? l.slice(0, 28) + "..." : l
-          );
+          // Step 1: Generate base image with Nano Banana 2
+          const { generateImage } = await import("./services/falService");
+          const cleanPrompt = (item.imagePrompt || "")
+            .replace(/text overlay[^.]*\./gi, "")
+            .replace(/text at (top|bottom)[^.]*\./gi, "")
+            .trim()
+            + ". NO text, NO words, NO typography. Clean composition.";
 
-          const { generateCardNewsImage } = await import("./services/cardNewsService");
-          const result = await generateCardNewsImage({
-            imagePrompt: item.imagePrompt || "",
-            textLines,
+          const imgResult = await generateImage({
+            prompt: cleanPrompt,
             referenceImageUrls: referenceImages,
-            aspectRatio: "1:1",
+            model: "nano-banana-2",
+            aspectRatio: "4:5",
           });
+
+          // Step 2: Use Claude to generate slide content plan
+          const slideCount = contentType === "card_news" ? 5 : 3;
+          const { default: Anthropic } = await import("@anthropic-ai/sdk");
+          const claude = new Anthropic();
+
+          const planResponse = await claude.messages.create({
+            model: "claude-sonnet-4-5-20250514",
+            max_tokens: 1500,
+            system: "You generate structured content plans for social media slides. Return ONLY valid JSON, no markdown.",
+            messages: [{
+              role: "user",
+              content: `Based on this caption, create a ${slideCount}-slide content plan.
+
+Caption: ${item.caption || ""}
+Topic: ${item.topic || ""}
+
+Return JSON in this exact format:
+{
+  "tag": "short category label (e.g. Dog Care Tips)",
+  "title": "cover slide title (max 60 chars)",
+  "subtitle": "cover subtitle (max 80 chars)",
+  "slides": [
+    {
+      "heading": "slide heading (max 40 chars)",
+      "body": "slide body text (2-3 paragraphs, informative)",
+      "tipIcon": "emoji icon",
+      "tipText": "practical tip (1 sentence)"
+    }
+  ],
+  "ctaHeading": "closing headline (max 50 chars)",
+  "ctaBody": "closing body (max 80 chars)",
+  "ctaButton": "button text (max 20 chars)"
+}`
+            }],
+          });
+
+          const planText = (planResponse.content[0] as any).text;
+          const plan = JSON.parse(planText);
+
+          // Step 3: Render slides with Puppeteer
+          const { renderCardNews, uploadSlides } = await import("./services/contentRenderer");
+          const slideBuffers = await renderCardNews(plan, imgResult.imageUrl);
+
+          // Step 4: Upload all slides
+          const slideUrls = await uploadSlides(slideBuffers);
 
           const updated = await storage.updateMarketingQueueItem(id, {
-            imageUrl: result.imageUrl,
-          });
+            imageUrl: slideUrls[0],
+            slideUrls: slideUrls,
+          } as any);
 
-          return res.json({ success: true, imageUrl: result.imageUrl, item: updated });
+          return res.json({
+            success: true,
+            imageUrl: slideUrls[0],
+            slideUrls,
+            slideCount: slideUrls.length,
+            item: updated,
+          });
         }
 
         if (isVideo) {

@@ -1,0 +1,260 @@
+/* ============================================
+   Spoilt Dogs — Brand Design System
+   ============================================ */
+
+/* ---------- Google Fonts ---------- */
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700;9..144,800&family=Inter:wght@400;500;600;700&display=swap');
+
+/* ---------- Brand Tokens ---------- */
+:root {
+  /* Colors */
+  --color-primary:    #1a3a2e;   /* Deep forest green */
+  --color-secondary:  #FCF9F1;   /* Warm cream */
+  --color-accent:     #FFD54F;   /* Golden yellow */
+  --color-text-dark:  #1a1a1a;
+  --color-text-light: #FCF9F1;
+  --color-text-muted: #6b7a74;
+  --color-overlay:    rgba(26, 58, 46, 0.75);
+
+  /* Typography — Font Families */
+  --font-heading: 'Fraunces', Georgia, serif;
+  --font-body:    'Inter', -apple-system, sans-serif;
+
+  /* Typography — Size Scale (px, for 1080px canvas) */
+  --text-display:  80px;   /* Hero / Cover titles */
+  --text-h1:       64px;   /* Slide titles */
+  --text-h2:       48px;   /* Section headings */
+  --text-h3:       36px;   /* Sub-headings */
+  --text-body-lg:  34px;   /* Large body / pull-quotes */
+  --text-body:     30px;   /* Default body */
+  --text-body-sm:  24px;   /* Captions, metadata */
+  --text-caption:  18px;   /* Fine print */
+
+  /* Typography — Line Heights */
+  --leading-tight:   1.15;
+  --leading-normal:  1.45;
+  --leading-relaxed: 1.65;
+
+  /* Spacing Scale (8px grid) */
+  --space-xs:  8px;
+  --space-sm:  16px;
+  --space-md:  24px;
+  --space-lg:  40px;
+  --space-xl:  64px;
+  --space-2xl: 96px;
+
+  /* Layout */
+  --content-padding: 64px;
+  --slide-radius:    0;      /* Full-bleed slides */
+  --card-radius:     16px;
+  --badge-radius:    8px;
+
+  /* Shadows */
+  --shadow-card:  0 4px 24px rgba(0, 0, 0, 0.08);
+  --shadow-badge: 0 2px 8px rgba(0, 0, 0, 0.12);
+}
+
+/* ---------- Reset ---------- */
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+/* ---------- Base Slide ---------- */
+.slide {
+  width: 1080px;
+  height: 1350px;
+  position: relative;
+  overflow: hidden;
+  font-family: var(--font-body);
+  color: var(--color-text-dark);
+  background: var(--color-secondary);
+}
+
+.slide--story {
+  width: 1080px;
+  height: 1920px;
+}
+
+.slide--square {
+  width: 1080px;
+  height: 1080px;
+}
+
+/* ---------- Typography Utilities ---------- */
+.heading {
+  font-family: var(--font-heading);
+  font-weight: 700;
+  line-height: var(--leading-tight);
+  letter-spacing: -0.02em;
+}
+
+.heading--display { font-size: var(--text-display); }
+.heading--h1      { font-size: var(--text-h1); }
+.heading--h2      { font-size: var(--text-h2); }
+.heading--h3      { font-size: var(--text-h3); }
+
+.body {
+  font-family: var(--font-body);
+  line-height: var(--leading-normal);
+}
+
+.body--lg { font-size: var(--text-body-lg); }
+.body--md { font-size: var(--text-body); }
+.body--sm { font-size: var(--text-body-sm); }
+
+/* ---------- Color Themes ---------- */
+.theme-dark {
+  background: var(--color-primary);
+  color: var(--color-text-light);
+}
+
+.theme-light {
+  background: var(--color-secondary);
+  color: var(--color-text-dark);
+}
+
+.theme-accent {
+  background: var(--color-accent);
+  color: var(--color-primary);
+}
+
+/* ---------- Layout Helpers ---------- */
+.flex-center {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.flex-col {
+  display: flex;
+  flex-direction: column;
+}
+
+.pad {
+  padding: var(--content-padding);
+}
+
+/* ---------- Brand Badge ---------- */
+.brand-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: var(--space-xs) var(--space-md);
+  border-radius: var(--badge-radius);
+  font-family: var(--font-heading);
+  font-size: var(--text-body-sm);
+  font-weight: 600;
+  box-shadow: var(--shadow-badge);
+}
+
+.brand-badge--light {
+  background: var(--color-secondary);
+  color: var(--color-primary);
+}
+
+.brand-badge--dark {
+  background: var(--color-primary);
+  color: var(--color-text-light);
+}
+
+.brand-badge--accent {
+  background: var(--color-accent);
+  color: var(--color-primary);
+}
+
+/* ---------- Decorative Elements ---------- */
+.accent-line {
+  width: 80px;
+  height: 4px;
+  background: var(--color-accent);
+  border-radius: 2px;
+}
+
+.accent-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--color-accent);
+}
+
+/* ---------- Image Containers ---------- */
+.img-cover {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.img-rounded {
+  border-radius: var(--card-radius);
+  overflow: hidden;
+}
+
+/* ---------- Gradient Overlays ---------- */
+.overlay-bottom {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 50%;
+  background: linear-gradient(to top, var(--color-primary) 0%, transparent 100%);
+}
+
+.overlay-top {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 40%;
+  background: linear-gradient(to bottom, var(--color-primary) 0%, transparent 100%);
+}
+
+.overlay-full {
+  position: absolute;
+  inset: 0;
+  background: var(--color-overlay);
+}
+
+/* ---------- Card Component ---------- */
+.card {
+  background: white;
+  border-radius: var(--card-radius);
+  box-shadow: var(--shadow-card);
+  overflow: hidden;
+}
+
+/* ---------- Slide Number / Pagination ---------- */
+.slide-number {
+  font-family: var(--font-heading);
+  font-size: var(--text-h2);
+  font-weight: 800;
+  color: var(--color-accent);
+  opacity: 0.5;
+}
+
+/* ---------- CTA Button ---------- */
+.cta-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-sm) var(--space-lg);
+  border-radius: 100px;
+  font-family: var(--font-body);
+  font-weight: 600;
+  font-size: var(--text-body);
+  text-decoration: none;
+  border: none;
+  cursor: pointer;
+}
+
+.cta-button--accent {
+  background: var(--color-accent);
+  color: var(--color-primary);
+}
+
+.cta-button--outline {
+  background: transparent;
+  color: var(--color-text-light);
+  border: 3px solid var(--color-accent);
+}

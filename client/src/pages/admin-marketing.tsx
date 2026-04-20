@@ -390,7 +390,12 @@ export default function AdminMarketing() {
         }, 10000);
         return;
       }
-      if (variables.model === "card_news") {
+      if (data.slideUrls?.length) {
+        toast({
+          title: "슬라이드 생성 완료",
+          description: `${data.slideUrls.length}장 슬라이드 생성 완료`,
+        });
+      } else if (variables.model === "card_news") {
         toast({
           title: "카드뉴스 생성 완료",
           description: "국둥이 이미지 + 텍스트 합성 완료",
@@ -1543,8 +1548,27 @@ function QueueCard({
         </div>
       )}
 
+      {/* Multi-slide carousel (card_news / carousel) */}
+      {item.slideUrls && item.slideUrls.length > 1 ? (
+        <div className="mt-3">
+          <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">
+            SLIDES ({item.slideUrls.length})
+          </p>
+          <div className="flex gap-2 overflow-x-auto pb-2">
+            {item.slideUrls.map((url: string, idx: number) => (
+              <img
+                key={idx}
+                src={url}
+                className="h-48 rounded-lg flex-shrink-0 object-cover border border-gray-200"
+                alt={`Slide ${idx + 1}`}
+              />
+            ))}
+          </div>
+        </div>
+      ) : null}
+
       {/* Video + optional thumbnail (2-step pipeline output) */}
-      {item.videoUrl ? (
+      {!item.slideUrls?.length && item.videoUrl ? (
         <div className="space-y-2 mt-3">
           {item.imageUrl && !item.imageUrl.endsWith(".mp4") && (
             <div>
@@ -1572,7 +1596,7 @@ function QueueCard({
             />
           </div>
         </div>
-      ) : item.imageUrl && !item.imageUrl.endsWith(".mp4") ? (
+      ) : !item.slideUrls?.length && item.imageUrl && !item.imageUrl.endsWith(".mp4") ? (
         <div className="mt-3">
           <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">
             {item.imagePrompt ? "GENERATED IMAGE" : "첨부된 사진"}
@@ -1584,7 +1608,7 @@ function QueueCard({
             data-testid={`img-generated-${item.id}`}
           />
         </div>
-      ) : item.imageUrl && item.imageUrl.endsWith(".mp4") ? (
+      ) : !item.slideUrls?.length && item.imageUrl && item.imageUrl.endsWith(".mp4") ? (
         <div className="mt-3">
           <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">
             GENERATED VIDEO
@@ -1815,33 +1839,36 @@ function QueueCard({
                   </div>
                 )}
               </>
-            ) : item.contentType === "card_news" ? (
+            ) : item.contentType === "card_news" || item.contentType === "carousel" ? (
               <>
-                {/* Card news pipeline info */}
+                {/* Multi-slide pipeline info */}
                 <div className="bg-blue-50 border border-blue-100 rounded-lg p-2.5">
-                  <p className="text-xs font-medium text-blue-700 mb-0.5">🃏 카드뉴스 생성</p>
+                  <p className="text-xs font-medium text-blue-700 mb-0.5">
+                    {item.contentType === "card_news" ? "🃏 카드뉴스" : "📸 캐러셀"} 슬라이드 생성
+                  </p>
                   <p className="text-xs text-blue-600">
                     1단계: Nano Banana 2로 국둥이 이미지 생성<br/>
-                    2단계: Sharp로 텍스트 오버레이 합성
+                    2단계: Claude 슬라이드 컨텐츠 기획<br/>
+                    3단계: Puppeteer 슬라이드 렌더링
                   </p>
                 </div>
                 <Button
                   size="sm"
-                  onClick={() => onGenerateImage(item.id, "card_news", "0")}
+                  onClick={() => onGenerateImage(item.id, item.contentType || "card_news", "0")}
                   disabled={isGeneratingImage}
                   className="w-full gap-1.5 h-8 text-xs"
-                  style={{ backgroundColor: "#4B9073", color: "white" }}
+                  style={{ backgroundColor: "#1a3a2e", color: "#FCF9F1" }}
                   data-testid={`button-generate-image-${item.id}`}
                 >
                   {isGeneratingImage ? (
                     <>
                       <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                      카드뉴스 생성 중...
+                      슬라이드 생성 중...
                     </>
                   ) : (
                     <>
                       <ImageIcon className="h-3.5 w-3.5" />
-                      카드뉴스 생성
+                      슬라이드 생성
                     </>
                   )}
                 </Button>

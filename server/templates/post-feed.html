@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<link rel="stylesheet" href="design-system.css">
+<style>
+  body { margin: 0; }
+
+  .slide {
+    display: flex;
+    flex-direction: column;
+    position: relative;
+  }
+
+  /* Full background image */
+  .bg-image {
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+  }
+
+  .bg-image img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  /* Gradient overlay from bottom */
+  .gradient {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 55%;
+    background: linear-gradient(
+      to top,
+      rgba(26, 58, 46, 0.95) 0%,
+      rgba(26, 58, 46, 0.7) 40%,
+      transparent 100%
+    );
+    z-index: 1;
+  }
+
+  /* Top brand badge */
+  .top-badge {
+    position: absolute;
+    top: var(--space-lg);
+    left: var(--content-padding);
+    z-index: 2;
+  }
+
+  /* Bottom content */
+  .bottom-content {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    padding: var(--content-padding);
+    z-index: 2;
+  }
+
+  .caption-heading {
+    font-family: var(--font-heading);
+    font-size: var(--text-h1);
+    font-weight: 700;
+    color: var(--color-text-light);
+    line-height: var(--leading-tight);
+    margin-bottom: var(--space-md);
+  }
+
+  .caption-body {
+    font-family: var(--font-body);
+    font-size: var(--text-body);
+    color: var(--color-text-light);
+    opacity: 0.9;
+    line-height: var(--leading-normal);
+    margin-bottom: var(--space-lg);
+    max-width: 850px;
+  }
+
+  .post-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .brand-mark {
+    font-family: var(--font-heading);
+    font-size: var(--text-body-lg);
+    font-weight: 600;
+    color: var(--color-accent);
+  }
+
+  .hashtag {
+    font-family: var(--font-body);
+    font-size: var(--text-body-sm);
+    color: var(--color-accent);
+    opacity: 0.8;
+  }
+</style>
+</head>
+<body>
+  <div class="slide">
+    <div class="bg-image">
+      <img src="{{imageUrl}}" alt="">
+    </div>
+    <div class="gradient"></div>
+
+    <div class="top-badge">
+      <div class="brand-badge brand-badge--accent">{{tag}}</div>
+    </div>
+
+    <div class="bottom-content">
+      <div class="caption-heading">{{heading}}</div>
+      <div class="caption-body">{{body}}</div>
+      <div class="post-footer">
+        <div class="brand-mark">Spoilt Dogs</div>
+        <div class="hashtag">{{hashtag}}</div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

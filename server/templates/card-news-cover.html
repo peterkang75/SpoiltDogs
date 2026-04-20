@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<link rel="stylesheet" href="design-system.css">
+<style>
+  body { margin: 0; }
+
+  .slide {
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* Hero image area */
+  .hero {
+    position: relative;
+    flex: 1;
+    overflow: hidden;
+  }
+
+  .hero img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  .hero .overlay-bottom {
+    height: 60%;
+  }
+
+  /* Content overlay at bottom */
+  .content {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    padding: var(--content-padding);
+    z-index: 2;
+  }
+
+  .tag {
+    display: inline-block;
+    background: var(--color-accent);
+    color: var(--color-primary);
+    font-family: var(--font-body);
+    font-weight: 700;
+    font-size: var(--text-body-sm);
+    padding: 8px 24px;
+    border-radius: 100px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: var(--space-md);
+  }
+
+  .title {
+    font-family: var(--font-heading);
+    font-size: var(--text-display);
+    font-weight: 700;
+    color: var(--color-text-light);
+    line-height: var(--leading-tight);
+    margin-bottom: var(--space-md);
+  }
+
+  .subtitle {
+    font-family: var(--font-body);
+    font-size: var(--text-body-lg);
+    color: var(--color-text-light);
+    opacity: 0.85;
+    line-height: var(--leading-normal);
+  }
+
+  /* Brand footer bar */
+  .footer-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: var(--space-md) var(--content-padding);
+    background: var(--color-primary);
+  }
+
+  .brand-name {
+    font-family: var(--font-heading);
+    font-size: var(--text-h3);
+    font-weight: 700;
+    color: var(--color-accent);
+  }
+
+  .swipe-hint {
+    font-family: var(--font-body);
+    font-size: var(--text-body-sm);
+    color: var(--color-text-light);
+    opacity: 0.7;
+    display: flex;
+    align-items: center;
+    gap: var(--space-xs);
+  }
+
+  .swipe-hint .arrow {
+    font-size: var(--text-h3);
+  }
+</style>
+</head>
+<body>
+  <div class="slide">
+    <div class="hero">
+      <img src="{{imageUrl}}" alt="">
+      <div class="overlay-bottom"></div>
+      <div class="content">
+        <div class="tag">{{tag}}</div>
+        <div class="title">{{title}}</div>
+        <div class="subtitle">{{subtitle}}</div>
+      </div>
+    </div>
+    <div class="footer-bar">
+      <div class="brand-name">Spoilt Dogs</div>
+      <div class="swipe-hint">Swipe to read <span class="arrow">&rarr;</span></div>
+    </div>
+  </div>
+</body>
+</html>

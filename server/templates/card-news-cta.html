@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<link rel="stylesheet" href="design-system.css">
+<style>
+  body { margin: 0; }
+
+  .slide {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    background: var(--color-primary);
+    color: var(--color-text-light);
+    padding: var(--content-padding);
+  }
+
+  .accent-dots {
+    display: flex;
+    gap: var(--space-sm);
+    margin-bottom: var(--space-xl);
+  }
+
+  .accent-dots .dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--color-accent);
+  }
+
+  .cta-heading {
+    font-family: var(--font-heading);
+    font-size: var(--text-display);
+    font-weight: 700;
+    color: var(--color-text-light);
+    line-height: var(--leading-tight);
+    margin-bottom: var(--space-lg);
+    max-width: 800px;
+  }
+
+  .cta-sub {
+    font-family: var(--font-body);
+    font-size: var(--text-body-lg);
+    color: var(--color-text-light);
+    opacity: 0.8;
+    line-height: var(--leading-normal);
+    margin-bottom: var(--space-xl);
+    max-width: 700px;
+  }
+
+  .cta-button {
+    font-size: var(--text-body-lg);
+    padding: var(--space-md) var(--space-xl);
+  }
+
+  .brand-footer {
+    position: absolute;
+    bottom: var(--content-padding);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--space-xs);
+  }
+
+  .brand-footer .name {
+    font-family: var(--font-heading);
+    font-size: var(--text-h2);
+    font-weight: 700;
+    color: var(--color-accent);
+  }
+
+  .brand-footer .handle {
+    font-family: var(--font-body);
+    font-size: var(--text-body-sm);
+    color: var(--color-text-light);
+    opacity: 0.6;
+  }
+</style>
+</head>
+<body>
+  <div class="slide">
+    <div class="accent-dots">
+      <div class="dot"></div>
+      <div class="dot"></div>
+      <div class="dot"></div>
+    </div>
+    <div class="cta-heading">{{ctaHeading}}</div>
+    <div class="cta-sub">{{ctaBody}}</div>
+    <a class="cta-button cta-button--accent" href="#">{{ctaButton}}</a>
+    <div class="brand-footer">
+      <div class="name">Spoilt Dogs</div>
+      <div class="handle">@spoiltdogs.com.au</div>
+    </div>
+  </div>
+</body>
+</html>

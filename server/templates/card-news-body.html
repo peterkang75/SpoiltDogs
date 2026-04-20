@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<link rel="stylesheet" href="design-system.css">
+<style>
+  body { margin: 0; }
+
+  .slide {
+    display: flex;
+    flex-direction: column;
+    background: var(--color-secondary);
+  }
+
+  /* Top accent stripe */
+  .accent-stripe {
+    height: 8px;
+    background: var(--color-accent);
+    flex-shrink: 0;
+  }
+
+  /* Main content area */
+  .main {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    padding: var(--space-xl) var(--content-padding) var(--space-lg);
+  }
+
+  /* Slide number */
+  .number {
+    font-family: var(--font-heading);
+    font-size: 120px;
+    font-weight: 800;
+    color: var(--color-primary);
+    opacity: 0.08;
+    position: absolute;
+    top: 40px;
+    right: var(--content-padding);
+    line-height: 1;
+  }
+
+  .heading-area {
+    margin-bottom: var(--space-lg);
+  }
+
+  .heading-area .accent-line {
+    margin-bottom: var(--space-md);
+  }
+
+  .heading-area h2 {
+    font-family: var(--font-heading);
+    font-size: var(--text-h1);
+    font-weight: 700;
+    color: var(--color-primary);
+    line-height: var(--leading-tight);
+  }
+
+  /* Body text */
+  .body-text {
+    font-family: var(--font-body);
+    font-size: var(--text-body-lg);
+    color: var(--color-text-dark);
+    line-height: var(--leading-relaxed);
+    flex: 1;
+  }
+
+  /* Optional image area */
+  .image-area {
+    margin-top: var(--space-lg);
+    border-radius: var(--card-radius);
+    overflow: hidden;
+    height: 400px;
+    flex-shrink: 0;
+  }
+
+  .image-area img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  /* Tip / highlight box */
+  .tip-box {
+    margin-top: var(--space-lg);
+    padding: var(--space-md) var(--space-lg);
+    background: var(--color-primary);
+    border-radius: var(--card-radius);
+    color: var(--color-text-light);
+    font-size: var(--text-body);
+    line-height: var(--leading-normal);
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-sm);
+  }
+
+  .tip-box .icon {
+    font-size: var(--text-h2);
+    flex-shrink: 0;
+    margin-top: -4px;
+  }
+
+  /* Footer */
+  .footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: var(--space-md) var(--content-padding);
+    background: var(--color-primary);
+    flex-shrink: 0;
+  }
+
+  .footer .brand {
+    font-family: var(--font-heading);
+    font-size: var(--text-body);
+    font-weight: 600;
+    color: var(--color-accent);
+  }
+
+  .footer .page {
+    font-family: var(--font-body);
+    font-size: var(--text-body-sm);
+    color: var(--color-text-light);
+    opacity: 0.6;
+  }
+</style>
+</head>
+<body>
+  <div class="slide">
+    <div class="accent-stripe"></div>
+    <div class="main">
+      <div class="number">{{slideNumber}}</div>
+      <div class="heading-area">
+        <div class="accent-line"></div>
+        <h2>{{heading}}</h2>
+      </div>
+      <div class="body-text">{{body}}</div>
+      <div class="tip-box">
+        <span class="icon">{{tipIcon}}</span>
+        <span>{{tipText}}</span>
+      </div>
+    </div>
+    <div class="footer">
+      <div class="brand">Spoilt Dogs</div>
+      <div class="page">{{slideNumber}} / {{totalSlides}}</div>
+    </div>
+  </div>
+</body>
+</html>
