@@ -374,13 +374,22 @@ function MonthlyCalendarTab() {
     }
   }, [progress]);
 
+  // Any schedule-state mutation invalidates BOTH queries so the progress box
+  // doesn't show stale counts (e.g. 0/39 from a prior batch after rows were
+  // deleted). The refetchInterval relies on fresh data to decide whether to
+  // poll, so we must force a refetch on every write.
+  const invalidateScheduleQueries = () => {
+    queryClient.invalidateQueries({ queryKey: ["/api/admin/schedule/items", viewYear, viewMonth] });
+    queryClient.invalidateQueries({ queryKey: ["/api/admin/schedule/bulk-progress", viewYear, viewMonth] });
+  };
+
   const generateMut = useMutation({
     mutationFn: async () => {
       const res = await apiRequest("POST", "/api/admin/schedule/generate", { year: viewYear, month: viewMonth, theme });
       return res.json();
     },
     onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ["/api/admin/schedule/items", viewYear, viewMonth] });
+      invalidateScheduleQueries();
       toast({ title: `${data.count}개 스케줄 생성 완료` });
     },
     onError: (err: any) => {
@@ -392,14 +401,14 @@ function MonthlyCalendarTab() {
     mutationFn: ({ id, data }: { id: string; data: any }) =>
       apiRequest("PATCH", `/api/admin/schedule/items/${id}`, data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/admin/schedule/items", viewYear, viewMonth] });
+      invalidateScheduleQueries();
     },
   });
 
   const deleteMut = useMutation({
     mutationFn: (id: string) => apiRequest("DELETE", `/api/admin/schedule/items/${id}`),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/admin/schedule/items", viewYear, viewMonth] });
+      invalidateScheduleQueries();
       toast({ title: "삭제됨" });
     },
   });
@@ -410,7 +419,7 @@ function MonthlyCalendarTab() {
       return res.json();
     },
     onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ["/api/admin/schedule/items", viewYear, viewMonth] });
+      invalidateScheduleQueries();
       toast({ title: `${data.approved}개 항목 승인 완료` });
     },
   });
@@ -421,7 +430,7 @@ function MonthlyCalendarTab() {
       return res.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/admin/schedule/items", viewYear, viewMonth] });
+      invalidateScheduleQueries();
       toast({ title: "오늘 스케줄 실행 완료" });
     },
     onError: (err: any) => {
@@ -448,7 +457,7 @@ function MonthlyCalendarTab() {
     },
     onSuccess: (data) => {
       setShowBulkDialog(false);
-      queryClient.invalidateQueries({ queryKey: ["/api/admin/schedule/items", viewYear, viewMonth] });
+      invalidateScheduleQueries();
       toast({
         title: `${data.queued}개 항목 제작 시작`,
         description: `예상 비용 $${data.estimatedCostUsd.toFixed(2)}. 백그라운드에서 진행됩니다.`,
@@ -477,7 +486,7 @@ function MonthlyCalendarTab() {
       return res.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/admin/schedule/items", viewYear, viewMonth] });
+      invalidateScheduleQueries();
       toast({ title: "재생성 시작됨" });
     },
     onError: (err: any) => {

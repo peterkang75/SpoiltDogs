@@ -2935,9 +2935,13 @@ JSON 형식으로만 응답:
         if (item.queueItemId) {
           const queue = await storage.getMarketingQueueItem(item.queueItemId);
           if (queue) {
+            // Priority: terminal-failure > in-flight signal > terminal-media > default-generating.
+            // Default is "generating" because a queue row exists only once the bulk/regenerate
+            // pipeline has started — so absence of media means work is still in progress, not done.
             if (queue.status === "failed") effectiveStatus = "failed";
             else if (queue.status === "generating") effectiveStatus = "generating";
-            else if (queue.status === "approved" && queue.imageUrl) effectiveStatus = "generated";
+            else if (queue.imageUrl || queue.videoUrl) effectiveStatus = "generated";
+            else effectiveStatus = "generating";
 
             if (effectiveStatus === "generating") {
               const progress = getVideoProgress(queue.id);
