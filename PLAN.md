@@ -516,6 +516,19 @@
 
 ---
 
+#### Phase 2.6-H: 주차 Accordion 배지 stale 상태 수정 ✅ (2026-04-21)
+
+**증상**: 2개 컨텐츠 모두 생성 완료되어 상단 "제작 진행" 박스는 `2 / 2 완료`를 올바르게 표시하는데, 주차 Accordion 헤더의 "생성 중" 스피너 배지와 개별 행의 상태 배지가 계속 "생성 중"으로 남음
+
+**원인**: 상단 박스는 서버의 `progress.counts`(bulk-progress reconcile 결과)를 사용하지만, Accordion 헤더 loop와 행 렌더링은 클라이언트 로컬 `effStatus` 계산에서 `item.status`(`schedule_item` DB 컬럼)로 fallback. `schedule_item.status`는 `generateCopyForScheduleItem`이 copy 완료 시 한 번 세팅한 뒤 이후 큐 전이(success/failure)를 반영하지 않음 → 상단과 하단이 서로 다른 출처를 읽어 불일치
+
+**수정**:
+- [x] `bulk-progress` 응답에 `statusByItemId: Record<string, string>` 맵 추가 — reconcile한 최종 상태를 item id별로 클라이언트에 노출
+- [x] `BulkProgress` 타입에 `statusByItemId?` 필드 추가
+- [x] Accordion 헤더 loop(라인 734)와 행 렌더링(라인 780)의 `effStatus`/`effectiveStatus` 계산이 `progress?.statusByItemId?.[id] || item.status` 순서로 서버 reconcile 결과를 우선 사용하도록 변경
+
+---
+
 ## Phase 2.7 Puppeteer 디자인 시스템 + 멀티슬라이드 파이프라인
 
 ### 구현 완료 (2026-04-20)

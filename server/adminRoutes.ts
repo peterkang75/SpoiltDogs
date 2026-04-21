@@ -2955,6 +2955,11 @@ JSON 형식으로만 응답:
         rejectionReason: string | null;
       }[] = [];
 
+      // Map of scheduleItemId → reconciled status. The client relies on this
+      // for per-row rendering because schedule_item.status is only updated at
+      // copy time and never reflects later queue transitions (success/failure).
+      const statusByItemId: Record<string, string> = {};
+
       for (const item of items) {
         let effectiveStatus = item.status;
 
@@ -2994,12 +2999,13 @@ JSON 형식으로만 응답:
           });
         }
 
+        statusByItemId[item.id] = effectiveStatus;
         if (effectiveStatus in counts) {
           (counts as any)[effectiveStatus]++;
         }
       }
 
-      res.json({ counts, generatingDetails, failedDetails });
+      res.json({ counts, generatingDetails, failedDetails, statusByItemId });
     } catch (err: any) {
       console.error("[bulk-progress]", err);
       res.status(500).json({ error: err.message });

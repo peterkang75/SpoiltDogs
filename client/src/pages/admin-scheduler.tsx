@@ -310,6 +310,7 @@ type BulkProgress = {
     queueItemId: string | null;
     rejectionReason: string | null;
   }[];
+  statusByItemId?: Record<string, string>;
 };
 
 function MonthlyCalendarTab() {
@@ -732,7 +733,7 @@ function MonthlyCalendarTab() {
               byType[it.contentType] = (byType[it.contentType] || 0) + 1;
               const effStatus = progressByItemId[it.id] ? "generating"
                 : rejectionByItemId[it.id] ? "failed"
-                : it.status;
+                : (progress?.statusByItemId?.[it.id] || it.status);
               if (effStatus === "failed") weekFailed++;
               if (effStatus === "generating") weekGenerating++;
               if (effStatus === "generated") weekGenerated++;
@@ -779,7 +780,7 @@ function MonthlyCalendarTab() {
                     const rejection = rejectionByItemId[item.id];
                     const effectiveStatus = liveProgress ? "generating"
                       : rejection ? "failed"
-                      : item.status;
+                      : (progress?.statusByItemId?.[item.id] || item.status);
 
                     return (
                       <div
