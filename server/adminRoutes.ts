@@ -1927,9 +1927,21 @@ Return JSON in this exact format:
         }
 
         if (isVideo) {
-          // ── Kling O1 reference-to-video (비동기 — 즉시 응답, 백그라운드 생성) ──
+          // ── Kling O1 reference-to-video → AIDA overlay + music mix ──
+          // Generates a raw reel/tiktok video, then pipes it through the motion-reel
+          // compositor so AIDA text overlays and music are burned in in one pass.
+          // Previously the reel path produced raw video with music-only (no text);
+          // now it matches the motion_reel pipeline for consistent branded output.
           const gukdungProfile = brandContext
             .filter((i) => i.isActive && i.type === "gukdung_profile")
+            .map((i) => i.content)
+            .join("\n");
+          const brandVoiceText = brandContext
+            .filter((i) => i.isActive && i.type === "brand_voice")
+            .map((i) => i.content)
+            .join("\n");
+          const postGuidelineText = brandContext
+            .filter((i) => i.isActive && i.type === "post_guideline")
             .map((i) => i.content)
             .join("\n");
 
@@ -1940,6 +1952,10 @@ Return JSON in this exact format:
           (async () => {
             try {
               const { generateVideoWithKlingO1, setVideoProgress, clearVideoProgress } = await import("./services/falService");
+              const { generateAIDAScript } = await import("./services/claudeMarketingService");
+              const { generateMotionReel } = await import("./services/motionReelsService");
+
+              // Step 1: Kling raw video
               const result = await generateVideoWithKlingO1({
                 prompt: prompt,
                 caption: item.caption || "",
@@ -1951,33 +1967,43 @@ Return JSON in this exact format:
                 imageGuidelines: imageGuidelineText,
                 queueItemId: id,
               });
-
-              let finalVideoUrl = result.videoUrl;
               console.log(`[KlingO1] Video generated: ${result.videoUrl}`);
-              console.log(`[KlingO1] Audio mixing check: audioEnabled=${audioEnabled}, musicUrl=${musicUrl ? musicUrl.substring(0, 80) : "null"}, volume=${musicVolume}`);
-              if (audioEnabled && musicUrl) {
-                try {
-                  setVideoProgress(id, "음악 합성 중", 92);
-                  console.log("[KlingO1] Starting music mix...");
-                  const { mixVideoWithMusic } = await import("./services/musicMixService");
-                  finalVideoUrl = await mixVideoWithMusic({
-                    videoUrl: result.videoUrl,
-                    musicUrl,
-                    musicVolume: Number(musicVolume) || 40,
-                  });
-                  console.log("[KlingO1] Music mixed successfully:", finalVideoUrl);
-                } catch (mixErr: any) {
-                  console.error("[KlingO1] Music mix FAILED:", mixErr?.message, mixErr?.stack);
-                }
-              } else {
-                console.log("[KlingO1] Skipping music mix (audioEnabled=%s, musicUrl=%s)", audioEnabled, !!musicUrl);
-              }
+
+              // Step 2: AIDA script for overlay text
+              setVideoProgress(id, "AIDA 대본 생성 중", 88);
+              const aidaScript = await generateAIDAScript({
+                caption: item.caption || "",
+                topic: item.topic || "",
+                brandVoice: brandVoiceText,
+                postGuidelines: postGuidelineText,
+              });
+
+              // Step 3: Composite text overlay + music via motion-reel video-overlay mode.
+              // generateMotionReel(videoUrl=X) routes to generateVideoOverlayReel which
+              // handles AIDA timing, text burn-in, and music mix in a single ffmpeg pass.
+              setVideoProgress(id, "텍스트/음악 합성 중", 93);
+              const showLabel = rawShowAidaLabel === true || rawShowAidaLabel === "true";
+              const validTemplates = ["gradient", "clean", "canva-1", "canva-2", "canva-3", "cinematic", "bottom", "center", "lower-third"];
+              const resolvedTemplate = validTemplates.includes(overlayTemplate) ? overlayTemplate : "gradient";
+              const finalVideoUrl = await generateMotionReel({
+                videoUrl: result.videoUrl,
+                aidaScript,
+                musicUrl: audioEnabled && musicUrl ? musicUrl : undefined,
+                musicVolume: Number(musicVolume) || 40,
+                overlayTemplate: resolvedTemplate as any,
+                showLabel,
+              });
+              console.log(`[KlingO1] Overlay + music composited: ${finalVideoUrl}`);
 
               setVideoProgress(id, "완료", 100);
 
+              const aidaSummary = `[AIDA Script]\nAttention: ${aidaScript.attention}\nInterest: ${aidaScript.interest}\nDesire: ${aidaScript.desire}\nAction: ${aidaScript.action}`;
+              const promptTrail = result.videoPrompt
+                ? `${result.videoPrompt}\n\n${aidaSummary}`
+                : aidaSummary;
               await storage.updateMarketingQueueItem(id, {
                 videoUrl: finalVideoUrl,
-                imagePrompt: result.videoPrompt || item.imagePrompt || null,
+                imagePrompt: promptTrail,
                 status: "approved",
               } as any);
               console.log(`[KlingO1] Video saved for queue item ${id}`);
