@@ -328,6 +328,17 @@ export async function generateCardNews({
   }
 }
 
+// Suppresses the most common Kling failure modes for pet content — morphing
+// jaws, food animating unnaturally, deformed faces. Used on both Kling
+// endpoints; Veo2's API doesn't accept negative prompts here.
+const KLING_NEGATIVE_PROMPT = [
+  "morphing face, distorted mouth, deformed jaw, melting teeth, warping snout",
+  "food appearing or disappearing, food morphing, food dropping from mouth",
+  "unnatural chewing, fake eating motion, tongue artifacts, saliva artifacts",
+  "blurry face, plastic skin, waxy texture, uncanny valley, extra limbs",
+  "mouth opening with object inside, chewing motion, licking motion",
+].join(", ");
+
 // ── 2-Step Video Pipeline: Nano Banana 2 → Image-to-Video ────────────────────
 export async function generateVideo({
   prompt,
@@ -433,6 +444,7 @@ export async function generateVideo({
             prompt: finalVideoPrompt,
             duration: klingDuration,
             aspect_ratio: aspectRatio,
+            negative_prompt: KLING_NEGATIVE_PROMPT,
           },
         },
       )) as any;
@@ -447,6 +459,7 @@ export async function generateVideo({
             prompt: finalVideoPrompt,
             duration: klingDuration,
             aspect_ratio: aspectRatio,
+            negative_prompt: KLING_NEGATIVE_PROMPT,
           },
         },
       )) as any;
@@ -573,6 +586,7 @@ export async function generateVideoWithKlingO1({
             image_urls: refs,
             duration: klingDuration,
             aspect_ratio: aspectRatio,
+            negative_prompt: KLING_NEGATIVE_PROMPT,
           },
         })) as any;
 

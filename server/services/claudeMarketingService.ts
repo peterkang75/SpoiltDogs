@@ -223,7 +223,7 @@ export async function convertCaptionToVideoPrompt({
     model: "claude-sonnet-4-5",
     max_tokens: 300,
     system: `You are an AI video prompt engineer.
-Convert Instagram captions into concise video generation prompts for Veo 2 image-to-video model.
+Convert Instagram captions into concise video generation prompts for image-to-video models (Kling/Veo2).
 
 Rules:
 - Focus on MOTION and MOVEMENT only
@@ -234,6 +234,25 @@ Rules:
 - Keep under 100 words
 - No marketing language, no emojis
 - Output ONLY the prompt, nothing else
+
+FORBIDDEN MOTIONS — these produce obvious AI artifacts, NEVER describe them:
+- Mouth opening/closing with an object in it (chewing, eating, licking a treat, swallowing)
+- Food or objects dropping from the mouth, food morphing, food appearing/disappearing
+- Tongue extending or retracting, teeth showing in motion
+- Barking, yawning, panting that shows deep inside the mouth
+- Any action requiring inside-mouth anatomy to animate
+
+Even if the caption mentions "씹는", "먹는", "핥는", "간식", "입에", "물고" — REFRAME the motion
+into a safe alternative that keeps the mouth closed or motionless. Example:
+"dog chewing on a treat" → "dog sitting calmly, ears twitching, tail wagging gently"
+"dog licking lips" → "dog blinking slowly, head tilting to one side"
+
+SAFE MOTION VOCABULARY — build prompts from these:
+- Tail wagging, ears twitching or perking up, head tilting, slow blinking
+- Gentle walking or stepping, looking up / looking around / turning head
+- Fur rustling in breeze, light head bob, chest breathing
+- Sitting down, lying down slowly, stretching front legs
+- Eyes following something off-screen, nose gently sniffing air (mouth closed)
 
 ${gukdungProfile ? `Dog profile: ${gukdungProfile}` : ""}
 ${imageGuidelines ? `Visual style: ${imageGuidelines}` : ""}`,
@@ -314,6 +333,12 @@ Example: if the topic is "morning walk", hints could be:
   2. "soft morning mist, dog sniffing wildflowers by the trail"
   3. "warm sunlight on dewy grass, dog mid-stride with ears perked"
   4. "gentle backlight silhouette, dog pausing to look back at owner"
+
+IMPORTANT — these images will be animated as video. NEVER describe the dog with
+food or objects in the mouth, mouth open, tongue out, or mid-chew. The dog's
+mouth must be closed or neutral in every scene. Reframe food-related topics as
+lifestyle moments: instead of "dog chewing treat on couch", use "dog resting on
+couch with treat placed on the floor nearby".
 
 Return ONLY valid JSON, no markdown. Start with {`,
     messages: [
