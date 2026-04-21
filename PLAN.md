@@ -482,6 +482,38 @@
 
 **범위 밖**: 시즌/시간대 혼합 태깅, Claude에 트랙 목록 직접 제시해서 고르게 하는 방식, Meta 자동 게시
 
+#### Phase 2.6-F: 영상 품질 가드 — 입/음식 왜곡 억제 ✅ (2026-04-21)
+
+**증상**: bulk-generate로 만든 motion reel에서 "간식을 입에 물고 뱉는" 장면이 명백히 AI 티가 나는 왜곡(턱 morphing, 음식 픽셀 변형, 혀 아티팩트)을 보임. image-to-video 모델(Kling v2.5-turbo / v1.6 / Veo2) 모두 **입-음식 복합 모션**에서 실패율이 매우 높음.
+
+**원인**:
+- `claudeMarketingService.convertCaptionToVideoPrompt` 시스템 규칙이 속도만 통제하고 **피해야 할 동작 금칙어가 없음** → 캡션에 "씹는 리듬" 있으면 Claude가 그대로 모션 프롬프트로 변환
+- `falService.ts` Kling 호출 3곳(v2.5-turbo/pro img2vid, v1.6/pro img2vid, o1 ref-to-vid) 모두 `negative_prompt` 미사용 → 실패 양태를 억제할 수단 없음
+
+**수정 (이중 방어)**:
+- [x] `convertCaptionToVideoPrompt` 시스템 프롬프트에 **FORBIDDEN MOTIONS** 섹션 추가: 입 벌리고 씹기/먹기/핥기, 음식 떨어뜨리기, 혀 내밀기, 짖기/하품 등 금지. 캡션에 "씹는/먹는/핥는/간식/물고" 단어가 나와도 안전 모션(꼬리 흔들기, 귀 씰룩, 고개 기울이기, 느린 눈 깜빡임, 걷기)으로 reframe 의무
+- [x] `generateAIDAScript.sceneHints` 규칙에 "영상 애니메이션 대상이므로 입에 음식/혀 내밀기/입 벌림 장면 금지. 음식 관련 토픽은 간접 구도로 전환(예: 간식이 바닥에 놓인 채 소파에서 쉬는 강아지)" 추가 — 참조 이미지부터 애초에 안전 구도로 생성
+- [x] `falService.ts`에 공용 `KLING_NEGATIVE_PROMPT` 상수 추가 (morphing face, distorted mouth, deformed jaw, melting teeth, food appearing/morphing, unnatural chewing, tongue/saliva artifacts, uncanny valley) → Kling v2.5-turbo/pro img2vid, v1.6/pro img2vid, o1 ref-to-vid 3곳 모두 `negative_prompt` 전달. Veo2는 API 상 negative_prompt 미지원이므로 Claude 프롬프트 레이어만으로 방어
+
+**추가 비용**: 0 (프롬프트 수정과 negative_prompt 필드 추가뿐). Kling 호출 비용·지연시간 동일
+
+**범위 밖 (효과 부족 시 다음 단계)**:
+- 복잡도 라우팅 — Claude가 `simple/medium/complex` 태그 반환 → complex면 Veo2 + 5초로 강제
+- 콘텐츠 플래너 단에서 릴스 주제 추천 시 "먹는 컷/씹는 컷" 원천 배제
+- Post-QA — 생성 후 첫/끝 프레임을 Claude Vision으로 비교해 얼굴 왜곡 자동 탐지 후 재생성
+
+#### Phase 2.6-G: 스케줄러 진행 박스 stale 카운트 수정 ✅ (2026-04-21)
+
+**증상**: 이전 배치에서 39개를 생성했던 사용자가 모두 삭제하고 2개만 다시 만드는데, 상단 "제작 진행" 박스가 여전히 `0 / 39 완료`로 나오고, 실제 생성 중인 2개에 대해 "N개 생성 중" 문구가 표시 안 됨
+
+**원인 (두 버그 중첩)**:
+- 클라이언트 — `deleteMut`/`bulkGenerateMut`/`generateMut`/`approveAllMut`/`regenerateMut` 모두 `schedule/items` 쿼리만 invalidate하고 `schedule/bulk-progress`는 건드리지 않음. `refetchInterval`이 캐시된 `counts.generating`을 읽고 0이면 `false` 반환하는 구조라서 stale 캐시가 스스로 갱신을 차단 → 39/0/0/0 캐시가 영원히 남음
+- 서버 — `bulk-progress` reconcile이 `queue.status === "approved" && queue.imageUrl` 조건만 체크. copy 생성 직후 `queue.imageUrl=null`인 전이 구간에서 조건 실패 → `item.status`(`generateCopyForScheduleItem`이 copy 직후 `"generated"`로 세팅)로 fallback → 이미지 생성 시작 전에도 "완료"로 오분류
+
+**수정**:
+- [x] `admin-scheduler.tsx`에 `invalidateScheduleQueries()` 헬퍼 도입 — items + bulk-progress 두 키를 함께 invalidate. 7개 mutation(generate/update/delete/approveAll/runNow/bulkGenerate/regenerate) 전 경로 적용
+- [x] `bulk-progress` reconcile 우선순위 재정의: `queue.status === "failed"` → failed; `queue.status === "generating"` → generating; `queue.imageUrl || queue.videoUrl` → generated; **그 외 queue 로우 존재만으로 → generating** (copy 끝나고 이미지 대기 중인 전이 구간 안전 처리)
+
 ---
 
 ## Phase 2.7 Puppeteer 디자인 시스템 + 멀티슬라이드 파이프라인
