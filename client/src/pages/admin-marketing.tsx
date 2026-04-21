@@ -2477,10 +2477,16 @@ function InstagramPreview({
               {/* Post image / video / placeholder */}
               {item.videoUrl ? (
                 <div
-                  className="w-full bg-black relative overflow-hidden"
+                  className="w-full bg-black relative overflow-hidden flex items-center justify-center"
                   style={{
-                    aspectRatio: isStory ? "9/16" : "9/16",
-                    maxHeight: isStory ? 500 : 375,
+                    // Reel/TikTok content is 9:16 portrait. Setting aspectRatio + maxHeight
+                    // together lets maxHeight win when the modal is narrow, collapsing the
+                    // container to ~4:5 and then object-cover would crop off the top/bottom
+                    // of the video — hiding AIDA text overlays burned in near the edges.
+                    // Use object-contain so the video always fits fully inside the box with
+                    // black letterboxing on the sides, preserving burned-in overlays.
+                    aspectRatio: "9/16",
+                    maxHeight: isStory ? 500 : 500,
                   }}
                 >
                   <video
@@ -2490,7 +2496,7 @@ function InstagramPreview({
                     muted={isMuted}
                     loop
                     playsInline
-                    className="w-full h-full object-cover"
+                    className="max-w-full max-h-full object-contain"
                   />
                   <div className="absolute top-3 right-3 flex items-center gap-2">
                     <button
