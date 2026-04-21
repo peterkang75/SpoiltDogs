@@ -1340,7 +1340,7 @@ export default function AdminBrandStudio() {
                               >
                                 <SelectValue placeholder={isValidMoodTag ? undefined : "수정필요"} />
                               </SelectTrigger>
-                              <SelectContent>
+                              <SelectContent className="max-h-80">
                                 {MUSIC_MOODS.map((m) => (
                                   <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>
                                 ))}
@@ -1408,7 +1408,7 @@ export default function AdminBrandStudio() {
                     <Label>분위기</Label>
                     <Select value={musicMood} onValueChange={setMusicMood}>
                       <SelectTrigger data-testid="select-music-mood"><SelectValue /></SelectTrigger>
-                      <SelectContent>
+                      <SelectContent className="max-h-80">
                         {MUSIC_MOODS.map((m) => (
                           <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>
                         ))}
