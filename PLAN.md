@@ -274,7 +274,7 @@
 - ~~Phase 2.5-I: Kling O1/O3 영상 파이프라인 교체~~ — ✅ 완료
 - ~~Phase 2.7 Puppeteer 디자인 시스템 + 멀티슬라이드 파이프라인~~ — ✅ 완료
 - Phase 2.5-J: 고정 배경 합성 (Inpainting) — 배경 라이브러리 + 마스크 편집기 + FAL inpaint 모델로 국둥이 합성. 배경 일치도 90~95% 목표.
-- Phase 2.6 Content Scheduler — 진행 중 (카피 자동 생성 완료, 이미지/영상 자동 생성 미완)
+- Phase 2.6 Content Scheduler — 진행 중 (2.6-A/B/C/D/E 완료, Meta 연동은 Phase 2.8)
 - Phase 2.8 Meta/TikTok SNS publishing
 - **Phase 2.9 모션 Reels 파이프라인** — ✅ 2.9-A MVP 완료 (2026-04-20), 2.9-B/C 미완
 - Caption inline edit feature
@@ -399,7 +399,88 @@
 - [x] 생성 완료 시 schedule_item.status → "generated", queueItemId 연결
 - [x] `POST /api/admin/schedule/run-now` 수동 실행 엔드포인트
 - [x] UI: "오늘 스케줄 실행" 버튼 (테스트용)
-- [ ] 자동 이미지/영상 생성 (현재는 카피만 자동 생성, 이미지는 마케팅 큐에서 수동 생성)
+
+#### Phase 2.6-C: Bulk Generate + 주차별 UI ✅ (2026-04-21)
+
+**목적**: 사장님이 월간 39개 스케줄 승인 완료 상태. 승인→제작 단계를 한 번의 클릭으로 끝내는 bulk 자동화 추가. 월간 캘린더는 여백 낭비가 심해 주차별 Accordion 리스트로 교체.
+
+**범위 (Meta Graph 게시는 Phase 2.8로 분리)**:
+- 제작: 전체 일괄 + 개별 재생성
+- UI: 달력 → 주차별 Accordion 리스트
+- 진행률: 스케줄러 페이지 상단 통합 (3초 폴링, generating=0이면 중단)
+
+**완료 체크리스트**:
+- [x] `schedulerService.ts` — `generateCopyForScheduleItem(item)` 함수 추출, 기존 `processScheduledItems()`가 이 함수를 호출하도록 리팩토 (동작 동일, 멱등)
+- [x] `POST /api/admin/schedule/bulk-generate` — `{ year, month, force? }` 요청. 응답 `{ total, queued, alreadyCompleted, estimatedCostUsd }` 즉시 반환, 실제 생성은 백그라운드
+  - 동시성: Puppeteer 계열(card_news/carousel/motion_reel) `p-limit(2)`, FAL 이미지(post/story_image) `p-limit(5)`, 비디오(reel/tiktok) `p-limit(3)` 유형별 분리
+  - **HTTP 루프백 self-call**: 기존 `/generate-image` 라우트 전체(540줄)를 함수 추출 없이 재사용. `x-api-key=ADMIN_PASSWORD` 헤더로 `requireAdmin` 통과
+  - CREDIT_EXHAUSTED 402 응답 감지 → `rejectionReason`에 보존
+- [x] `GET /api/admin/schedule/bulk-generate/preview?year=&month=&force=` — 비용/시간/개수 사전 조회
+- [x] `GET /api/admin/schedule/bulk-progress?year=&month=` — schedule ↔ queue 상태 reconcile + generating 항목의 percent/stage + failed 항목의 rejectionReason
+- [x] `POST /api/admin/schedule/items/:id/regenerate` — 개별 재생성 엔드포인트
+- [x] `admin-scheduler.tsx` `MonthlyCalendarTab` 주차별 Accordion으로 재작성
+  - 1~5주차 버킷팅 (Sydney TZ 첫날 오프셋 기반)
+  - 헤더: 주차 라벨 + 기간 + 콘텐츠 타입 카운트 + 총 개수 + 완료/생성중/실패 배지
+  - 본문: 요일/날짜/시간/플랫폼/타입 배지 + 주제/설명 인라인 편집 + 상태 배지 + 진행률 바 + 개별 재생성 버튼
+- [x] 상단 진행 바 `"제작 진행: N/M 완료 · K개 생성 중 · P개 실패"` + "실패 항목 보기" 링크 (해당 주차 Accordion 자동 펼침)
+- [x] 비용 경고 `AlertDialog` — "전체 제작" 클릭 시 preview 먼저 조회 → 확인 시 bulk-generate POST
+- [x] CREDIT_EXHAUSTED 감지 → `admin-marketing`과 동일한 `creditAlert` 다이얼로그 (충전 링크 포함)
+- [x] 개별 재생성: `generated`/`failed` 상태 + `queueItemId` 있을 때만 노출
+- [x] `WeeklyPatternTab`은 손대지 않음 ✓
+
+**핵심 변경 파일**:
+- `server/services/schedulerService.ts` — `generateCopyForScheduleItem()` export
+- `server/adminRoutes.ts` — 4개 엔드포인트 신설 (`bulk-generate`, `bulk-generate/preview`, `bulk-progress`, `items/:id/regenerate`)
+- `client/src/pages/admin-scheduler.tsx` — `MonthlyCalendarTab` 전면 재작성 (달력 → Accordion)
+
+#### Phase 2.6-D: Storage Cleanup 확장 ✅ (2026-04-21)
+
+**검증 결과 (원칙 7: 가설 → 증거 → 진단 → 수정)**:
+- `storageService.ts:154`의 `status === "posted"` 30일 삭제 규칙은 **데드 룰**로 확인됨 — `postedAt` / `"posted"` 세팅 코드가 전 코드베이스에 0곳 (grep 증거). Meta Graph 연동(Phase 2.8) 전까지 영원히 미실행.
+- `slideUrls[]` 배열 처리 누락 — 카드뉴스/캐러셀 슬라이드 PNG 5-7장/건이 영구 누적되던 상태.
+- `status === "failed"` 정리 규칙 없음 — 실패 항목이 영원히 쌓임.
+
+**완료 체크리스트**:
+- [x] `cleanupOldContent` 확장
+  - `rejected` 7일 규칙에 `slideUrls[]` 순회 삭제 추가
+  - `failed` + 14일 경과 → Storage(imageUrl/videoUrl/slideUrls) + DB row 완전 삭제 (신규)
+  - `posted` 30일 규칙은 유지하되 Meta 연동 전 데드 상태임을 코드 주석으로 문서화
+  - 반환값 `{ rejectedDeleted, failedDeleted, slideUrlsPurged, postedArchived }` 통계 객체
+- [x] `getStorageUsage()` 함수 — 버킷별 파일 개수 + 총 바이트 합산 (페이지네이션 지원, 1000개/요청)
+- [x] `GET /api/admin/storage/usage` 엔드포인트 — 모든 버킷 집계 + 합계
+
+**범위 밖 (Phase 2.8로 분리)**: Meta Graph OAuth, `postedAt`/`metaPostId` 세팅, 자동 게시, 게시 후 재생성 가드
+
+#### Phase 2.6-E: 무드 기반 브랜드 음악 자동 선택 ✅ (2026-04-21)
+
+**동기**: 인스타그램 내장 음악 라이브러리는 Graph API로 쓸 수 없음 (Meta 라이선스 제약). 대신 `brand-music` 버킷에 올려둔 자체 트랙 중 **포스트 분위기에 맞는 음악을 자동 선택**해서 reel/tiktok/motion_reel에 합성.
+
+**통제 어휘 8종** (`shared/moods.ts`, value = label, 한글 고정):
+- 발랄함 / 따뜻함 / 차분함 / 신나는 / 포근함 / 당당함 / 아련함 / 명랑함
+
+**완료 체크리스트**:
+- [x] `shared/moods.ts` — `MOOD_VALUES`, `MOOD_FALLBACK="따뜻함"`, `normalizeMood()`, `MOOD_DESCRIPTIONS`
+- [x] `claudeMarketingService.generateMarketingContent` 응답에 `mood` 필드 추가 (시스템 프롬프트에 통제 어휘 주입)
+- [x] `classifyMoodFromCaption()` 신규 함수 — 이미 생성된 caption을 분류 (regenerate 경로용). 1회당 ≈ $0.001
+- [x] `server/services/brandMusicSelector.ts` — `selectBrandMusicForMood(mood)`
+  - 활성 `brand_music` 트랙 중 mood 일치 → LRU(`content.lastUsedAt`) → 선택
+  - 일치 없으면 `따뜻함` fallback → 그래도 없으면 전체 중 LRU
+  - 라이브러리 empty면 null 반환 → 호출자가 item을 `failed`로 마킹 (사용자 정책: 무음 게시 절대 금지)
+  - 선택 직후 `lastUsedAt` write-back으로 로테이션 보장
+- [x] `adminRoutes.buildGenerateImageBody(queueItemId)` — `MUSIC_ENABLED_TYPES={reel, tiktok, motion_reel}`에만 `{audioEnabled, musicUrl, musicVolume:40}` 주입. 외 타입은 `{}` 반환
+- [x] bulk-generate + regenerate 두 경로 모두 빈 `{}` → `buildGenerateImageBody()` 경유로 변경
+- [x] 라이브러리 비어있을 때 에러 → schedule_item + queue_item 모두 `failed` + rejectionReason에 한글 안내 메시지 저장 (bulk-progress UI 툴팁에 표출)
+- [x] `admin-brand-studio` 업로드 드롭다운을 8개 한글 통제 어휘로 교체. 업로드된 각 트랙 행에 **인라인 mood Select 추가** — 사용자가 기존 3개 트랙을 새 어휘로 즉시 재태깅 가능. 무효 태그는 amber 경고 스타일로 표시
+
+**persistence 결정**: marketing_queue에 mood 컬럼 추가 없이, caption을 기반으로 bulk/regenerate 시점에 `classifyMoodFromCaption` 재호출. schema.ts 금칙 준수. 추가 Claude 호출 비용은 39개/월 기준 ≈ $0.04 (무시 가능)
+
+**사용자 운영 플로우**:
+1. `/admin/brand-studio` → 음악 탭에서 8가지 mood별로 최소 1곡씩 업로드 (기존 3곡은 인라인 Select로 재태깅)
+2. `/admin/scheduler`에서 "전체 제작" 클릭
+3. 각 reel/tiktok/motion_reel마다 Claude가 caption mood 분류 → selector가 트랙 선택 → FFmpeg가 영상에 합성
+4. 콘솔 로그: `[BrandMusic] queue=... mood=발랄함 → track="아침산책테마" (exact)`
+
+**범위 밖**: 시즌/시간대 혼합 태깅, Claude에 트랙 목록 직접 제시해서 고르게 하는 방식, Meta 자동 게시
 
 ---
 

@@ -2643,4 +2643,403 @@ JSON 형식으로만 응답:
       res.status(500).json({ error: error.message });
     }
   });
+
+  // ─── Bulk Generate (Phase 2.6-C) ────────────────────────────────
+  //
+  // Rough per-item cost (USD). Keep in sync with falService pricing.
+  // Sources:
+  //   - nano-banana-2: ~$0.039 per 1024x1024 image
+  //   - kling v2.5-turbo pro i2v: ~$1.00 per 8s clip
+  //   - motion_reel: 4 × nano-banana-2 + FFmpeg local = ~$0.16
+  //   - card_news/carousel: 1 × nano-banana-2 (Puppeteer renders slides) = ~$0.04
+  const COST_PER_CONTENT_TYPE: Record<string, number> = {
+    post: 0.04,
+    story_image: 0.04,
+    card_news: 0.04,
+    carousel: 0.04,
+    reel: 1.00,
+    tiktok: 1.00,
+    motion_reel: 0.16,
+    text: 0.01,
+  };
+
+  // Seconds per item (approximate wall time for generation + render)
+  const TIME_PER_CONTENT_TYPE: Record<string, number> = {
+    post: 20,
+    story_image: 20,
+    card_news: 60,
+    carousel: 45,
+    reel: 120,
+    tiktok: 120,
+    motion_reel: 180,
+    text: 5,
+  };
+
+  function getSelfBaseUrl(): string {
+    const port = parseInt(process.env.PORT || "3000", 10);
+    return `http://127.0.0.1:${port}`;
+  }
+
+  // Content types that get brand-music auto-attached. Card news/static posts stay silent.
+  const MUSIC_ENABLED_TYPES = new Set(["reel", "tiktok", "motion_reel"]);
+
+  // Build the /generate-image request body for a queue item:
+  //   - For music-enabled content types: classifies mood from caption, picks a track
+  //     via brandMusicSelector (LRU within mood, 따뜻함 fallback), returns body with
+  //     audioEnabled=true + musicUrl.
+  //   - For other types: returns empty body ({}), preserving /generate-image defaults.
+  //
+  // User policy: reels must never publish silent. If MUSIC_ENABLED_TYPES item has zero
+  // active brand_music tracks in the library, this throws — caller marks the item failed.
+  async function buildGenerateImageBody(queueItemId: string): Promise<Record<string, any>> {
+    const queueItem = await storage.getMarketingQueueItem(queueItemId);
+    if (!queueItem) throw new Error(`queue item ${queueItemId} not found`);
+    if (!MUSIC_ENABLED_TYPES.has(queueItem.contentType)) return {};
+
+    const caption = queueItem.caption || queueItem.topic || "";
+    const { classifyMoodFromCaption } = await import("./services/claudeMarketingService");
+    const { selectBrandMusicForMood } = await import("./services/brandMusicSelector");
+
+    const mood = await classifyMoodFromCaption({
+      caption,
+      topic: queueItem.topic || undefined,
+      contentType: queueItem.contentType,
+    });
+
+    const track = await selectBrandMusicForMood(mood);
+    if (!track) {
+      throw new Error(
+        `브랜드 음악 라이브러리가 비어 있습니다. /admin/brand-studio에서 음악을 업로드하세요 (${queueItem.contentType} post requires audio)`
+      );
+    }
+
+    console.log(
+      `[BrandMusic] queue=${queueItemId} mood=${mood} → track="${track.title}" (${track.matchedExactMood ? "exact" : "fallback"})`
+    );
+
+    return {
+      audioEnabled: true,
+      musicUrl: track.url,
+      musicVolume: 40,
+    };
+  }
+
+  // Preview: how many items would be generated + estimated cost/time.
+  app.get("/api/admin/schedule/bulk-generate/preview", requireAdmin, async (req: Request, res: Response) => {
+    try {
+      const year = Number(req.query.year);
+      const month = Number(req.query.month);
+      const force = req.query.force === "true";
+      if (!year || !month) {
+        return res.status(400).json({ error: "year, month required" });
+      }
+
+      const items = await storage.getScheduleItems(year, month);
+      const targets = items.filter((i) => {
+        if (i.status === "approved" || i.status === "failed") return true;
+        if (force && i.status === "generated") return true;
+        return false;
+      });
+
+      const byType: Record<string, number> = {};
+      let estimatedCostUsd = 0;
+      let estimatedSeconds = 0;
+      for (const t of targets) {
+        byType[t.contentType] = (byType[t.contentType] || 0) + 1;
+        estimatedCostUsd += COST_PER_CONTENT_TYPE[t.contentType] ?? 0.05;
+        estimatedSeconds += TIME_PER_CONTENT_TYPE[t.contentType] ?? 30;
+      }
+
+      // With Puppeteer(2) + FAL(5) concurrency, wall time ≈ seconds / 3
+      const estimatedMinutes = Math.ceil(estimatedSeconds / 3 / 60);
+
+      res.json({
+        total: targets.length,
+        byType,
+        estimatedCostUsd: Math.round(estimatedCostUsd * 100) / 100,
+        estimatedMinutes,
+      });
+    } catch (err: any) {
+      console.error("[bulk-generate/preview]", err);
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // Bulk generate: fires Claude copy generation + background image/video pipeline
+  // for every approved (or failed/force-generated) schedule_item in a given month.
+  //
+  // Returns immediately with counts; actual generation happens in the background.
+  // Progress is tracked via GET /api/admin/schedule/bulk-progress.
+  app.post("/api/admin/schedule/bulk-generate", requireAdmin, async (req: Request, res: Response) => {
+    try {
+      const { year, month, force } = req.body;
+      if (!year || !month) {
+        return res.status(400).json({ error: "year, month required" });
+      }
+
+      const { generateCopyForScheduleItem } = await import("./services/schedulerService");
+      const pLimitMod = await import("p-limit");
+      const pLimit = pLimitMod.default;
+
+      const items = await storage.getScheduleItems(year, month);
+      const targets = items.filter((i) => {
+        if (i.status === "approved" || i.status === "failed") return true;
+        if (force && i.status === "generated") return true;
+        return false;
+      });
+
+      const alreadyCompleted = items.filter((i) => i.status === "generated").length;
+      let estimatedCostUsd = 0;
+      for (const t of targets) {
+        estimatedCostUsd += COST_PER_CONTENT_TYPE[t.contentType] ?? 0.05;
+      }
+
+      // Respond immediately; run everything below in background.
+      res.json({
+        total: targets.length,
+        queued: targets.length,
+        alreadyCompleted,
+        estimatedCostUsd: Math.round(estimatedCostUsd * 100) / 100,
+      });
+
+      // Separate limiters so heavy Puppeteer pipelines don't block light image calls.
+      const puppeteerLimit = pLimit(2); // card_news, carousel, motion_reel
+      const imageLimit = pLimit(5);     // post, story_image
+      const videoLimit = pLimit(3);     // reel, tiktok
+
+      const pickLimiter = (contentType: string) => {
+        if (contentType === "card_news" || contentType === "carousel" || contentType === "motion_reel") {
+          return puppeteerLimit;
+        }
+        if (contentType === "reel" || contentType === "tiktok") return videoLimit;
+        return imageLimit;
+      };
+
+      const baseUrl = getSelfBaseUrl();
+      const apiKey = process.env.ADMIN_PASSWORD;
+
+      (async () => {
+        await Promise.allSettled(
+          targets.map((item) =>
+            pickLimiter(item.contentType)(async () => {
+              try {
+                // If this is a force regeneration and schedule item already has a queueItemId,
+                // reset that queue item status and reuse it.
+                let queueItemId = item.queueItemId || null;
+
+                if (!queueItemId) {
+                  queueItemId = await generateCopyForScheduleItem(item);
+                } else {
+                  // Force path: reset schedule + queue status to generating
+                  await storage.updateScheduleItem(item.id, { status: "generating" });
+                  await storage.updateMarketingQueueItem(queueItemId, {
+                    status: "approved",
+                    rejectionReason: null,
+                  } as any).catch(() => {});
+                }
+
+                if (!queueItemId) {
+                  throw new Error("Queue item id missing after copy generation");
+                }
+
+                // Resolve brand music (reels/tiktok/motion_reel only). Throws if library empty.
+                const generateBody = await buildGenerateImageBody(queueItemId);
+
+                // Fire /generate-image via HTTP loopback — reuses 540 lines of pipeline logic.
+                // The route is async (returns 200 immediately, generates in background), but
+                // we still await the initial HTTP call so synchronous validation errors surface.
+                const response = await fetch(`${baseUrl}/api/admin/marketing/queue/${queueItemId}/generate-image`, {
+                  method: "POST",
+                  headers: {
+                    "Content-Type": "application/json",
+                    "x-api-key": apiKey || "",
+                  },
+                  body: JSON.stringify(generateBody),
+                });
+
+                if (!response.ok) {
+                  const body = await response.json().catch(() => ({}));
+                  const reason = body?.error === "CREDIT_EXHAUSTED"
+                    ? `CREDIT_EXHAUSTED:${body.service || "fal.ai"}`
+                    : body?.message || `HTTP ${response.status}`;
+                  await storage.updateMarketingQueueItem(queueItemId, {
+                    status: "failed",
+                    rejectionReason: reason,
+                  } as any).catch(() => {});
+                  await storage.updateScheduleItem(item.id, { status: "failed" });
+                  console.error(`[bulk-generate] schedule ${item.id} failed:`, reason);
+                }
+              } catch (err: any) {
+                console.error(`[bulk-generate] schedule ${item.id} error:`, err.message);
+                await storage.updateScheduleItem(item.id, { status: "failed" }).catch(() => {});
+                // Record the error on the queue item too so the UI tooltip shows it.
+                if (item.queueItemId) {
+                  await storage.updateMarketingQueueItem(item.queueItemId, {
+                    status: "failed",
+                    rejectionReason: err.message || "bulk-generate error",
+                  } as any).catch(() => {});
+                }
+              }
+            })
+          )
+        );
+        console.log(`[bulk-generate] ${year}-${month} complete (${targets.length} items)`);
+      })();
+    } catch (err: any) {
+      console.error("[bulk-generate]", err);
+      if (!res.headersSent) {
+        res.status(500).json({ error: err.message });
+      }
+    }
+  });
+
+  // Aggregate progress for the bulk-generate flow.
+  // Combines schedule_item.status counts with live queue-item progress.
+  app.get("/api/admin/schedule/bulk-progress", requireAdmin, async (req: Request, res: Response) => {
+    try {
+      const year = Number(req.query.year);
+      const month = Number(req.query.month);
+      if (!year || !month) {
+        return res.status(400).json({ error: "year, month required" });
+      }
+
+      const items = await storage.getScheduleItems(year, month);
+      const counts = {
+        draft: 0,
+        approved: 0,
+        generating: 0,
+        generated: 0,
+        failed: 0,
+        total: items.length,
+      };
+
+      // Reconcile: a schedule item linked to a queue item with a terminal status
+      // should reflect that status.
+      const { getVideoProgress } = await import("./services/falService");
+      const generatingDetails: {
+        scheduleItemId: string;
+        queueItemId: string;
+        percent: number;
+        stage: string;
+      }[] = [];
+
+      const failedDetails: {
+        scheduleItemId: string;
+        queueItemId: string | null;
+        rejectionReason: string | null;
+      }[] = [];
+
+      for (const item of items) {
+        let effectiveStatus = item.status;
+
+        if (item.queueItemId) {
+          const queue = await storage.getMarketingQueueItem(item.queueItemId);
+          if (queue) {
+            if (queue.status === "failed") effectiveStatus = "failed";
+            else if (queue.status === "generating") effectiveStatus = "generating";
+            else if (queue.status === "approved" && queue.imageUrl) effectiveStatus = "generated";
+
+            if (effectiveStatus === "generating") {
+              const progress = getVideoProgress(queue.id);
+              generatingDetails.push({
+                scheduleItemId: item.id,
+                queueItemId: queue.id,
+                percent: progress?.percent || 0,
+                stage: progress?.stage || "대기 중",
+              });
+            }
+            if (effectiveStatus === "failed") {
+              failedDetails.push({
+                scheduleItemId: item.id,
+                queueItemId: queue.id,
+                rejectionReason: queue.rejectionReason || null,
+              });
+            }
+          }
+        } else if (item.status === "failed") {
+          failedDetails.push({
+            scheduleItemId: item.id,
+            queueItemId: null,
+            rejectionReason: null,
+          });
+        }
+
+        if (effectiveStatus in counts) {
+          (counts as any)[effectiveStatus]++;
+        }
+      }
+
+      res.json({ counts, generatingDetails, failedDetails });
+    } catch (err: any) {
+      console.error("[bulk-progress]", err);
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // Retrigger image/video generation for a single schedule item (used by
+  // the Accordion's 다시 만들기 button).
+  app.post("/api/admin/schedule/items/:id/regenerate", requireAdmin, async (req: Request, res: Response) => {
+    try {
+      const item = await storage.getScheduleItem(req.params.id);
+      if (!item) return res.status(404).json({ error: "Schedule item not found" });
+
+      const { generateCopyForScheduleItem } = await import("./services/schedulerService");
+
+      let queueItemId = item.queueItemId;
+      if (!queueItemId) {
+        queueItemId = await generateCopyForScheduleItem(item);
+      } else {
+        await storage.updateMarketingQueueItem(queueItemId, {
+          status: "approved",
+          rejectionReason: null,
+        } as any).catch(() => {});
+      }
+
+      await storage.updateScheduleItem(item.id, { status: "generating" });
+
+      const baseUrl = getSelfBaseUrl();
+      const apiKey = process.env.ADMIN_PASSWORD;
+
+      // Resolve brand music (reels/tiktok/motion_reel only). Re-classifies mood
+      // from caption so re-selection picks a fresh LRU track each regenerate.
+      const generateBody = await buildGenerateImageBody(queueItemId);
+
+      // Fire and respond — /generate-image itself is async and returns 200 quickly.
+      const response = await fetch(`${baseUrl}/api/admin/marketing/queue/${queueItemId}/generate-image`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-api-key": apiKey || "",
+        },
+        body: JSON.stringify(generateBody),
+      });
+
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({}));
+        if (body?.error === "CREDIT_EXHAUSTED") {
+          return res.status(402).json(body);
+        }
+        return res.status(response.status).json(body);
+      }
+
+      res.json({ success: true, queueItemId });
+    } catch (err: any) {
+      console.error("[regenerate]", err);
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // ─── Storage Usage (Phase 2.6-D) ────────────────────────────────
+  app.get("/api/admin/storage/usage", requireAdmin, async (_req: Request, res: Response) => {
+    try {
+      const { getStorageUsage } = await import("./services/storageService");
+      const usage = await getStorageUsage();
+      const totalBytes = usage.reduce((sum, b) => sum + b.totalBytes, 0);
+      const totalFiles = usage.reduce((sum, b) => sum + b.fileCount, 0);
+      res.json({ buckets: usage, totalBytes, totalFiles });
+    } catch (err: any) {
+      console.error("[storage/usage]", err);
+      res.status(500).json({ error: err.message });
+    }
+  });
 }

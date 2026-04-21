@@ -131,7 +131,28 @@ export async function deleteFromStorage(url: string) {
   }
 }
 
+/**
+ * Delete all URLs in slideUrls array from Storage. Returns count deleted.
+ */
+async function deleteSlideUrls(slideUrls: string[] | null | undefined): Promise<number> {
+  if (!slideUrls || slideUrls.length === 0) return 0;
+  let count = 0;
+  for (const url of slideUrls) {
+    if (!url) continue;
+    await deleteFromStorage(url);
+    count++;
+  }
+  return count;
+}
+
 export async function cleanupOldContent() {
+  const stats = {
+    rejectedDeleted: 0,
+    failedDeleted: 0,
+    slideUrlsPurged: 0,
+    postedArchived: 0,
+  };
+
   try {
     const { storage: db } = await import("../storage");
     const queue = await db.getMarketingQueue();
@@ -142,33 +163,117 @@ export async function cleanupOldContent() {
       const daysSinceCreated =
         (now.getTime() - createdAt.getTime()) / (1000 * 60 * 60 * 24);
 
+      // rejected → 7일 경과 시 완전 삭제
       if (item.status === "rejected" && daysSinceCreated > 7) {
         if (item.imageUrl) await deleteFromStorage(item.imageUrl);
         if (item.videoUrl) await deleteFromStorage(item.videoUrl);
+        const purged = await deleteSlideUrls(item.slideUrls);
+        stats.slideUrlsPurged += purged;
         await db.deleteMarketingQueueItem(item.id);
-        console.log(`[Cleanup] Deleted rejected item: ${item.id}`);
+        stats.rejectedDeleted++;
         continue;
       }
 
+      // failed → 14일 경과 시 완전 삭제
+      if (item.status === "failed" && daysSinceCreated > 14) {
+        if (item.imageUrl) await deleteFromStorage(item.imageUrl);
+        if (item.videoUrl) await deleteFromStorage(item.videoUrl);
+        const purged = await deleteSlideUrls(item.slideUrls);
+        stats.slideUrlsPurged += purged;
+        await db.deleteMarketingQueueItem(item.id);
+        stats.failedDeleted++;
+        continue;
+      }
+
+      // posted → 30일 경과 시 Storage 파일만 아카이브 (DB row 유지)
+      // NOTE: 현재 postedAt을 세팅하는 경로가 없음 (Phase 2.8 Meta Graph 연동 전).
+      // Meta 연동 후 자동 활성화됨.
       const postedAt = item.postedAt ? new Date(item.postedAt) : null;
       if (item.status === "posted" && postedAt) {
         const daysSincePosted =
           (now.getTime() - postedAt.getTime()) / (1000 * 60 * 60 * 24);
         if (daysSincePosted > 30) {
+          const updates: Record<string, any> = {};
           if (item.imageUrl && item.imageUrl.includes("supabase")) {
             await deleteFromStorage(item.imageUrl);
-            await db.updateMarketingQueueItem(item.id, { imageUrl: null });
+            updates.imageUrl = null;
           }
           if (item.videoUrl && item.videoUrl.includes("supabase")) {
             await deleteFromStorage(item.videoUrl);
-            await db.updateMarketingQueueItem(item.id, { videoUrl: null });
+            updates.videoUrl = null;
+          }
+          if (item.slideUrls && item.slideUrls.length > 0) {
+            const purged = await deleteSlideUrls(item.slideUrls);
+            stats.slideUrlsPurged += purged;
+            updates.slideUrls = null;
+          }
+          if (Object.keys(updates).length > 0) {
+            await db.updateMarketingQueueItem(item.id, updates);
+            stats.postedArchived++;
           }
         }
       }
     }
 
-    console.log("[Cleanup] Storage cleanup completed");
+    console.log("[Cleanup] Storage cleanup completed:", stats);
   } catch (err: any) {
     console.error("[Cleanup] Storage cleanup error:", err.message);
   }
+
+  return stats;
+}
+
+export type StorageUsage = {
+  bucket: string;
+  fileCount: number;
+  totalBytes: number;
+};
+
+/**
+ * Returns per-bucket file count + total bytes. Iterates with pagination to
+ * survive large buckets. Lists at the root only — subfolders are flattened via
+ * search with empty prefix (Supabase list includes nested files when prefix="").
+ */
+export async function getStorageUsage(): Promise<StorageUsage[]> {
+  const results: StorageUsage[] = [];
+
+  for (const [, bucketName] of Object.entries(BUCKETS)) {
+    let fileCount = 0;
+    let totalBytes = 0;
+    let offset = 0;
+    const limit = 1000;
+
+    try {
+      while (true) {
+        const { data, error } = await supabase.storage
+          .from(bucketName)
+          .list("", { limit, offset });
+
+        if (error) {
+          console.warn(`[Storage usage] Bucket "${bucketName}" list error:`, error.message);
+          break;
+        }
+        if (!data || data.length === 0) break;
+
+        for (const f of data) {
+          // Skip directory markers (id=null and no metadata)
+          if (!f.id && !f.metadata) continue;
+          const size = (f.metadata as any)?.size;
+          if (typeof size === "number") {
+            totalBytes += size;
+            fileCount++;
+          }
+        }
+
+        if (data.length < limit) break;
+        offset += limit;
+      }
+    } catch (err: any) {
+      console.warn(`[Storage usage] Bucket "${bucketName}" failed:`, err.message);
+    }
+
+    results.push({ bucket: bucketName, fileCount, totalBytes });
+  }
+
+  return results;
 }

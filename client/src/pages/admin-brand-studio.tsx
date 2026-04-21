@@ -59,6 +59,7 @@ import {
   Pause,
 } from "lucide-react";
 import type { BrandContext, GukdungImage } from "@shared/schema";
+import { MOOD_VALUES, MOOD_DESCRIPTIONS, MOOD_FALLBACK } from "@shared/moods";
 
 // ── Brand Identity constants ───────────────────────────────────────
 const GOOGLE_FONTS = [
@@ -68,13 +69,13 @@ const GOOGLE_FONTS = [
   "DM Serif Display", "Cormorant Garamond", "Josefin Sans",
 ];
 
-const MUSIC_MOODS = [
-  { value: "calm", label: "잔잔" },
-  { value: "upbeat", label: "경쾌" },
-  { value: "emotional", label: "감성" },
-  { value: "energetic", label: "에너지" },
-  { value: "seasonal", label: "시즌" },
-];
+// Controlled vocabulary shared with server (post classification + music matching).
+// Value === label (Korean) — kept in sync with shared/moods.ts.
+const MUSIC_MOODS = MOOD_VALUES.map((v) => ({
+  value: v,
+  label: v,
+  hint: MOOD_DESCRIPTIONS[v],
+}));
 
 function formatDuration(sec: number): string {
   if (!sec || sec < 1) return "0:00";
@@ -322,7 +323,7 @@ export default function AdminBrandStudio() {
   const [musicDialogOpen, setMusicDialogOpen] = useState(false);
   const [musicFile, setMusicFile] = useState<File | null>(null);
   const [musicTitle, setMusicTitle] = useState("");
-  const [musicMood, setMusicMood] = useState("calm");
+  const [musicMood, setMusicMood] = useState<string>(MOOD_FALLBACK);
   const [isUploadingMusic, setIsUploadingMusic] = useState(false);
 
   // ── Queries ───────────────────────────────────────────────────────
@@ -706,6 +707,16 @@ export default function AdminBrandStudio() {
       toast({ title: "삭제 완료" });
     } catch (err: any) {
       toast({ title: "삭제 실패", description: err.message, variant: "destructive" });
+    }
+  };
+
+  const handleUpdateMusicMood = async (id: string, mood: string) => {
+    try {
+      await apiRequest("PATCH", `/api/admin/brand/music/${id}`, { mood });
+      await queryClient.invalidateQueries({ queryKey: ["/api/admin/brand/context"] });
+      toast({ title: "분위기 변경 완료", description: mood });
+    } catch (err: any) {
+      toast({ title: "변경 실패", description: err.message, variant: "destructive" });
     }
   };
   const trainingCount = images.filter((i) => i.isTrainingData).length;
@@ -1313,13 +1324,28 @@ export default function AdminBrandStudio() {
                     } catch {
                       meta = { url: "", mood: "neutral", durationSec: 0, fileName: "", sizeBytes: 0 };
                     }
-                    const moodLabel = MUSIC_MOODS.find((m) => m.value === meta.mood)?.label ?? meta.mood;
+                    const isValidMoodTag = MUSIC_MOODS.some((m) => m.value === meta.mood);
                     return (
                       <div key={item.id} className="rounded-lg border bg-white p-3 flex items-center gap-3" data-testid={`music-card-${item.id}`}>
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 mb-1">
                             <p className="font-medium text-sm truncate">{item.title}</p>
-                            <span className="text-xs px-2 py-0.5 rounded-full bg-stone-100 text-stone-600 flex-shrink-0">{moodLabel}</span>
+                            <Select
+                              value={isValidMoodTag ? meta.mood : ""}
+                              onValueChange={(v) => handleUpdateMusicMood(item.id, v)}
+                            >
+                              <SelectTrigger
+                                className={`h-6 w-24 text-xs ${isValidMoodTag ? "" : "border-amber-400 bg-amber-50 text-amber-700"}`}
+                                data-testid={`select-music-mood-${item.id}`}
+                              >
+                                <SelectValue placeholder={isValidMoodTag ? undefined : "수정필요"} />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {MUSIC_MOODS.map((m) => (
+                                  <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
                             <span className="text-xs text-gray-500 flex-shrink-0">{formatDuration(meta.durationSec)}</span>
                           </div>
                           {meta.url && (

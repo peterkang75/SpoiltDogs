@@ -1,6 +1,7 @@
 import cron from "node-cron";
 import { storage } from "../storage";
 import { generateMarketingContent } from "./claudeMarketingService";
+import type { ContentScheduleItem } from "@shared/schema";
 
 function getSydneyDateStr(): string {
   const now = new Date();
@@ -10,6 +11,63 @@ function getSydneyDateStr(): string {
 
 function getSydneyTime(): string {
   return new Date().toLocaleString("en-AU", { timeZone: "Australia/Sydney", hour12: false });
+}
+
+/**
+ * Generates Claude copy for a single schedule item and creates (or reuses)
+ * a marketing_queue row. Sets schedule_item.status to "generated" and links queueItemId.
+ *
+ * Returns the queue item id on success. Throws on failure — caller is responsible
+ * for setting status to "failed" and recording rejectionReason if needed.
+ *
+ * Idempotent: if the item already has queueItemId, returns it without regeneration.
+ */
+export async function generateCopyForScheduleItem(
+  scheduleItem: ContentScheduleItem
+): Promise<string> {
+  if (scheduleItem.queueItemId) {
+    return scheduleItem.queueItemId;
+  }
+
+  await storage.updateScheduleItem(scheduleItem.id, { status: "generating" });
+
+  const topic =
+    scheduleItem.topic ||
+    scheduleItem.description ||
+    scheduleItem.theme ||
+    "국둥이 일상";
+
+  const result = await generateMarketingContent({
+    topic,
+    platform: scheduleItem.platform,
+    contentType: scheduleItem.contentType,
+    additionalInstructions: scheduleItem.description || "",
+  });
+
+  const fullImagePrompt = result.imagePrompt
+    ? result.imagePrompt +
+      (result.imageGuidelines
+        ? `\n\n=== STYLE GUIDELINES ===\n${result.imageGuidelines}`
+        : "")
+    : "";
+
+  const queueItem = await storage.createMarketingQueueItem({
+    platform: scheduleItem.platform,
+    contentType: scheduleItem.contentType,
+    caption: result.caption,
+    hashtags: result.hashtags,
+    imagePrompt: fullImagePrompt,
+    topic,
+    status: "approved", // ready for image generation
+    scheduledAt: new Date(scheduleItem.scheduledDate),
+  });
+
+  await storage.updateScheduleItem(scheduleItem.id, {
+    status: "generated",
+    queueItemId: queueItem.id,
+  });
+
+  return queueItem.id;
 }
 
 async function processScheduledItems() {
@@ -34,46 +92,9 @@ async function processScheduledItems() {
 
   for (const scheduleItem of todayApproved) {
     try {
-      // Mark as generating
-      await storage.updateScheduleItem(scheduleItem.id, { status: "generating" });
-
-      // Generate marketing content (caption, hashtags, imagePrompt)
-      const topic = scheduleItem.topic || scheduleItem.description || scheduleItem.theme || "국둥이 일상";
-      const result = await generateMarketingContent({
-        topic,
-        platform: scheduleItem.platform,
-        contentType: scheduleItem.contentType,
-        additionalInstructions: scheduleItem.description || "",
-      });
-
-      // Build full image prompt with guidelines
-      const fullImagePrompt = result.imagePrompt
-        ? result.imagePrompt +
-          (result.imageGuidelines
-            ? `\n\n=== STYLE GUIDELINES ===\n${result.imageGuidelines}`
-            : "")
-        : "";
-
-      // Create marketing queue item
-      const queueItem = await storage.createMarketingQueueItem({
-        platform: scheduleItem.platform,
-        contentType: scheduleItem.contentType,
-        caption: result.caption,
-        hashtags: result.hashtags,
-        imagePrompt: fullImagePrompt,
-        topic,
-        status: "approved", // auto-approved, ready for image generation
-        scheduledAt: new Date(scheduleItem.scheduledDate),
-      });
-
-      // Link schedule item to queue item
-      await storage.updateScheduleItem(scheduleItem.id, {
-        status: "generated",
-        queueItemId: queueItem.id,
-      });
-
+      const queueItemId = await generateCopyForScheduleItem(scheduleItem);
       console.log(
-        `[Scheduler] Created queue item ${queueItem.id} for schedule ${scheduleItem.id} (${scheduleItem.platform}/${scheduleItem.contentType}: "${topic}")`
+        `[Scheduler] Created queue item ${queueItemId} for schedule ${scheduleItem.id} (${scheduleItem.platform}/${scheduleItem.contentType})`
       );
     } catch (err: any) {
       console.error(
@@ -89,9 +110,7 @@ async function processScheduledItems() {
 
 export function startScheduler() {
   // Run daily at 6:00 AM Sydney time
-  // Sydney is UTC+10 (AEST) or UTC+11 (AEDT)
-  // We use node-cron with timezone support
-  const schedule = "0 6 * * *"; // 6:00 AM every day
+  const schedule = "0 6 * * *";
 
   cron.schedule(schedule, async () => {
     console.log("[Scheduler] Cron triggered");
@@ -107,5 +126,4 @@ export function startScheduler() {
   console.log("[Scheduler] Started — runs daily at 06:00 Sydney time");
 }
 
-// Manual trigger for testing
 export { processScheduledItems };

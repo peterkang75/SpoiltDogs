@@ -1,5 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { storage } from "../storage";
+import { MOOD_VALUES, MOOD_DESCRIPTIONS, normalizeMood, type Mood } from "@shared/moods";
 
 const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
@@ -47,6 +48,7 @@ export async function generateMarketingContent({
   hashtags: string;
   imagePrompt: string;
   imageGuidelines: string;
+  mood: Mood;
 }> {
   const brandContextItems = await storage.getBrandContextItems();
   const activeItems = brandContextItems.filter((item) => item.isActive);
@@ -97,11 +99,16 @@ ${promptText ? `== ADDITIONAL TONE INSTRUCTION ==\n${promptText}` : ""}
 == CONTENT TYPE ==
 ${contentTypeInstruction}
 
+== MOOD CLASSIFICATION ==
+Also classify this post's overall emotional mood. Pick exactly ONE from this Korean controlled vocabulary (music library uses same tags for track selection):
+${MOOD_VALUES.map((m) => `- "${m}" — ${MOOD_DESCRIPTIONS[m]}`).join("\n")}
+
 You must respond ONLY with a valid JSON object. No markdown, no explanation, no code blocks. Start directly with {
 {
   "caption": "the full post caption with emojis",
   "hashtags": "#tag1 #tag2 #tag3",
-  "imagePrompt": "detailed English prompt for AI image generation featuring Gukdung in the scene — include aspect ratio: ${aspectRatioHint}"
+  "imagePrompt": "detailed English prompt for AI image generation featuring Gukdung in the scene — include aspect ratio: ${aspectRatioHint}",
+  "mood": "one of: ${MOOD_VALUES.join(" | ")}"
 }`;
 
   const attachmentContext =
@@ -130,6 +137,7 @@ You must respond ONLY with a valid JSON object. No markdown, no explanation, no 
       hashtags: "",
       imagePrompt: "",
       imageGuidelines,
+      mood: normalizeMood(undefined),
     };
   }
 
@@ -140,6 +148,7 @@ You must respond ONLY with a valid JSON object. No markdown, no explanation, no 
       hashtags: parsed.hashtags || "",
       imagePrompt: parsed.imagePrompt || "",
       imageGuidelines,
+      mood: normalizeMood(parsed.mood),
     };
   } catch {
     return {
@@ -147,7 +156,52 @@ You must respond ONLY with a valid JSON object. No markdown, no explanation, no 
       hashtags: "",
       imagePrompt: "",
       imageGuidelines,
+      mood: normalizeMood(undefined),
     };
+  }
+}
+
+// ── Mood classifier for already-generated captions ──────────────────────────
+// Used by regenerate flow when we need to re-derive mood without regenerating caption.
+// Kept separate from generateMarketingContent so the two endpoints share vocabulary
+// but avoid full copy re-generation cost.
+export async function classifyMoodFromCaption({
+  caption,
+  topic,
+  contentType,
+}: {
+  caption: string;
+  topic?: string;
+  contentType?: string;
+}): Promise<Mood> {
+  try {
+    const message = await anthropic.messages.create({
+      model: "claude-sonnet-4-5",
+      max_tokens: 50,
+      messages: [
+        {
+          role: "user",
+          content: `Classify the emotional mood of this Instagram post about "${topic || contentType || "pet brand"}".
+
+Caption:
+${caption}
+
+Pick exactly ONE Korean mood tag:
+${MOOD_VALUES.map((m) => `- "${m}" — ${MOOD_DESCRIPTIONS[m]}`).join("\n")}
+
+Respond with ONLY the Korean tag (e.g., 따뜻함). No quotes, no explanation.`,
+        },
+      ],
+    });
+    const text = message.content
+      .filter((b) => b.type === "text")
+      .map((b) => (b as any).text)
+      .join("")
+      .trim();
+    return normalizeMood(text);
+  } catch (err: any) {
+    console.warn("[Mood] classify failed:", err.message);
+    return normalizeMood(undefined);
   }
 }
 
