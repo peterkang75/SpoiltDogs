@@ -808,3 +808,35 @@ AIDA (Attention-Interest-Desire-Action). 구조만 차용, 표현은 호주 프�
 - 멀티 이미지 세그먼트: `-t SEG_DURATION` 제거, `-frames:v 138` 추가로 출력 프레임 수 정확히 제한
 - 싱글 이미지: 입력에서 불필요한 `-t DURATION` 제거 (출력 `-t 20`이 이미 제한)
 - 세그먼트당 렌더링 시간: ~120초 → ~1-2초로 단축
+
+---
+
+## 2026-04-20 — Reel 오버레이 디자인 탐색 (미커밋 작업 정리)
+
+**배경**: Motion Reel AIDA 텍스트 오버레이의 시각적 시안을 비교하기 위해 4/20 오후에 9종의 후보 템플릿을 만들고, Puppeteer로 일괄 렌더링해 PNG로 비교한 작업이 있었음. 현재 일부 후보가 미커밋 상태로 작업 트리에 남아 있음.
+
+**타임라인 (mtime 기준)**:
+1. 15:17 — 1차 후보 4종 생성: `reel-overlay-bottom.html`, `-center.html`, `-cinematic.html`, `-lower-third.html`
+2. 15:36 — 2차 후보 2종: `-clean.html`, `-gradient.html` (1차에서 디테일 정제)
+3. 16:35~16:43 — 3차 후보 3종: `-canva-1.html`, `-canva-2.html`, `-canva-3.html` (Canva 스타일 변형, design-system 미사용)
+4. 16:44 — `render-reel-previews.ts` 작성: 2·3차 후보 5종(`gradient/clean/canva-1/2/3`)을 1080×1920 PNG로 렌더링하는 일회성 비교 스크립트
+5. 16:58 — `test-motion-effects.sh` 작성: FFmpeg Ken Burns/Pan/Tilt 5종 효과 로컬 검증 스크립트 (Phase 2.9-B 효과 다양화 작업의 일부)
+
+**채택 결과**:
+- 프로덕션은 5종 채택 → `motionReelsService.ts:32-36` `OVERLAY_TEMPLATES` 맵에서 `gradient/clean/canva-1/canva-2/canva-3` 사용 중. 모두 커밋 완료.
+- 1차 후보 4종(`bottom/center/cinematic/lower-third`)은 코드 어디에서도 참조되지 않음 → 비채택 디자인 시안
+
+**현재 작업 트리 상태 (미커밋)**:
+- `server/templates/reel-overlay-bottom.html` — 비채택 시안 (production 미참조)
+- `server/templates/reel-overlay-center.html` — 비채택 시안
+- `server/templates/reel-overlay-cinematic.html` — 비채택 시안
+- `server/templates/reel-overlay-lower-third.html` — 비채택 시안
+- `render-reel-previews.ts` — 1회성 비교 렌더 스크립트 (PNG 결과는 `/tmp`로 저장, 하드코딩된 사용자 스크린샷 경로 의존)
+- `test-motion-effects.sh` — FFmpeg 효과 검증 스크립트 (output: `/tmp/motion-*.mp4`)
+
+**처리 완료 ✅ (2026-05-05)**:
+- 비채택 시안 4종(`reel-overlay-bottom/center/cinematic/lower-third.html`) 삭제 — production 미참조, 디자인 탐색 잔재 정리
+- Dev 스크립트 2종을 새 `tools/` 디렉터리로 이동·커밋:
+  - `tools/render-reel-previews.ts` — 하드코딩된 macOS 임시 스크린샷 경로를 CLI 인자(`process.argv[2]`)로 변경, 누락 시 usage 출력 후 종료. 사용법: `tsx tools/render-reel-previews.ts <background-image-path>`
+  - `tools/test-motion-effects.sh` — 그대로 이동 (FFmpeg 효과 5종 로컬 검증, output `/tmp/motion-*.mp4`)
+- 향후 새 오버레이 시안 추가 또는 모션 효과 튜닝 시 두 스크립트 재사용 가능
