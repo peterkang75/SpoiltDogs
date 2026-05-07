@@ -23,6 +23,8 @@
 
 import type { Express, Request, Response, NextFunction } from "express";
 import { storage } from "./storage";
+import { polishProductCopy } from "./services/productNameService";
+import { suggestPriceCents } from "@shared/pricing";
 
 const STORE_URL =
   process.env.STORE_URL ||
@@ -149,6 +151,80 @@ function detectSupplierName(userAgent?: string): string {
   return "Unknown";
 }
 
+const FALLBACK_DEFAULT_MARGIN = 40;
+async function readDefaultMarginFromContext(): Promise<number> {
+  try {
+    const rows = await storage.getBrandContextByType("pricing");
+    const row = rows.find(r => r.title === "default_margin");
+    if (!row) return FALLBACK_DEFAULT_MARGIN;
+    const n = parseInt(row.content, 10);
+    if (!Number.isFinite(n) || n < 1 || n > 99) return FALLBACK_DEFAULT_MARGIN;
+    return n;
+  } catch {
+    return FALLBACK_DEFAULT_MARGIN;
+  }
+}
+
+// Fire-and-forget background enrichment: rewrite the supplier-stuffed
+// title in the SpoiltDogs voice and re-price the product against the
+// current pricing policy. Runs after the push response is already sent
+// so Syncee/AutoDS see fast 2xx responses.
+async function autoEnrichPushedProduct(productId: string): Promise<void> {
+  try {
+    const product = await storage.getProductById(productId);
+    if (!product) return;
+    const sourcing = await storage.getSourcingByProductId(productId);
+    const supplierName = sourcing?.supplierName || null;
+
+    // 1. Polish name + description in the brand voice.
+    try {
+      const polished = await polishProductCopy({
+        rawName: product.name,
+        rawDescription: product.description || null,
+        supplierName,
+      });
+      if (polished.name && polished.name !== product.name) {
+        await storage.updateProduct(productId, {
+          name: polished.name,
+          description: polished.description,
+        });
+        console.log(`[WC-Enrich] Polished name for ${productId}: "${product.name.slice(0, 40)}…" → "${polished.name}"`);
+      }
+    } catch (e: any) {
+      console.warn(`[WC-Enrich] Polish failed for ${productId}: ${e.message}`);
+    }
+
+    // 2. Auto-price using global default (or per-product override) and
+    // the charm rounding rule. Only touch products whose useAutoPrice
+    // flag is true and whose costs are non-zero.
+    try {
+      if (sourcing && sourcing.useAutoPrice !== false) {
+        const totalCost = sourcing.sourcingCostAud + sourcing.shippingCostAud;
+        if (totalCost > 0) {
+          const margin = sourcing.marginPct ?? await readDefaultMarginFromContext();
+          const cents = suggestPriceCents(sourcing.sourcingCostAud, sourcing.shippingCostAud, margin);
+          if (cents !== null && cents !== product.priceAud) {
+            await storage.updateProduct(productId, { priceAud: cents });
+            console.log(`[WC-Enrich] Auto-priced ${productId}: ${(product.priceAud / 100).toFixed(2)} → ${(cents / 100).toFixed(2)} (margin ${margin}%)`);
+          }
+        }
+      }
+    } catch (e: any) {
+      console.warn(`[WC-Enrich] Auto-price failed for ${productId}: ${e.message}`);
+    }
+  } catch (e: any) {
+    console.error(`[WC-Enrich] Unexpected error for ${productId}: ${e.message}`);
+  }
+}
+
+function scheduleEnrich(productId: string) {
+  setImmediate(() => {
+    autoEnrichPushedProduct(productId).catch(err =>
+      console.error(`[WC-Enrich] Unhandled rejection for ${productId}:`, err),
+    );
+  });
+}
+
 async function saveWcProduct(body: any, supplierName = "Syncee"): Promise<{ id: string; [key: string]: any }> {
   const { product, sourcingCostAud, shippingCostAud, suggestedSellPrice, synceeProductId } = mapWcProductToOurs(body);
 
@@ -166,6 +242,7 @@ async function saveWcProduct(body: any, supplierName = "Syncee"): Promise<{ id: 
           ...(product.imageUrl ? { imageUrl: product.imageUrl } : {}),
         });
         console.log(`[WC-Emulator] Product UPDATED (duplicate prevented): "${product.name}" SKU=${synceeProductId}`);
+        scheduleEnrich(existingProduct.id);
         return toWcFormat(updated || existingProduct, sourcingCostAud, suggestedSellPrice, synceeProductId, body.images);
       }
     }
@@ -186,6 +263,8 @@ async function saveWcProduct(body: any, supplierName = "Syncee"): Promise<{ id: 
   });
 
   console.log(`[WC-Emulator] Product imported from ${supplierName}: "${created.name}" — cost $${sourcingCostAud.toFixed(2)} AUD → sell $${suggestedSellPrice.toFixed(2)} AUD`);
+
+  scheduleEnrich(created.id);
 
   return toWcFormat(created, sourcingCostAud, suggestedSellPrice, synceeProductId, body.images);
 }
