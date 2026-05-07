@@ -16,7 +16,7 @@ import { SiAfterpay } from "react-icons/si";
 import { useCart } from "@/context/cart-context";
 import { useToast } from "@/hooks/use-toast";
 import { formatAud } from "@/lib/currency";
-import type { Product } from "@shared/schema";
+import type { Product, Category } from "@shared/schema";
 
 import imgTreats from "@assets/product-treats.png";
 import imgBed from "@assets/product-bed.png";
@@ -85,6 +85,14 @@ export default function ProductDetail() {
     queryKey: [`/api/products/${slug}`],
     enabled: !!slug,
   });
+
+  const { data: categories = [] } = useQuery<Category[]>({
+    queryKey: ["/api/categories"],
+  });
+  const productCategorySlug = product?.categoryId
+    ? (categories.find(c => c.id === product.categoryId)?.slug || null)
+    : null;
+  const isFoodProduct = productCategorySlug === "food-treats";
 
   const handleAddToCart = () => {
     if (!product) return;
@@ -343,11 +351,17 @@ export default function ProductDetail() {
                 {/* Accordion */}
                 <div className="space-y-0 pt-2">
                   <AccordionItem title="Product Details">
-                    <p>Premium Australian-sourced ingredients, carefully selected to meet the nutritional needs of active dogs. No artificial colours, flavours, or preservatives. Suitable for all breeds and ages.</p>
+                    {product.description ? (
+                      <p className="whitespace-pre-line">{product.description}</p>
+                    ) : (
+                      <p>Curated for Australian dogs and their humans. Materials and construction chosen for everyday use and gentle wear over time.</p>
+                    )}
                   </AccordionItem>
-                  <AccordionItem title="Ingredients & Nutrition">
-                    <p>100% natural ingredients. Free from grain, soy, and dairy. Rich in Omega-3 fatty acids and essential vitamins. Full nutritional panel available on the product label.</p>
-                  </AccordionItem>
+                  {isFoodProduct && (
+                    <AccordionItem title="Ingredients & Nutrition">
+                      <p>100% natural ingredients. Free from grain, soy, and dairy. Rich in Omega-3 fatty acids and essential vitamins. Full nutritional panel available on the product label.</p>
+                    </AccordionItem>
+                  )}
                   <AccordionItem title="Shipping & Returns">
                     <p>Free shipping on orders over $100 AUD. Standard delivery: 3–5 business days (metro) / 5–10 business days (regional). 30-day returns for change of mind.</p>
                     <p className="mt-2">
