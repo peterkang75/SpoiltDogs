@@ -23,6 +23,11 @@
   - 상품 행에 ✨ rename 버튼 (즉시 AI 적용 + DB 갱신)
   - 편집 다이얼로그 상품명 옆 "AI 자동 이름" 버튼
   - JSON 파싱 실패/AI 호출 실패 시 원본 이름 fallback. 수동 input 그대로 유지
+- Phase 3.0-C: 호주 시장 기본 카테고리 8개 시드 — 2026-05-07
+  - Food & Treats, Toys, Beds & Furniture, Walking & Travel, Grooming & Care, Health & Wellness, Apparel, Bowls & Feeding
+  - 각 카테고리 영문 slug + Quiet Confidence 톤 1문장 description
+  - Supabase production DB에 직접 POST (어드민 API 8회 호출). 코드 변경 없음
+  - 기존 "Toy" (slug=`Toy`, 대문자) 1개는 사장님 정리 대기
 - Phase 3.0-A: 어드민 상품 카테고리 관리 + 공급사 자동 매핑 — 구현 완료, UI 검증 대기 (2026-05-07)
   - [x] `server/storage.ts`: `getCategoryById`, `updateCategory`, `deleteCategory` (삭제 시 사용 중 상품 `categoryId` NULL 처리)
   - [x] `server/adminRoutes.ts`: `GET/POST/PATCH/DELETE /api/admin/categories` (productCount 포함, slug 충돌 방지)
