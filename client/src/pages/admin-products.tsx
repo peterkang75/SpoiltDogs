@@ -455,9 +455,20 @@ export default function AdminProducts() {
 
   function openEdit(p: ProductWithSourcing) {
     setEditingProduct(p);
+    const useAuto = p.sourcing?.useAutoPrice !== false;
+    const effectiveMargin = p.sourcing?.marginPct != null ? p.sourcing.marginPct : defaultMargin;
+    let priceStr = (p.priceAud / 100).toString();
+    if (useAuto && p.sourcing) {
+      const calc = calcProfitability(
+        p.sourcing.sourcingCostAud / 100,
+        p.sourcing.shippingCostAud / 100,
+        effectiveMargin,
+      );
+      if (calc) priceStr = calc.rounded.toFixed(2);
+    }
     setForm({
       name: p.name, slug: p.slug, description: p.description || "",
-      priceAud: (p.priceAud / 100).toString(),
+      priceAud: priceStr,
       compareAtPriceAud: p.compareAtPriceAud ? (p.compareAtPriceAud / 100).toString() : "",
       categoryId: p.categoryId || "",
       imageUrl: p.imageUrl || "", badge: p.badge || "",
@@ -471,7 +482,7 @@ export default function AdminProducts() {
       sourcingStatus: p.sourcing?.sourcingStatus || "researching",
       notes: p.sourcing?.notes || "",
       marginPct: p.sourcing?.marginPct != null ? String(p.sourcing.marginPct) : "",
-      useAutoPrice: p.sourcing?.useAutoPrice !== false,
+      useAutoPrice: useAuto,
     });
     setShowForm(true);
   }
