@@ -22,11 +22,13 @@ import {
   Plus, Pencil, Trash2, Package, TrendingUp,
   ExternalLink, ChevronDown, ChevronUp, Star, RefreshCw,
   Search, Download, Wifi, WifiOff, Truck, ShoppingBag,
+  FolderTree, Check, X,
 } from "lucide-react";
 import { AdminLayout } from "@/components/admin-layout";
 import type { Product, ProductSourcing, Category } from "@shared/schema";
 
 type ProductWithSourcing = Product & { sourcing: ProductSourcing | null };
+type AdminCategory = Category & { productCount?: number };
 type SupplierName = "CJ Dropshipping" | "Syncee";
 
 interface SupplierProduct {
@@ -228,8 +230,10 @@ export default function AdminProducts() {
   const [filterTier, setFilterTier] = useState("all");
   const [filterStatus, setFilterStatus] = useState("all");
   const [filterSupplier, setFilterSupplier] = useState("all");
+  const [filterCategory, setFilterCategory] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [activeTab, setActiveTab] = useState<"products" | "sourcing">("products");
+  const [showCategoryManager, setShowCategoryManager] = useState(false);
 
   const [showForm, setShowForm] = useState(false);
   const [editingProduct, setEditingProduct] = useState<ProductWithSourcing | null>(null);
@@ -249,8 +253,20 @@ export default function AdminProducts() {
     queryFn: () => apiRequest("GET", "/api/admin/products").then(r => r.json()),
   });
 
-  const { data: categories = [] } = useQuery<Category[]>({
-    queryKey: ["/api/categories"],
+  const { data: categories = [] } = useQuery<AdminCategory[]>({
+    queryKey: ["/api/admin/categories"],
+    queryFn: () => apiRequest("GET", "/api/admin/categories").then(r => r.json()),
+  });
+
+  const updateCategoryOnProduct = useMutation({
+    mutationFn: ({ id, categoryId }: { id: string; categoryId: string | null }) =>
+      apiRequest("PATCH", `/api/admin/products/${id}`, { categoryId }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/products"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/categories"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/categories"] });
+    },
+    onError: (e: any) => toast({ title: "카테고리 변경 실패", description: e.message, variant: "destructive" }),
   });
 
   const { data: supplierStatuses = [] } = useQuery<SupplierStatus[]>({
@@ -337,6 +353,20 @@ export default function AdminProducts() {
     setShowForm(true);
   }
 
+  function matchSupplierCategory(supplierCat: string): AdminCategory | null {
+    const raw = (supplierCat || "").toLowerCase().trim();
+    if (!raw) return null;
+    const tokens = raw.split(/[^a-z0-9]+/).filter(t => t.length >= 3);
+    for (const c of categories) {
+      const name = c.name.toLowerCase();
+      const slug = c.slug.toLowerCase();
+      if (raw.includes(name) || name.includes(raw)) return c;
+      if (raw.includes(slug) || slug.includes(raw)) return c;
+      if (tokens.some(t => name.includes(t) || slug.includes(t))) return c;
+    }
+    return null;
+  }
+
   function fillFormFromSupplierProduct(sp: SupplierProduct) {
     const profitCalc = calcProfitability(
       sp.sourcingCostAud / 100,
@@ -347,6 +377,7 @@ export default function AdminProducts() {
     const suggestedTier = profitCalc
       ? (profitCalc.rounded >= 50 ? "premium" : "smart_choice")
       : "smart_choice";
+    const matchedCategory = matchSupplierCategory(sp.category);
 
     setForm(f => ({
       ...f,
@@ -355,6 +386,7 @@ export default function AdminProducts() {
       description: sp.description,
       imageUrl: sp.imageUrl,
       priceAud: suggestedPrice,
+      categoryId: matchedCategory?.id || "",
       supplierName: sp.supplierName,
       supplierProductId: sp.supplierProductId,
       supplierUrl: sp.supplierUrl,
@@ -365,7 +397,12 @@ export default function AdminProducts() {
     }));
     setShowImport(false);
     setShowForm(true);
-    toast({ title: `${sp.supplierName}에서 상품 불러오기 완료`, description: "판매가와 소싱 정보를 확인 후 저장하세요." });
+    toast({
+      title: `${sp.supplierName}에서 상품 불러오기 완료`,
+      description: matchedCategory
+        ? `카테고리 자동 지정: ${matchedCategory.name} (변경 가능)`
+        : "판매가와 소싱 정보를 확인 후 저장하세요.",
+    });
   }
 
   async function searchSupplier() {
@@ -412,15 +449,18 @@ export default function AdminProducts() {
       const matchTier = filterTier === "all" || p.sourcing?.tier === filterTier;
       const matchStatus = filterStatus === "all" || p.sourcing?.sourcingStatus === filterStatus;
       const matchSupplier = filterSupplier === "all" || p.sourcing?.supplierName === filterSupplier;
+      const matchCategory = filterCategory === "all"
+        || (filterCategory === "__none__" ? !p.categoryId : p.categoryId === filterCategory);
       const matchSearch = !searchQuery || p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
         p.slug.includes(searchQuery.toLowerCase());
-      return matchTier && matchStatus && matchSupplier && matchSearch;
+      return matchTier && matchStatus && matchSupplier && matchCategory && matchSearch;
     });
-  }, [products, filterTier, filterStatus, filterSupplier, searchQuery]);
+  }, [products, filterTier, filterStatus, filterSupplier, filterCategory, searchQuery]);
 
   const sourcingOnlyEntries = useMemo(() => products.filter(p => p.sourcing), [products]);
 
-  const hasActiveFilters = filterTier !== "all" || filterStatus !== "all" || filterSupplier !== "all" || searchQuery;
+  const hasActiveFilters = filterTier !== "all" || filterStatus !== "all"
+    || filterSupplier !== "all" || filterCategory !== "all" || searchQuery;
 
   function toggleRow(id: string) {
     setExpandedRows(prev => {
@@ -448,6 +488,14 @@ export default function AdminProducts() {
           <h1 className="font-bold text-lg" style={{ color: "#1a3a2e", fontFamily: "Fraunces, serif" }}>상품 관리</h1>
         </div>
         <div className="flex items-center gap-2">
+          <Button
+            onClick={() => setShowCategoryManager(true)}
+            variant="outline"
+            className="text-sm"
+            data-testid="manage-categories-button"
+          >
+            <FolderTree className="w-4 h-4 mr-1" /> 카테고리 관리
+          </Button>
           <Button
             onClick={() => { setImportResults([]); setImportQuery(""); setImportError(""); setShowImport(true); }}
             variant="outline"
@@ -546,11 +594,25 @@ export default function AdminProducts() {
             <SelectItem value="discontinued">중단됨</SelectItem>
           </SelectContent>
         </Select>
+        <Select value={filterCategory} onValueChange={setFilterCategory}>
+          <SelectTrigger className="w-44 text-sm" data-testid="filter-category">
+            <SelectValue placeholder="카테고리" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">전체 카테고리</SelectItem>
+            <SelectItem value="__none__">미지정</SelectItem>
+            {categories.map(c => (
+              <SelectItem key={c.id} value={c.id}>
+                {c.name}{typeof c.productCount === "number" ? ` (${c.productCount})` : ""}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
         {hasActiveFilters && (
           <button
             onClick={() => {
               setFilterTier("all"); setFilterStatus("all");
-              setFilterSupplier("all"); setSearchQuery("");
+              setFilterSupplier("all"); setFilterCategory("all"); setSearchQuery("");
             }}
             className="text-xs text-gray-500 hover:text-gray-700 flex items-center gap-1"
           >
@@ -585,6 +647,7 @@ export default function AdminProducts() {
                   <th className="text-left px-4 py-3 font-medium text-gray-600 w-8"></th>
                   <th className="text-left px-4 py-3 font-medium text-gray-600">상품명</th>
                   <th className="text-left px-4 py-3 font-medium text-gray-600">공급사</th>
+                  <th className="text-left px-4 py-3 font-medium text-gray-600">카테고리</th>
                   <th className="text-left px-4 py-3 font-medium text-gray-600">판매가</th>
                   <th className="text-left px-4 py-3 font-medium text-gray-600">Tier</th>
                   <th className="text-left px-4 py-3 font-medium text-gray-600">소싱 상태</th>
@@ -633,6 +696,24 @@ export default function AdminProducts() {
                             ? <SupplierBadge name={s.supplierName} />
                             : <span className="text-gray-300 text-xs">—</span>}
                         </td>
+                        <td className="px-4 py-3">
+                          <Select
+                            value={p.categoryId || "__none__"}
+                            onValueChange={v =>
+                              updateCategoryOnProduct.mutate({ id: p.id, categoryId: v === "__none__" ? null : v })
+                            }
+                          >
+                            <SelectTrigger className="h-7 text-xs px-2 w-36" data-testid={`row-category-${p.id}`}>
+                              <SelectValue placeholder="미지정" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="__none__">미지정</SelectItem>
+                              {categories.map(c => (
+                                <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </td>
                         <td className="px-4 py-3 font-medium">{fmtAud(p.priceAud)}</td>
                         <td className="px-4 py-3">
                           {s ? (
@@ -673,7 +754,7 @@ export default function AdminProducts() {
                       </tr>
                       {isExpanded && s && (
                         <tr key={`${p.id}-detail`} className="bg-[#f8f5f0] border-b">
-                          <td colSpan={9} className="px-8 py-4">
+                          <td colSpan={10} className="px-8 py-4">
                             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
                               <div>
                                 <div className="text-xs text-gray-500 mb-0.5">공급사</div>
@@ -821,6 +902,7 @@ export default function AdminProducts() {
                 <div className="space-y-2 max-h-96 overflow-y-auto pr-1">
                   {importResults.map(sp => {
                     const profCalc = calcProfitability(sp.sourcingCostAud / 100, sp.shippingCostAud / 100, 50);
+                    const matched = matchSupplierCategory(sp.category);
                     return (
                       <div
                         key={sp.supplierProductId}
@@ -832,7 +914,18 @@ export default function AdminProducts() {
                         )}
                         <div className="flex-1 min-w-0">
                           <div className="font-medium text-sm text-[#1a3a2e] truncate">{sp.name}</div>
-                          <div className="text-xs text-gray-500 truncate">{sp.category}</div>
+                          <div className="text-xs text-gray-500 truncate flex items-center gap-1.5">
+                            <span className="truncate">{sp.category || "—"}</span>
+                            {matched ? (
+                              <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-green-50 text-green-700 border border-green-200 text-[10px] font-medium shrink-0">
+                                → {matched.name}
+                              </span>
+                            ) : sp.category ? (
+                              <span className="inline-flex items-center px-1.5 py-0.5 rounded bg-gray-100 text-gray-500 text-[10px] shrink-0">
+                                매칭 없음
+                              </span>
+                            ) : null}
+                          </div>
                           <div className="flex items-center gap-3 mt-1 text-xs">
                             <span className="text-gray-600">매입가: <strong>${(sp.sourcingCostAud / 100).toFixed(2)}</strong></span>
                             <span className="text-gray-600">배송: <strong>${(sp.shippingCostAud / 100).toFixed(2)}</strong></span>
@@ -936,12 +1029,15 @@ export default function AdminProducts() {
                   </div>
                   <div className="col-span-2">
                     <Label className="text-xs font-medium">카테고리</Label>
-                    <Select value={form.categoryId} onValueChange={v => setForm(f => ({ ...f, categoryId: v }))}>
+                    <Select
+                      value={form.categoryId || "__none__"}
+                      onValueChange={v => setForm(f => ({ ...f, categoryId: v === "__none__" ? "" : v }))}
+                    >
                       <SelectTrigger className="mt-1 text-sm" data-testid="select-category">
                         <SelectValue placeholder="카테고리 선택" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="">없음</SelectItem>
+                        <SelectItem value="__none__">없음 (미지정)</SelectItem>
                         {categories.map(c => (
                           <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
                         ))}
@@ -1091,6 +1187,13 @@ export default function AdminProducts() {
         </DialogContent>
       </Dialog>
 
+      {/* ── Category Manager Dialog ── */}
+      <CategoryManagerDialog
+        open={showCategoryManager}
+        onOpenChange={setShowCategoryManager}
+        categories={categories}
+      />
+
       {/* ── Delete Confirmation ── */}
       <AlertDialog open={!!deleteTarget} onOpenChange={open => !open && setDeleteTarget(null)}>
         <AlertDialogContent>
@@ -1112,5 +1215,322 @@ export default function AdminProducts() {
       </AlertDialog>
     </div>
     </AdminLayout>
+  );
+}
+
+interface CategoryManagerDialogProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  categories: AdminCategory[];
+}
+
+function CategoryManagerDialog({ open, onOpenChange, categories }: CategoryManagerDialogProps) {
+  const { toast } = useToast();
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [draftName, setDraftName] = useState("");
+  const [draftSlug, setDraftSlug] = useState("");
+  const [draftDescription, setDraftDescription] = useState("");
+  const [newName, setNewName] = useState("");
+  const [newSlug, setNewSlug] = useState("");
+  const [newDescription, setNewDescription] = useState("");
+  const [confirmDelete, setConfirmDelete] = useState<AdminCategory | null>(null);
+
+  function invalidateAll() {
+    queryClient.invalidateQueries({ queryKey: ["/api/admin/categories"] });
+    queryClient.invalidateQueries({ queryKey: ["/api/categories"] });
+    queryClient.invalidateQueries({ queryKey: ["/api/admin/products"] });
+  }
+
+  const createMut = useMutation({
+    mutationFn: (data: { name: string; slug: string; description: string }) =>
+      apiRequest("POST", "/api/admin/categories", {
+        name: data.name,
+        slug: data.slug,
+        description: data.description || null,
+      }).then(async r => {
+        if (!r.ok) {
+          const err = await r.json();
+          throw new Error(err.error || "카테고리 생성 실패");
+        }
+        return r.json();
+      }),
+    onSuccess: () => {
+      toast({ title: "카테고리 추가 완료" });
+      invalidateAll();
+      setNewName(""); setNewSlug(""); setNewDescription("");
+    },
+    onError: (e: any) => toast({ title: "오류", description: e.message, variant: "destructive" }),
+  });
+
+  const updateMut = useMutation({
+    mutationFn: ({ id, data }: { id: string; data: { name: string; slug: string; description: string } }) =>
+      apiRequest("PATCH", `/api/admin/categories/${id}`, {
+        name: data.name,
+        slug: data.slug,
+        description: data.description || null,
+      }).then(async r => {
+        if (!r.ok) {
+          const err = await r.json();
+          throw new Error(err.error || "카테고리 수정 실패");
+        }
+        return r.json();
+      }),
+    onSuccess: () => {
+      toast({ title: "카테고리 수정 완료" });
+      invalidateAll();
+      setEditingId(null);
+    },
+    onError: (e: any) => toast({ title: "오류", description: e.message, variant: "destructive" }),
+  });
+
+  const deleteMut = useMutation({
+    mutationFn: (id: string) =>
+      apiRequest("DELETE", `/api/admin/categories/${id}`).then(async r => {
+        if (!r.ok) {
+          const err = await r.json();
+          throw new Error(err.error || "카테고리 삭제 실패");
+        }
+      }),
+    onSuccess: () => {
+      toast({ title: "카테고리 삭제 완료", description: "해당 카테고리에 속한 상품은 미지정으로 변경되었습니다." });
+      invalidateAll();
+      setConfirmDelete(null);
+    },
+    onError: (e: any) => toast({ title: "오류", description: e.message, variant: "destructive" }),
+  });
+
+  function startEdit(c: AdminCategory) {
+    setEditingId(c.id);
+    setDraftName(c.name);
+    setDraftSlug(c.slug);
+    setDraftDescription(c.description || "");
+  }
+
+  function saveEdit(id: string) {
+    if (!draftName.trim() || !draftSlug.trim()) {
+      toast({ title: "이름과 슬러그는 필수입니다", variant: "destructive" });
+      return;
+    }
+    updateMut.mutate({ id, data: { name: draftName.trim(), slug: draftSlug.trim(), description: draftDescription } });
+  }
+
+  function submitNew() {
+    if (!newName.trim()) {
+      toast({ title: "카테고리 이름을 입력하세요", variant: "destructive" });
+      return;
+    }
+    const slug = (newSlug.trim() || slugify(newName)).trim();
+    if (!slug) {
+      toast({ title: "슬러그가 비어 있습니다", variant: "destructive" });
+      return;
+    }
+    createMut.mutate({ name: newName.trim(), slug, description: newDescription });
+  }
+
+  return (
+    <>
+      <Dialog open={open} onOpenChange={onOpenChange}>
+        <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="text-[#1a3a2e] flex items-center gap-2">
+              <FolderTree className="w-5 h-5 text-[#4B9073]" />
+              카테고리 관리
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-5 mt-2">
+            <div className="border rounded-lg p-4 bg-[#f8f5f0]">
+              <div className="text-sm font-semibold text-[#1a3a2e] mb-3">새 카테고리 추가</div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label className="text-xs font-medium">이름 *</Label>
+                  <Input
+                    value={newName}
+                    onChange={e => {
+                      setNewName(e.target.value);
+                      if (!newSlug) setNewSlug(slugify(e.target.value));
+                    }}
+                    placeholder="예: 장난감 (Toys)"
+                    className="mt-1 text-sm"
+                    data-testid="new-category-name"
+                  />
+                </div>
+                <div>
+                  <Label className="text-xs font-medium">슬러그 *</Label>
+                  <Input
+                    value={newSlug}
+                    onChange={e => setNewSlug(e.target.value)}
+                    placeholder="toys"
+                    className="mt-1 text-sm font-mono"
+                    data-testid="new-category-slug"
+                  />
+                </div>
+                <div className="col-span-2">
+                  <Label className="text-xs font-medium">설명 (선택)</Label>
+                  <Input
+                    value={newDescription}
+                    onChange={e => setNewDescription(e.target.value)}
+                    placeholder="공급사 자동 매핑은 이름·슬러그를 기준으로 동작합니다"
+                    className="mt-1 text-sm"
+                    data-testid="new-category-description"
+                  />
+                </div>
+              </div>
+              <div className="flex justify-end mt-3">
+                <Button
+                  onClick={submitNew}
+                  disabled={createMut.isPending}
+                  className="bg-[#4B9073] hover:bg-[#3d7760] text-white text-sm"
+                  data-testid="submit-new-category"
+                >
+                  <Plus className="w-4 h-4 mr-1" /> 추가
+                </Button>
+              </div>
+            </div>
+
+            <div className="border rounded-lg overflow-hidden">
+              <table className="w-full text-sm">
+                <thead className="bg-gray-50 border-b">
+                  <tr>
+                    <th className="text-left px-4 py-2 font-medium text-gray-600">이름</th>
+                    <th className="text-left px-4 py-2 font-medium text-gray-600">슬러그</th>
+                    <th className="text-left px-4 py-2 font-medium text-gray-600">상품 수</th>
+                    <th className="text-right px-4 py-2 font-medium text-gray-600">액션</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {categories.length === 0 && (
+                    <tr>
+                      <td colSpan={4} className="px-4 py-8 text-center text-gray-400 text-sm">
+                        등록된 카테고리가 없습니다
+                      </td>
+                    </tr>
+                  )}
+                  {categories.map(c => {
+                    const editing = editingId === c.id;
+                    return (
+                      <tr key={c.id} className="border-b last:border-b-0" data-testid={`category-row-${c.id}`}>
+                        <td className="px-4 py-2 align-top">
+                          {editing ? (
+                            <Input
+                              value={draftName}
+                              onChange={e => setDraftName(e.target.value)}
+                              className="text-sm h-8"
+                              data-testid={`edit-category-name-${c.id}`}
+                            />
+                          ) : (
+                            <div className="font-medium text-[#1a3a2e]">{c.name}</div>
+                          )}
+                          {editing && (
+                            <Input
+                              value={draftDescription}
+                              onChange={e => setDraftDescription(e.target.value)}
+                              placeholder="설명 (선택)"
+                              className="text-xs h-7 mt-1"
+                              data-testid={`edit-category-description-${c.id}`}
+                            />
+                          )}
+                        </td>
+                        <td className="px-4 py-2 align-top">
+                          {editing ? (
+                            <Input
+                              value={draftSlug}
+                              onChange={e => setDraftSlug(e.target.value)}
+                              className="text-xs h-8 font-mono"
+                              data-testid={`edit-category-slug-${c.id}`}
+                            />
+                          ) : (
+                            <span className="text-xs text-gray-500 font-mono">{c.slug}</span>
+                          )}
+                        </td>
+                        <td className="px-4 py-2 align-top text-xs text-gray-600">
+                          {typeof c.productCount === "number" ? `${c.productCount}` : "—"}
+                        </td>
+                        <td className="px-4 py-2 align-top text-right">
+                          {editing ? (
+                            <div className="flex items-center justify-end gap-1">
+                              <button
+                                onClick={() => saveEdit(c.id)}
+                                disabled={updateMut.isPending}
+                                className="p-1.5 text-green-600 hover:bg-green-50 rounded"
+                                title="저장"
+                                data-testid={`save-category-${c.id}`}
+                              >
+                                <Check className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                onClick={() => setEditingId(null)}
+                                className="p-1.5 text-gray-400 hover:bg-gray-50 rounded"
+                                title="취소"
+                                data-testid={`cancel-category-${c.id}`}
+                              >
+                                <X className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          ) : (
+                            <div className="flex items-center justify-end gap-1">
+                              <button
+                                onClick={() => startEdit(c)}
+                                className="p-1.5 text-gray-400 hover:text-[#4B9073] hover:bg-green-50 rounded"
+                                title="수정"
+                                data-testid={`edit-category-${c.id}`}
+                              >
+                                <Pencil className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                onClick={() => setConfirmDelete(c)}
+                                className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded"
+                                title="삭제"
+                                data-testid={`delete-category-${c.id}`}
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="text-xs text-gray-500 leading-relaxed">
+              · 공급사에서 상품을 불러올 때 supplier가 보내준 카테고리 문자열을 우리 카테고리 이름·슬러그와 부분일치로 자동 매핑합니다.<br />
+              · 자동 매핑 후에도 상품 목록의 카테고리 셀에서 언제든 변경할 수 있습니다.<br />
+              · 카테고리를 삭제하면 속한 상품의 카테고리는 "미지정"으로 풀립니다 (상품 자체는 유지됩니다).
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => onOpenChange(false)}>닫기</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <AlertDialog open={!!confirmDelete} onOpenChange={open => !open && setConfirmDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>카테고리 삭제</AlertDialogTitle>
+            <AlertDialogDescription>
+              <strong>{confirmDelete?.name}</strong> 카테고리를 삭제하시겠습니까?
+              {typeof confirmDelete?.productCount === "number" && confirmDelete.productCount > 0 && (
+                <> 이 카테고리에 속한 <strong>{confirmDelete.productCount}개</strong> 상품의 카테고리가 "미지정"으로 변경됩니다.</>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>취소</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => confirmDelete && deleteMut.mutate(confirmDelete.id)}
+              className="bg-red-500 hover:bg-red-600 text-white"
+              data-testid="confirm-delete-category"
+            >
+              삭제
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
   );
 }

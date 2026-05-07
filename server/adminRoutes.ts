@@ -589,6 +589,76 @@ Respond in JSON format:
     }
   });
 
+  app.get("/api/admin/categories", requireAdmin, async (_req, res) => {
+    try {
+      const cats = await storage.getCategories();
+      const allProducts = await storage.getProducts();
+      const counts = new Map<string, number>();
+      for (const p of allProducts) {
+        if (p.categoryId) counts.set(p.categoryId, (counts.get(p.categoryId) || 0) + 1);
+      }
+      res.json(cats.map(c => ({ ...c, productCount: counts.get(c.id) || 0 })));
+    } catch (error: any) {
+      console.error("List categories error:", error);
+      res.status(500).json({ error: "Failed to list categories" });
+    }
+  });
+
+  app.post("/api/admin/categories", requireAdmin, async (req, res) => {
+    try {
+      const { name, slug, description, imageUrl } = req.body;
+      if (!name || !slug) {
+        return res.status(400).json({ error: "name, slug are required" });
+      }
+      const existing = await storage.getCategoryBySlug(slug);
+      if (existing) return res.status(409).json({ error: "Slug already exists" });
+      const cat = await storage.createCategory({
+        name,
+        slug,
+        description: description || null,
+        imageUrl: imageUrl || null,
+      });
+      res.json(cat);
+    } catch (error: any) {
+      console.error("Create category error:", error);
+      res.status(500).json({ error: error.message || "Failed to create category" });
+    }
+  });
+
+  app.patch("/api/admin/categories/:id", requireAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { name, slug, description, imageUrl } = req.body;
+      const data: Record<string, any> = {};
+      if (name !== undefined) data.name = name;
+      if (slug !== undefined) {
+        const conflict = await storage.getCategoryBySlug(slug);
+        if (conflict && conflict.id !== id) {
+          return res.status(409).json({ error: "Slug already exists" });
+        }
+        data.slug = slug;
+      }
+      if (description !== undefined) data.description = description || null;
+      if (imageUrl !== undefined) data.imageUrl = imageUrl || null;
+      const cat = await storage.updateCategory(id, data);
+      if (!cat) return res.status(404).json({ error: "Category not found" });
+      res.json(cat);
+    } catch (error: any) {
+      console.error("Update category error:", error);
+      res.status(500).json({ error: error.message || "Failed to update category" });
+    }
+  });
+
+  app.delete("/api/admin/categories/:id", requireAdmin, async (req, res) => {
+    try {
+      await storage.deleteCategory(req.params.id);
+      res.json({ ok: true });
+    } catch (error: any) {
+      console.error("Delete category error:", error);
+      res.status(500).json({ error: error.message || "Failed to delete category" });
+    }
+  });
+
   app.get("/api/admin/products", requireAdmin, async (_req, res) => {
     try {
       const prodData = await prodProxy("/api/admin/products");
