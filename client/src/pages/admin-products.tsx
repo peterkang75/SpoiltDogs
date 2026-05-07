@@ -1098,21 +1098,13 @@ export default function AdminProducts() {
                 {importSupplier === "Syncee" ? (
                   <>
                     <a
-                      href="https://app.syncee.com/marketplace"
+                      href="https://syncee.com/"
                       target="_blank"
                       rel="noopener noreferrer"
                       className="inline-flex items-center gap-1 px-2.5 py-1 rounded border border-purple-200 bg-purple-50 text-purple-700 hover:bg-purple-100 text-xs"
-                      data-testid="open-syncee-marketplace"
+                      data-testid="open-syncee-site"
                     >
-                      <ExternalLink className="w-3 h-3" /> Syncee 마켓플레이스
-                    </a>
-                    <a
-                      href="https://app.syncee.com/my-products"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded border border-purple-200 bg-purple-50 text-purple-700 hover:bg-purple-100 text-xs"
-                    >
-                      <ExternalLink className="w-3 h-3" /> Syncee 내 상품
+                      <ExternalLink className="w-3 h-3" /> Syncee 사이트
                     </a>
                   </>
                 ) : (
