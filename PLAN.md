@@ -16,6 +16,13 @@
 
 ## Pending
 
+- Phase 3.0-B: 상품명 SpoiltDogs 톤 자동 정리 (AI rename) — 2026-05-07 배포 완료
+  - `server/services/productNameService.ts`: Claude (claude-sonnet-4-5)로 supplier 키워드 스터핑형 제목 → "Quiet Confidence" 톤. 50자 이내 영어 Title Case + 25–60단어 description
+  - `POST /api/admin/ai/polish-name` (제안만), `POST /api/admin/products/:id/rename` (즉시 적용)
+  - 공급사 import 직후 자동 polish + 폼에 적용 (사장님 확인 후 저장)
+  - 상품 행에 ✨ rename 버튼 (즉시 AI 적용 + DB 갱신)
+  - 편집 다이얼로그 상품명 옆 "AI 자동 이름" 버튼
+  - JSON 파싱 실패/AI 호출 실패 시 원본 이름 fallback. 수동 input 그대로 유지
 - Phase 3.0-A: 어드민 상품 카테고리 관리 + 공급사 자동 매핑 — 구현 완료, UI 검증 대기 (2026-05-07)
   - [x] `server/storage.ts`: `getCategoryById`, `updateCategory`, `deleteCategory` (삭제 시 사용 중 상품 `categoryId` NULL 처리)
   - [x] `server/adminRoutes.ts`: `GET/POST/PATCH/DELETE /api/admin/categories` (productCount 포함, slug 충돌 방지)

@@ -9,6 +9,7 @@ import { sendOrderConfirmationEmail } from "./email";
 import OpenAI from "openai";
 import Anthropic from "@anthropic-ai/sdk";
 import { sourcingService, type SupplierName } from "./services/sourcingService";
+import { polishProductCopy } from "./services/productNameService";
 import multer from "multer";
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 50 * 1024 * 1024, files: 100 } });
@@ -586,6 +587,56 @@ Respond in JSON format:
       res.json(results);
     } catch (error: any) {
       res.status(500).json({ error: "Failed to search products" });
+    }
+  });
+
+  app.post("/api/admin/ai/polish-name", requireAdmin, async (req, res) => {
+    try {
+      const { name, description, supplierCategory, supplierName } = req.body || {};
+      if (!name || typeof name !== "string") {
+        return res.status(400).json({ error: "name is required" });
+      }
+      const polished = await polishProductCopy({
+        rawName: name,
+        rawDescription: description || null,
+        supplierCategory: supplierCategory || null,
+        supplierName: supplierName || null,
+      });
+      res.json(polished);
+    } catch (error: any) {
+      console.error("Polish name error:", error);
+      res.status(500).json({ error: error.message || "Failed to polish product copy" });
+    }
+  });
+
+  app.post("/api/admin/products/:id/rename", requireAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const product = await storage.getProductById(id);
+      if (!product) return res.status(404).json({ error: "Product not found" });
+
+      const sourcing = await storage.getSourcingByProductId(id);
+      const polished = await polishProductCopy({
+        rawName: product.name,
+        rawDescription: product.description || null,
+        supplierCategory: null,
+        supplierName: sourcing?.supplierName || null,
+      });
+
+      const updated = await storage.updateProduct(id, {
+        name: polished.name,
+        description: polished.description,
+      });
+      if (!updated) return res.status(404).json({ error: "Product not found after update" });
+
+      res.json({
+        product: updated,
+        before: { name: product.name, description: product.description },
+        after: polished,
+      });
+    } catch (error: any) {
+      console.error("Rename product error:", error);
+      res.status(500).json({ error: error.message || "Failed to rename product" });
     }
   });
 

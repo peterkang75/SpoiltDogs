@@ -22,7 +22,7 @@ import {
   Plus, Pencil, Trash2, Package, TrendingUp,
   ExternalLink, ChevronDown, ChevronUp, Star, RefreshCw,
   Search, Download, Wifi, WifiOff, Truck, ShoppingBag,
-  FolderTree, Check, X,
+  FolderTree, Check, X, Sparkles, Loader2,
 } from "lucide-react";
 import { AdminLayout } from "@/components/admin-layout";
 import type { Product, ProductSourcing, Category } from "@shared/schema";
@@ -269,6 +269,55 @@ export default function AdminProducts() {
     onError: (e: any) => toast({ title: "카테고리 변경 실패", description: e.message, variant: "destructive" }),
   });
 
+  const [renamingId, setRenamingId] = useState<string | null>(null);
+  const renameRowMutation = useMutation({
+    mutationFn: (id: string) =>
+      apiRequest("POST", `/api/admin/products/${id}/rename`).then(async r => {
+        if (!r.ok) {
+          const err = await r.json();
+          throw new Error(err.error || "AI 이름 변경 실패");
+        }
+        return r.json() as Promise<{ before: { name: string }; after: { name: string; description: string } }>;
+      }),
+    onMutate: (id) => { setRenamingId(id); },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/products"] });
+      toast({
+        title: "AI 이름 적용 완료",
+        description: `${data.before.name.slice(0, 40)}${data.before.name.length > 40 ? "…" : ""} → ${data.after.name}`,
+      });
+    },
+    onError: (e: any) => toast({ title: "AI 이름 변경 실패", description: e.message, variant: "destructive" }),
+    onSettled: () => { setRenamingId(null); },
+  });
+
+  const [polishingForm, setPolishingForm] = useState(false);
+  async function polishCurrentForm(silent = false) {
+    if (!form.name.trim()) {
+      if (!silent) toast({ title: "이름이 비어 있습니다", variant: "destructive" });
+      return;
+    }
+    setPolishingForm(true);
+    try {
+      const res = await apiRequest("POST", "/api/admin/ai/polish-name", {
+        name: form.name,
+        description: form.description,
+        supplierName: form.supplierName,
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || "AI 제안 실패");
+      }
+      const polished = await res.json() as { name: string; description: string };
+      setForm(f => ({ ...f, name: polished.name, slug: slugify(polished.name), description: polished.description }));
+      if (!silent) toast({ title: "AI 제안 적용", description: polished.name });
+    } catch (e: any) {
+      if (!silent) toast({ title: "AI 제안 실패", description: e.message, variant: "destructive" });
+    } finally {
+      setPolishingForm(false);
+    }
+  }
+
   const { data: supplierStatuses = [] } = useQuery<SupplierStatus[]>({
     queryKey: ["/api/admin/suppliers/status"],
     queryFn: () => apiRequest("GET", "/api/admin/suppliers/status").then(r => r.json()),
@@ -367,7 +416,7 @@ export default function AdminProducts() {
     return null;
   }
 
-  function fillFormFromSupplierProduct(sp: SupplierProduct) {
+  async function fillFormFromSupplierProduct(sp: SupplierProduct) {
     const profitCalc = calcProfitability(
       sp.sourcingCostAud / 100,
       sp.shippingCostAud / 100,
@@ -400,9 +449,36 @@ export default function AdminProducts() {
     toast({
       title: `${sp.supplierName}에서 상품 불러오기 완료`,
       description: matchedCategory
-        ? `카테고리 자동 지정: ${matchedCategory.name} (변경 가능)`
-        : "판매가와 소싱 정보를 확인 후 저장하세요.",
+        ? `카테고리: ${matchedCategory.name} · AI 이름 정리 중...`
+        : "AI 이름 정리 중...",
     });
+
+    setPolishingForm(true);
+    try {
+      const res = await apiRequest("POST", "/api/admin/ai/polish-name", {
+        name: sp.name,
+        description: sp.description,
+        supplierCategory: sp.category,
+        supplierName: sp.supplierName,
+      });
+      if (!res.ok) throw new Error("polish failed");
+      const polished = await res.json() as { name: string; description: string };
+      setForm(f => ({
+        ...f,
+        name: polished.name,
+        slug: slugify(polished.name),
+        description: polished.description,
+      }));
+      toast({ title: "AI 이름 정리 완료", description: polished.name });
+    } catch {
+      toast({
+        title: "AI 이름 정리 실패",
+        description: "원본 이름으로 진행합니다. 'AI 자동 이름' 버튼으로 다시 시도할 수 있습니다.",
+        variant: "destructive",
+      });
+    } finally {
+      setPolishingForm(false);
+    }
   }
 
   async function searchSupplier() {
@@ -652,7 +728,7 @@ export default function AdminProducts() {
                 <col className="w-24" />
                 <col className="w-20" />
                 <col className="w-20" />
-                <col className="w-24" />
+                <col className="w-32" />
               </colgroup>
               <thead>
                 <tr className="bg-gray-50 border-b">
@@ -760,6 +836,17 @@ export default function AdminProducts() {
                         </td>
                         <td className="px-3 py-2.5 align-middle text-right whitespace-nowrap">
                           <div className="flex items-center justify-end gap-1">
+                            <button
+                              onClick={() => renameRowMutation.mutate(p.id)}
+                              disabled={renamingId === p.id}
+                              className="p-1.5 text-gray-400 hover:text-purple-600 hover:bg-purple-50 rounded transition-colors disabled:opacity-50 disabled:cursor-wait"
+                              title="AI 이름 정리"
+                              data-testid={`rename-product-${p.id}`}
+                            >
+                              {renamingId === p.id
+                                ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                : <Sparkles className="w-3.5 h-3.5" />}
+                            </button>
                             <button onClick={() => openEdit(p)} className="p-1.5 text-gray-400 hover:text-[#4B9073] hover:bg-green-50 rounded transition-colors" title="수정" data-testid={`edit-product-${p.id}`}>
                               <Pencil className="w-3.5 h-3.5" />
                             </button>
@@ -996,7 +1083,22 @@ export default function AdminProducts() {
                 <h3 className="text-sm font-semibold text-[#1a3a2e] mb-3 pb-1 border-b">상품 기본 정보</h3>
                 <div className="grid grid-cols-2 gap-3">
                   <div className="col-span-2">
-                    <Label className="text-xs font-medium">상품명 *</Label>
+                    <div className="flex items-center justify-between">
+                      <Label className="text-xs font-medium">상품명 *</Label>
+                      <button
+                        type="button"
+                        onClick={() => polishCurrentForm(false)}
+                        disabled={polishingForm || !form.name.trim()}
+                        className="inline-flex items-center gap-1 text-[11px] font-medium text-purple-600 hover:text-purple-700 disabled:opacity-50 disabled:cursor-wait"
+                        title="이름과 설명을 SpoiltDogs 톤으로 정리"
+                        data-testid="polish-form-button"
+                      >
+                        {polishingForm
+                          ? <Loader2 className="w-3 h-3 animate-spin" />
+                          : <Sparkles className="w-3 h-3" />}
+                        AI 자동 이름
+                      </button>
+                    </div>
                     <Input
                       value={form.name}
                       onChange={e => setForm(f => ({
