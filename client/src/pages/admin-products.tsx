@@ -641,19 +641,31 @@ export default function AdminProducts() {
           </div>
         ) : (
           <div className="bg-white rounded-xl border overflow-hidden">
-            <table className="w-full text-sm">
+            <table className="w-full text-sm table-fixed">
+              <colgroup>
+                <col className="w-10" />
+                <col />
+                <col className="w-28" />
+                <col className="w-40" />
+                <col className="w-24" />
+                <col className="w-28" />
+                <col className="w-24" />
+                <col className="w-20" />
+                <col className="w-20" />
+                <col className="w-24" />
+              </colgroup>
               <thead>
                 <tr className="bg-gray-50 border-b">
-                  <th className="text-left px-4 py-3 font-medium text-gray-600 w-8"></th>
-                  <th className="text-left px-4 py-3 font-medium text-gray-600">상품명</th>
-                  <th className="text-left px-4 py-3 font-medium text-gray-600">공급사</th>
-                  <th className="text-left px-4 py-3 font-medium text-gray-600">카테고리</th>
-                  <th className="text-left px-4 py-3 font-medium text-gray-600">판매가</th>
-                  <th className="text-left px-4 py-3 font-medium text-gray-600">Tier</th>
-                  <th className="text-left px-4 py-3 font-medium text-gray-600">소싱 상태</th>
-                  <th className="text-left px-4 py-3 font-medium text-gray-600">마진</th>
-                  <th className="text-left px-4 py-3 font-medium text-gray-600">재고</th>
-                  <th className="text-right px-4 py-3 font-medium text-gray-600">액션</th>
+                  <th className="text-left px-3 py-2.5 font-medium text-gray-600"></th>
+                  <th className="text-left px-3 py-2.5 font-medium text-gray-600">상품명</th>
+                  <th className="text-left px-3 py-2.5 font-medium text-gray-600">공급사</th>
+                  <th className="text-left px-3 py-2.5 font-medium text-gray-600">카테고리</th>
+                  <th className="text-right px-3 py-2.5 font-medium text-gray-600">판매가</th>
+                  <th className="text-left px-3 py-2.5 font-medium text-gray-600">Tier</th>
+                  <th className="text-left px-3 py-2.5 font-medium text-gray-600">상태</th>
+                  <th className="text-right px-3 py-2.5 font-medium text-gray-600">마진</th>
+                  <th className="text-center px-3 py-2.5 font-medium text-gray-600">재고</th>
+                  <th className="text-right px-3 py-2.5 font-medium text-gray-600">액션</th>
                 </tr>
               </thead>
               <tbody>
@@ -672,38 +684,43 @@ export default function AdminProducts() {
                         className="border-b hover:bg-gray-50 transition-colors"
                         data-testid={`product-row-${p.id}`}
                       >
-                        <td className="px-4 py-3">
+                        <td className="px-3 py-2.5 align-middle">
                           <button onClick={() => toggleRow(p.id)} className="text-gray-400 hover:text-gray-600" data-testid={`expand-row-${p.id}`}>
                             {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
                           </button>
                         </td>
-                        <td className="px-4 py-3">
-                          <div className="flex items-center gap-2">
+                        <td className="px-3 py-2.5 align-middle">
+                          <div className="flex items-center gap-2 min-w-0">
                             {p.imageUrl && (
-                              <img src={p.imageUrl} alt={p.name} className="w-8 h-8 rounded object-cover flex-shrink-0" />
+                              <img src={p.imageUrl} alt={p.name} className="w-9 h-9 rounded object-cover flex-shrink-0" />
                             )}
-                            <div>
-                              <div className="font-medium text-[#1a3a2e] flex items-center gap-1.5">
+                            <div className="min-w-0 flex-1">
+                              <div
+                                className="font-medium text-[#1a3a2e] leading-snug line-clamp-2 break-words"
+                                title={p.name}
+                              >
                                 {p.name}
-                                {p.featured && <Star className="w-3 h-3 text-yellow-500 fill-yellow-500" />}
                               </div>
-                              <div className="text-xs text-gray-400">{p.slug}</div>
+                              <div className="text-[11px] text-gray-400 truncate flex items-center gap-1" title={p.slug}>
+                                {p.featured && <Star className="w-3 h-3 text-yellow-500 fill-yellow-500 flex-shrink-0" />}
+                                <span className="truncate">{p.slug}</span>
+                              </div>
                             </div>
                           </div>
                         </td>
-                        <td className="px-4 py-3">
+                        <td className="px-3 py-2.5 align-middle whitespace-nowrap">
                           {s?.supplierName
                             ? <SupplierBadge name={s.supplierName} />
                             : <span className="text-gray-300 text-xs">—</span>}
                         </td>
-                        <td className="px-4 py-3">
+                        <td className="px-3 py-2.5 align-middle">
                           <Select
                             value={p.categoryId || "__none__"}
                             onValueChange={v =>
                               updateCategoryOnProduct.mutate({ id: p.id, categoryId: v === "__none__" ? null : v })
                             }
                           >
-                            <SelectTrigger className="h-7 text-xs px-2 w-36" data-testid={`row-category-${p.id}`}>
+                            <SelectTrigger className="h-7 text-xs px-2 w-full" data-testid={`row-category-${p.id}`}>
                               <SelectValue placeholder="미지정" />
                             </SelectTrigger>
                             <SelectContent>
@@ -714,34 +731,34 @@ export default function AdminProducts() {
                             </SelectContent>
                           </Select>
                         </td>
-                        <td className="px-4 py-3 font-medium">{fmtAud(p.priceAud)}</td>
-                        <td className="px-4 py-3">
+                        <td className="px-3 py-2.5 align-middle text-right font-medium tabular-nums whitespace-nowrap">{fmtAud(p.priceAud)}</td>
+                        <td className="px-3 py-2.5 align-middle whitespace-nowrap">
                           {s ? (
                             <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs border font-medium ${TIER_COLORS[s.tier] || "bg-gray-100 text-gray-600"}`}>
                               {TIER_LABELS[s.tier] || s.tier}
                             </span>
                           ) : <span className="text-gray-300 text-xs">—</span>}
                         </td>
-                        <td className="px-4 py-3">
+                        <td className="px-3 py-2.5 align-middle whitespace-nowrap">
                           {s ? (
                             <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs border font-medium ${STATUS_COLORS[s.sourcingStatus] || "bg-gray-100 text-gray-600"}`}>
                               {STATUS_LABELS[s.sourcingStatus] || s.sourcingStatus}
                             </span>
                           ) : <span className="text-gray-300 text-xs">—</span>}
                         </td>
-                        <td className="px-4 py-3">
+                        <td className="px-3 py-2.5 align-middle text-right tabular-nums whitespace-nowrap">
                           {marginPct !== null ? (
                             <span className={`text-xs font-medium ${marginPct >= 40 ? "text-green-600" : marginPct >= 25 ? "text-yellow-600" : "text-red-500"}`}>
                               {marginPct.toFixed(1)}%
                             </span>
                           ) : <span className="text-gray-300 text-xs">—</span>}
                         </td>
-                        <td className="px-4 py-3">
-                          <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${p.inStock ? "bg-green-100 text-green-700" : "bg-red-100 text-red-600"}`}>
-                            {p.inStock ? "판매 중" : "품절"}
+                        <td className="px-3 py-2.5 align-middle text-center whitespace-nowrap">
+                          <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium ${p.inStock ? "bg-green-100 text-green-700" : "bg-red-100 text-red-600"}`}>
+                            {p.inStock ? "판매" : "품절"}
                           </span>
                         </td>
-                        <td className="px-4 py-3 text-right">
+                        <td className="px-3 py-2.5 align-middle text-right whitespace-nowrap">
                           <div className="flex items-center justify-end gap-1">
                             <button onClick={() => openEdit(p)} className="p-1.5 text-gray-400 hover:text-[#4B9073] hover:bg-green-50 rounded transition-colors" title="수정" data-testid={`edit-product-${p.id}`}>
                               <Pencil className="w-3.5 h-3.5" />
