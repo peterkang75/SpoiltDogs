@@ -21,7 +21,7 @@ import {
 import {
   Plus, Pencil, Trash2, Package, TrendingUp,
   ExternalLink, ChevronDown, ChevronUp, Star, RefreshCw,
-  Search, Download, Wifi, WifiOff, Truck, ShoppingBag,
+  Search, Download, Truck, ShoppingBag,
   FolderTree, Check, X, Sparkles, Loader2,
 } from "lucide-react";
 import { AdminLayout } from "@/components/admin-layout";
@@ -734,27 +734,6 @@ export default function AdminProducts() {
         </div>
       </div>
 
-      <div className="px-6 py-2 bg-stone-100 border-b flex items-center gap-4">
-        {[cjStatus, synceeStatus].filter(Boolean).map(s => s && (
-          <div key={s.supplier} className="flex items-center gap-1.5 text-xs">
-            {s.connected
-              ? <Wifi className="w-3 h-3 text-green-400" />
-              : <WifiOff className="w-3 h-3 text-gray-500" />
-            }
-            <span className={s.connected ? "text-green-400" : "text-gray-500"}>
-              {s.supplier}
-            </span>
-            {!s.connected && (
-              <span className="text-gray-600 text-xs">— API 키 미설정</span>
-            )}
-          </div>
-        ))}
-        {supplierStatuses.every(s => !s.connected) && supplierStatuses.length > 0 && (
-          <span className="text-gray-500 text-xs">
-            공급사 API 연결 방법: Replit Secrets에 CJ_API_EMAIL / CJ_API_PASSWORD / SYNCEE_API_KEY 추가
-          </span>
-        )}
-      </div>
 
       <div className="px-6 py-4 border-b bg-white flex items-center gap-6">
         <button
@@ -1123,21 +1102,55 @@ export default function AdminProducts() {
               </div>
             </div>
 
-            {(() => {
-              const activeSupplierStatus = supplierStatuses.find(s => s.supplier === importSupplier);
-              if (activeSupplierStatus && !activeSupplierStatus.connected) {
-                return (
-                  <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-sm text-amber-800">
-                    <strong>API 미연결:</strong> {activeSupplierStatus.message}
-                    <br />
-                    <span className="text-xs text-amber-600 mt-1 block">
-                      Replit Secrets에서 해당 API 키를 설정한 후 서버를 재시작하면 연결됩니다.
-                    </span>
-                  </div>
-                );
-              }
-              return null;
-            })()}
+            <div className="bg-stone-50 border border-stone-200 rounded-lg p-3 text-xs text-gray-700 space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="font-semibold text-[#1a3a2e]">공급사 사이트에서 직접 보기</span>
+                <span className="text-[10px] text-gray-500">새 창으로 열립니다</span>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <a
+                  href="https://app.cjdropshipping.com/myCJ.html"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded border border-orange-200 bg-orange-50 text-orange-700 hover:bg-orange-100"
+                  data-testid="open-cj-site"
+                >
+                  <ExternalLink className="w-3 h-3" /> CJ Dropshipping 마이페이지
+                </a>
+                <a
+                  href="https://cjdropshipping.com/list/wholesale-pet-products-l-9DDFAB5B-AE57-4DD9-9D24-44E4D3D9F3FA.html"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded border border-orange-200 bg-orange-50 text-orange-700 hover:bg-orange-100"
+                  data-testid="open-cj-pet"
+                >
+                  <ExternalLink className="w-3 h-3" /> CJ Pet 카테고리
+                </a>
+                <a
+                  href="https://app.syncee.com/marketplace"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded border border-purple-200 bg-purple-50 text-purple-700 hover:bg-purple-100"
+                  data-testid="open-syncee-marketplace"
+                >
+                  <ExternalLink className="w-3 h-3" /> Syncee 마켓플레이스
+                </a>
+              </div>
+              <p className="text-[11px] text-gray-500 leading-relaxed">
+                공급사 사이트는 보안상 이 페이지에 임베드할 수 없습니다. 새 창으로 열고 옆에 두면 한 화면에서 비교하면서 작업할 수 있습니다. 처음 한 번 로그인하면 브라우저가 세션을 기억합니다.
+              </p>
+              {(() => {
+                const activeSupplierStatus = supplierStatuses.find(s => s.supplier === importSupplier);
+                if (activeSupplierStatus && !activeSupplierStatus.connected) {
+                  return (
+                    <p className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-1">
+                      <strong>{importSupplier} API 미연결:</strong> 검색 자동화는 Railway 환경변수에 {importSupplier === "CJ Dropshipping" ? "CJ_API_EMAIL / CJ_API_PASSWORD" : "SYNCEE_API_KEY"}를 추가하면 활성화됩니다. 그 전까지는 위 링크로 사이트에서 직접 상품을 고른 뒤 "직접 등록" 또는 URL 붙여넣기로 추가하세요.
+                    </p>
+                  );
+                }
+                return null;
+              })()}
+            </div>
 
             {importLoading && (
               <div className="text-center py-8 text-gray-400">
