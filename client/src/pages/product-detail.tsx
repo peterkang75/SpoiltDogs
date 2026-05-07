@@ -18,18 +18,6 @@ import { useToast } from "@/hooks/use-toast";
 import { formatAud } from "@/lib/currency";
 import type { Product, Category } from "@shared/schema";
 
-import imgTreats from "@assets/product-treats.png";
-import imgBed from "@assets/product-bed.png";
-import imgBall from "@assets/product-ball.png";
-import imgCollar from "@assets/product-collar.png";
-
-const relatedProducts = [
-  { id: "prod-1", name: "Organic Kangaroo & Turmeric Bites", priceAud: 2495, badge: "Best Seller", image: imgTreats, rating: 4.9, reviews: 128, slug: "kangaroo-jerky-treats" },
-  { id: "prod-2", name: "Orthopedic Memory Foam Bed", priceAud: 12900, badge: null, image: imgBed, rating: 4.8, reviews: 87, slug: "memory-foam-bed" },
-  { id: "prod-3", name: "Smart Interactive Ball", priceAud: 8900, badge: "Trending", image: imgBall, rating: 4.7, reviews: 203, slug: "interactive-ball" },
-  { id: "prod-4", name: "Italian Leather Collar", priceAud: 5500, badge: "Limited", image: imgCollar, rating: 5.0, reviews: 64, slug: "leather-collar" },
-];
-
 const sampleReviews = [
   { name: "Sarah M.", location: "Sydney, NSW", rating: 5, date: "Feb 2026", text: "Absolutely obsessed with this! My golden Max won't stop asking for more. The quality is incredible — you can tell it's genuinely premium. Fast delivery too.", verified: true },
   { name: "James K.", location: "Melbourne, VIC", rating: 5, date: "Jan 2026", text: "My vet actually recommended switching to higher-quality treats and this ticked every box. Grain-free, natural ingredients and my boy loves them. Worth every cent.", verified: true },
@@ -93,6 +81,19 @@ export default function ProductDetail() {
     ? (categories.find(c => c.id === product.categoryId)?.slug || null)
     : null;
   const isFoodProduct = productCategorySlug === "food-treats";
+
+  const { data: allProducts = [] } = useQuery<Product[]>({
+    queryKey: ["/api/products"],
+  });
+  const relatedProducts = (() => {
+    if (!product) return [] as Product[];
+    const others = allProducts.filter(p => p.id !== product.id && p.inStock);
+    const sameCategory = product.categoryId
+      ? others.filter(p => p.categoryId === product.categoryId)
+      : [];
+    const rest = others.filter(p => !sameCategory.find(s => s.id === p.id));
+    return [...sameCategory, ...rest].slice(0, 4);
+  })();
 
   const handleAddToCart = () => {
     if (!product) return;
@@ -412,45 +413,47 @@ export default function ProductDetail() {
             </section>
 
             {/* RELATED PRODUCTS */}
-            <section className="mt-20 lg:mt-24 pb-4" data-testid="section-related">
-              <h2 className="font-serif text-2xl sm:text-3xl font-bold text-dark mb-8">You May Also Like</h2>
-              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5">
-                {relatedProducts.map((p) => (
-                  <Link key={p.id} href={`/products/${p.slug}`} data-testid={`card-related-${p.id}`}>
-                    <div
-                      className="group rounded-2xl overflow-hidden cursor-pointer hover:shadow-md transition-shadow"
-                      style={{ backgroundColor: "#FFFFFF", border: "1px solid rgba(0,0,0,0.06)" }}
-                    >
-                      <div className="relative overflow-hidden aspect-square bg-stone-100">
-                        <img
-                          src={p.image}
-                          alt={p.name}
-                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                        />
-                        {p.badge && (
-                          <span
-                            className="absolute top-2 left-2 text-xs font-bold px-2 py-0.5 rounded-full"
-                            style={{ backgroundColor: "#FFD54F", color: "#1a1a1a" }}
-                          >
-                            {p.badge}
-                          </span>
-                        )}
-                      </div>
-                      <div className="p-3 space-y-1">
-                        <p className="text-xs font-semibold text-dark leading-snug line-clamp-2">{p.name}</p>
-                        <div className="flex items-center justify-between">
-                          <span className="text-sm font-bold" style={{ color: "#4B9073" }}>{formatAud(p.priceAud)}</span>
-                          <div className="flex items-center gap-0.5">
-                            <Star className="h-3 w-3 fill-amber-400 text-amber-400" />
-                            <span className="text-xs text-dark/40">{p.rating}</span>
+            {relatedProducts.length > 0 && (
+              <section className="mt-20 lg:mt-24 pb-4" data-testid="section-related">
+                <h2 className="font-serif text-2xl sm:text-3xl font-bold text-dark mb-8">You May Also Like</h2>
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5">
+                  {relatedProducts.map((p) => (
+                    <Link key={p.id} href={`/products/${p.slug}`} data-testid={`card-related-${p.id}`}>
+                      <div
+                        className="group rounded-2xl overflow-hidden cursor-pointer hover:shadow-md transition-shadow"
+                        style={{ backgroundColor: "#FFFFFF", border: "1px solid rgba(0,0,0,0.06)" }}
+                      >
+                        <div className="relative overflow-hidden aspect-square bg-stone-100">
+                          {p.imageUrl ? (
+                            <img
+                              src={p.imageUrl}
+                              alt={p.name}
+                              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                            />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center text-stone-300 text-xs">No image</div>
+                          )}
+                          {p.badge && (
+                            <span
+                              className="absolute top-2 left-2 text-xs font-bold px-2 py-0.5 rounded-full"
+                              style={{ backgroundColor: "#FFD54F", color: "#1a1a1a" }}
+                            >
+                              {p.badge}
+                            </span>
+                          )}
+                        </div>
+                        <div className="p-3 space-y-1">
+                          <p className="text-xs font-semibold text-dark leading-snug line-clamp-2">{p.name}</p>
+                          <div className="flex items-center justify-between">
+                            <span className="text-sm font-bold" style={{ color: "#4B9073" }}>{formatAud(p.priceAud)}</span>
                           </div>
                         </div>
                       </div>
-                    </div>
-                  </Link>
-                ))}
-              </div>
-            </section>
+                    </Link>
+                  ))}
+                </div>
+              </section>
+            )}
           </>
         )}
       </div>
