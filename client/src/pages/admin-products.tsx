@@ -29,7 +29,7 @@ import type { Product, ProductSourcing, Category } from "@shared/schema";
 
 type ProductWithSourcing = Product & { sourcing: ProductSourcing | null };
 type AdminCategory = Category & { productCount?: number };
-type SupplierName = "CJ Dropshipping" | "Syncee";
+type SupplierName = "Syncee" | "AutoDS";
 
 interface SupplierProduct {
   supplierName: SupplierName;
@@ -79,15 +79,16 @@ const STATUS_COLORS: Record<string, string> = {
   discontinued: "bg-red-100 text-red-700 border-red-200",
 };
 const SUPPLIER_COLORS: Record<string, string> = {
-  "CJ Dropshipping": "bg-orange-100 text-orange-700 border-orange-200",
   "Syncee": "bg-purple-100 text-purple-700 border-purple-200",
+  "AutoDS": "bg-sky-100 text-sky-700 border-sky-200",
+  "CJ Dropshipping": "bg-orange-100 text-orange-700 border-orange-200",
 };
 
 import { calcProfitability, attractiveRound } from "@shared/pricing";
 
 const SUPPLIER_SHIPPING_NOTES: Record<SupplierName, string> = {
-  "CJ Dropshipping": "CJPacket (중국→호주) 기준: 소형 상품 약 $3–$8 AUD, 7–14 영업일",
   "Syncee": "공급사별 배송 요금 상이. 일부 공급사 무료 배송 제공 (기준 금액 이상 시)",
+  "AutoDS": "AutoDS 공급사별 상이. 호주 직배 우선 추천 (eBay AU, Local AU)",
 };
 
 function ProfitabilityCalculator({
@@ -238,6 +239,31 @@ function SupplierBadge({ name }: { name: string }) {
   );
 }
 
+function PushCredRow({ label, value, hint }: { label: string; value: string; hint?: string }) {
+  const [copied, setCopied] = useState(false);
+  return (
+    <div className="flex items-center gap-2">
+      <span className="text-gray-500 w-32 shrink-0">{label}</span>
+      <code className="flex-1 px-2 py-1 rounded bg-white border text-[#1a3a2e] font-mono break-all">{value}</code>
+      <button
+        type="button"
+        onClick={async () => {
+          try {
+            await navigator.clipboard.writeText(value);
+            setCopied(true);
+            setTimeout(() => setCopied(false), 1200);
+          } catch {}
+        }}
+        className="px-2 py-1 rounded border text-[10px] text-gray-600 hover:bg-gray-100 shrink-0"
+        title="클립보드에 복사"
+      >
+        {copied ? <Check className="w-3 h-3 text-green-600" /> : "복사"}
+      </button>
+      {hint && <span className="text-[10px] text-gray-400 hidden md:inline">{hint}</span>}
+    </div>
+  );
+}
+
 export default function AdminProducts() {
   const { toast } = useToast();
 
@@ -256,7 +282,7 @@ export default function AdminProducts() {
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
 
   const [showImport, setShowImport] = useState(false);
-  const [importSupplier, setImportSupplier] = useState<SupplierName>("CJ Dropshipping");
+  const [importSupplier, setImportSupplier] = useState<SupplierName>("Syncee");
   const [importQuery, setImportQuery] = useState("");
   const [importResults, setImportResults] = useState<SupplierProduct[]>([]);
   const [importLoading, setImportLoading] = useState(false);
@@ -638,9 +664,6 @@ export default function AdminProducts() {
   }
 
   const isPending = createMutation.isPending || updateMutation.isPending;
-
-  const cjStatus = supplierStatuses.find(s => s.supplier === "CJ Dropshipping");
-  const synceeStatus = supplierStatuses.find(s => s.supplier === "Syncee");
 
   return (
     <AdminLayout>
@@ -1041,185 +1064,113 @@ export default function AdminProducts() {
         )}
       </div>
 
-      {/* ── Import from Supplier Dialog ── */}
+      {/* ── Import from Supplier Dialog (Push Guide) ── */}
       <Dialog open={showImport} onOpenChange={setShowImport}>
         <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="text-[#1a3a2e] flex items-center gap-2">
               <ShoppingBag className="w-5 h-5 text-[#4B9073]" />
-              공급사 상품 불러오기
+              공급사에서 상품 가져오기
             </DialogTitle>
           </DialogHeader>
 
-          <div className="space-y-4 mt-2">
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <Label className="text-xs font-medium">공급사 선택</Label>
-                <Select value={importSupplier} onValueChange={v => {
-                  setImportSupplier(v as SupplierName);
-                  setImportResults([]);
-                  setImportError("");
-                }}>
-                  <SelectTrigger className="mt-1 text-sm" data-testid="import-supplier-select">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="CJ Dropshipping">
-                      <div className="flex items-center gap-2">
-                        <span className={`w-2 h-2 rounded-full ${cjStatus?.connected ? "bg-green-500" : "bg-gray-400"}`} />
-                        CJ Dropshipping {!cjStatus?.connected && "(미연결)"}
-                      </div>
-                    </SelectItem>
-                    <SelectItem value="Syncee">
-                      <div className="flex items-center gap-2">
-                        <span className={`w-2 h-2 rounded-full ${synceeStatus?.connected ? "bg-green-500" : "bg-gray-400"}`} />
-                        Syncee {!synceeStatus?.connected && "(미연결)"}
-                      </div>
-                    </SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Label className="text-xs font-medium">상품 검색</Label>
-                <div className="flex gap-2 mt-1">
-                  <Input
-                    value={importQuery}
-                    onChange={e => setImportQuery(e.target.value)}
-                    placeholder="예: dog bed, pet toy..."
-                    className="text-sm"
-                    onKeyDown={e => e.key === "Enter" && searchSupplier()}
-                    data-testid="import-search-input"
-                  />
-                  <Button
-                    onClick={searchSupplier}
-                    disabled={importLoading || !importQuery.trim()}
-                    className="bg-[#4B9073] hover:bg-[#3d7760] text-white shrink-0"
-                    data-testid="import-search-button"
-                  >
-                    <Search className="w-4 h-4" />
-                  </Button>
-                </div>
-              </div>
+          <div className="space-y-4 mt-2 text-sm">
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-xs text-blue-900 leading-relaxed">
+              Syncee와 AutoDS는 검색 API를 retailer에게 발급하지 않습니다. 대신 <strong>"공급사 사이트 → 상품 선택 → 우리 스토어로 push"</strong> 방식으로 동작하고, 우리 서버는 이미 WooCommerce REST API를 에뮬레이션해서 push를 자동으로 받게 되어 있습니다. 푸시된 상품은 이 페이지의 상품 목록에 자동으로 나타나며, 카테고리·이름·가격은 어드민에서 정리하시면 됩니다.
             </div>
 
-            <div className="bg-stone-50 border border-stone-200 rounded-lg p-3 text-xs text-gray-700 space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="font-semibold text-[#1a3a2e]">공급사 사이트에서 직접 보기</span>
-                <span className="text-[10px] text-gray-500">새 창으로 열립니다</span>
-              </div>
+            <div>
+              <Label className="text-xs font-medium">공급사 선택</Label>
+              <Select value={importSupplier} onValueChange={v => setImportSupplier(v as SupplierName)}>
+                <SelectTrigger className="mt-1 text-sm" data-testid="import-supplier-select">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Syncee">Syncee</SelectItem>
+                  <SelectItem value="AutoDS">AutoDS</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="border rounded-lg p-3 bg-stone-50">
+              <div className="font-semibold text-[#1a3a2e] mb-2 text-sm">1. 공급사 사이트에서 상품 고르기</div>
               <div className="flex flex-wrap gap-2">
-                <a
-                  href="https://app.cjdropshipping.com/myCJ.html"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded border border-orange-200 bg-orange-50 text-orange-700 hover:bg-orange-100"
-                  data-testid="open-cj-site"
-                >
-                  <ExternalLink className="w-3 h-3" /> CJ Dropshipping 마이페이지
-                </a>
-                <a
-                  href="https://cjdropshipping.com/list/wholesale-pet-products-l-9DDFAB5B-AE57-4DD9-9D24-44E4D3D9F3FA.html"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded border border-orange-200 bg-orange-50 text-orange-700 hover:bg-orange-100"
-                  data-testid="open-cj-pet"
-                >
-                  <ExternalLink className="w-3 h-3" /> CJ Pet 카테고리
-                </a>
-                <a
-                  href="https://app.syncee.com/marketplace"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded border border-purple-200 bg-purple-50 text-purple-700 hover:bg-purple-100"
-                  data-testid="open-syncee-marketplace"
-                >
-                  <ExternalLink className="w-3 h-3" /> Syncee 마켓플레이스
-                </a>
+                {importSupplier === "Syncee" ? (
+                  <>
+                    <a
+                      href="https://app.syncee.com/marketplace"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded border border-purple-200 bg-purple-50 text-purple-700 hover:bg-purple-100 text-xs"
+                      data-testid="open-syncee-marketplace"
+                    >
+                      <ExternalLink className="w-3 h-3" /> Syncee 마켓플레이스
+                    </a>
+                    <a
+                      href="https://app.syncee.com/my-products"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded border border-purple-200 bg-purple-50 text-purple-700 hover:bg-purple-100 text-xs"
+                    >
+                      <ExternalLink className="w-3 h-3" /> Syncee 내 상품
+                    </a>
+                  </>
+                ) : (
+                  <>
+                    <a
+                      href="https://platform.autods.com/find-products"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded border border-sky-200 bg-sky-50 text-sky-700 hover:bg-sky-100 text-xs"
+                      data-testid="open-autods-find"
+                    >
+                      <ExternalLink className="w-3 h-3" /> AutoDS Find Products
+                    </a>
+                    <a
+                      href="https://platform.autods.com/products"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded border border-sky-200 bg-sky-50 text-sky-700 hover:bg-sky-100 text-xs"
+                    >
+                      <ExternalLink className="w-3 h-3" /> AutoDS 내 상품
+                    </a>
+                  </>
+                )}
               </div>
-              <p className="text-[11px] text-gray-500 leading-relaxed">
-                공급사 사이트는 보안상 이 페이지에 임베드할 수 없습니다. 새 창으로 열고 옆에 두면 한 화면에서 비교하면서 작업할 수 있습니다. 처음 한 번 로그인하면 브라우저가 세션을 기억합니다.
+              <p className="text-[11px] text-gray-500 mt-2 leading-relaxed">
+                새 창으로 열어두고 어드민과 나란히 두시면 편합니다. 처음 한 번 로그인하면 브라우저가 세션을 기억합니다.
               </p>
-              {(() => {
-                const activeSupplierStatus = supplierStatuses.find(s => s.supplier === importSupplier);
-                if (activeSupplierStatus && !activeSupplierStatus.connected) {
-                  return (
-                    <p className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-1">
-                      <strong>{importSupplier} API 미연결:</strong> 검색 자동화는 Railway 환경변수에 {importSupplier === "CJ Dropshipping" ? "CJ_API_EMAIL / CJ_API_PASSWORD" : "SYNCEE_API_KEY"}를 추가하면 활성화됩니다. 그 전까지는 위 링크로 사이트에서 직접 상품을 고른 뒤 "직접 등록" 또는 URL 붙여넣기로 추가하세요.
-                    </p>
-                  );
-                }
-                return null;
-              })()}
             </div>
 
-            {importLoading && (
-              <div className="text-center py-8 text-gray-400">
-                <RefreshCw className="w-6 h-6 animate-spin mx-auto mb-2" />
-                {importSupplier} 검색 중...
+            <div className="border rounded-lg p-3 bg-stone-50">
+              <div className="font-semibold text-[#1a3a2e] mb-2 text-sm">2. {importSupplier}에서 우리 스토어로 push</div>
+              <p className="text-xs text-gray-600 mb-2 leading-relaxed">
+                {importSupplier} 설정에서 "Add Store" 또는 "WooCommerce 연동"을 선택하시고 아래 정보를 입력하세요. 처음 한 번만 등록하면 그 후로는 클릭 한 번으로 push 됩니다.
+              </p>
+              <div className="grid grid-cols-1 gap-2 text-xs">
+                <PushCredRow label="Store URL" value="https://spoiltdogs.com.au" />
+                <PushCredRow label="Consumer Key" value="ck_spoiltdogs_admin" hint="형식만 ck_ 로 시작하면 됩니다" />
+                <PushCredRow label="Consumer Secret" value="cs_spoiltdogs_admin" hint="형식만 cs_ 로 시작하면 됩니다" />
+                <PushCredRow label="API Version" value="WooCommerce REST API v3" />
               </div>
-            )}
+              <p className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-1.5 mt-2 leading-relaxed">
+                보안 메모: 우리 서버는 ck_/cs_ 접두사를 받아 통과시키므로 어떤 값을 넣으셔도 됩니다. 다만 외부에 노출되지 않게 위 임의값 그대로 사용하세요.
+              </p>
+            </div>
 
-            {importError && !importLoading && (
-              <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-sm text-red-700">
-                {importError}
-              </div>
-            )}
+            <div className="border rounded-lg p-3 bg-stone-50">
+              <div className="font-semibold text-[#1a3a2e] mb-2 text-sm">3. 푸시 후 어드민에서 정리</div>
+              <ul className="text-xs text-gray-700 space-y-1 list-disc pl-4 leading-relaxed">
+                <li>이 페이지의 상품 목록을 새로고침하면 push된 상품이 자동으로 보입니다 (공급사 = {importSupplier} 배지 표시)</li>
+                <li>각 행에 ✨ 버튼으로 상품명을 SpoiltDogs 톤으로 정리</li>
+                <li>카테고리 select로 분류 (자동 매핑은 supplier category 기준으로 시도됨)</li>
+                <li>판매가는 자동 가격 ON 상태에서 전역 마진율로 .X9.90 매력가 자동 계산</li>
+              </ul>
+            </div>
 
-            {importResults.length > 0 && (
-              <div className="space-y-2">
-                <div className="text-xs text-gray-500">{importResults.length}개 검색됨</div>
-                <div className="space-y-2 max-h-96 overflow-y-auto pr-1">
-                  {importResults.map(sp => {
-                    const profCalc = calcProfitability(sp.sourcingCostAud / 100, sp.shippingCostAud / 100, defaultMargin);
-                    const matched = matchSupplierCategory(sp.category);
-                    return (
-                      <div
-                        key={sp.supplierProductId}
-                        className="flex items-start gap-3 border rounded-lg p-3 hover:bg-gray-50 transition-colors"
-                        data-testid={`import-result-${sp.supplierProductId}`}
-                      >
-                        {sp.imageUrl && (
-                          <img src={sp.imageUrl} alt={sp.name} className="w-14 h-14 rounded object-cover flex-shrink-0" />
-                        )}
-                        <div className="flex-1 min-w-0">
-                          <div className="font-medium text-sm text-[#1a3a2e] truncate">{sp.name}</div>
-                          <div className="text-xs text-gray-500 truncate flex items-center gap-1.5">
-                            <span className="truncate">{sp.category || "—"}</span>
-                            {matched ? (
-                              <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-green-50 text-green-700 border border-green-200 text-[10px] font-medium shrink-0">
-                                → {matched.name}
-                              </span>
-                            ) : sp.category ? (
-                              <span className="inline-flex items-center px-1.5 py-0.5 rounded bg-gray-100 text-gray-500 text-[10px] shrink-0">
-                                매칭 없음
-                              </span>
-                            ) : null}
-                          </div>
-                          <div className="flex items-center gap-3 mt-1 text-xs">
-                            <span className="text-gray-600">매입가: <strong>${(sp.sourcingCostAud / 100).toFixed(2)}</strong></span>
-                            <span className="text-gray-600">배송: <strong>${(sp.shippingCostAud / 100).toFixed(2)}</strong></span>
-                            {profCalc && (
-                              <span className="text-green-600 font-medium">
-                                권장가: ${profCalc.rounded.toFixed(2)}
-                              </span>
-                            )}
-                          </div>
-                          <div className="text-xs text-gray-400 mt-0.5 line-clamp-1">{sp.shippingNote}</div>
-                        </div>
-                        <Button
-                          onClick={() => fillFormFromSupplierProduct(sp)}
-                          size="sm"
-                          className="bg-[#4B9073] hover:bg-[#3d7760] text-white text-xs shrink-0"
-                          data-testid={`import-select-${sp.supplierProductId}`}
-                        >
-                          선택
-                        </Button>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
+            <div className="text-[11px] text-gray-400 leading-relaxed">
+              참고: 공급사 사이트는 보안 정책상 이 페이지에 임베드(iframe)할 수 없습니다. 새 창에서 작업하는 것이 두 사이트 모두의 표준 방식입니다.
+            </div>
           </div>
 
           <DialogFooter>
