@@ -23,6 +23,13 @@
   - 상품 행에 ✨ rename 버튼 (즉시 AI 적용 + DB 갱신)
   - 편집 다이얼로그 상품명 옆 "AI 자동 이름" 버튼
   - JSON 파싱 실패/AI 호출 실패 시 원본 이름 fallback. 수동 input 그대로 유지
+- Phase 3.0-D: 가격 정책 + 자동/수동 판매가 + 매력적 반올림 — 코드 작업 완료, db:push 대기 (2026-05-07)
+  - schema: `productSourcing.marginPct` (NULL=전역값 사용), `productSourcing.useAutoPrice` (default true) 2컬럼 추가
+  - `shared/pricing.ts`: calcProfitability + attractiveRound (.X9.90 charm price, 1불 단위 가장 가까운 .90)
+  - 라우트: `GET/PUT /api/admin/pricing/default-margin` (brand_context 활용), `POST /api/admin/pricing/recalculate` (자동 가격만 일괄 재계산)
+  - 어드민 상품 PATCH/POST에 marginPct/useAutoPrice 처리. `manualPriceEdit=true` 플래그로 가격 수동 변경 시 useAutoPrice=false 자동 토글
+  - UI: 상단 "가격 정책" 패널 (전역 마진율 input + 일괄 재계산 + autoCount/manualCount), 행 가격 옆 🤖/🔒 아이콘, 다이얼로그 마진 슬라이더↔priceAud 양방향 연동, "자동" 스위치
+  - Tier별 마진율은 도입 안 함 (확장 옵션). 카테고리별도 거부
 - Phase 3.0-C: 호주 시장 기본 카테고리 8개 시드 — 2026-05-07
   - Food & Treats, Toys, Beds & Furniture, Walking & Travel, Grooming & Care, Health & Wellness, Apparel, Bowls & Feeding
   - 각 카테고리 영문 slug + Quiet Confidence 톤 1문장 description

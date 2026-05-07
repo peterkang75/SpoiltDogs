@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useLocation } from "wouter";
@@ -83,31 +83,24 @@ const SUPPLIER_COLORS: Record<string, string> = {
   "Syncee": "bg-purple-100 text-purple-700 border-purple-200",
 };
 
-const STRIPE_RATE = 0.0175;
-const STRIPE_FIXED = 0.30;
+import { calcProfitability, attractiveRound } from "@shared/pricing";
 
 const SUPPLIER_SHIPPING_NOTES: Record<SupplierName, string> = {
   "CJ Dropshipping": "CJPacket (중국→호주) 기준: 소형 상품 약 $3–$8 AUD, 7–14 영업일",
   "Syncee": "공급사별 배송 요금 상이. 일부 공급사 무료 배송 제공 (기준 금액 이상 시)",
 };
 
-function calcProfitability(sourcingCost: number, shippingCost: number, margin: number) {
-  const totalCost = sourcingCost + shippingCost;
-  if (margin >= 100) return null;
-  const denominator = 1 - margin / 100 - STRIPE_RATE;
-  if (denominator <= 0) return null;
-  const rawMin = totalCost / denominator + STRIPE_FIXED;
-  const rounded = Math.ceil(rawMin / 0.05) * 0.05;
-  const stripeFee = rounded * STRIPE_RATE + STRIPE_FIXED;
-  const netProfit = rounded - totalCost - stripeFee;
-  const actualMargin = rounded > 0 ? (netProfit / rounded) * 100 : 0;
-  return { totalCost, minPrice: rawMin, rounded, stripeFee, netProfit, actualMargin };
-}
-
 function ProfitabilityCalculator({
-  sourcingCost, shippingCost, supplierName,
-}: { sourcingCost: number; shippingCost: number; supplierName?: string }) {
-  const [margin, setMargin] = useState(50);
+  sourcingCost, shippingCost, supplierName, margin, onMarginChange, onApplyPrice, autoPrice,
+}: {
+  sourcingCost: number;
+  shippingCost: number;
+  supplierName?: string;
+  margin: number;
+  onMarginChange: (v: number) => void;
+  onApplyPrice?: (priceAud: number) => void;
+  autoPrice?: boolean;
+}) {
   const result = useMemo(
     () => calcProfitability(sourcingCost, shippingCost, margin),
     [sourcingCost, shippingCost, margin],
@@ -139,10 +132,17 @@ function ProfitabilityCalculator({
       )}
 
       <div>
-        <Label className="text-gray-300 text-xs">목표 마진율 ({margin}%)</Label>
+        <div className="flex items-center justify-between">
+          <Label className="text-gray-300 text-xs">목표 마진율 ({margin}%)</Label>
+          {autoPrice === false && (
+            <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-200 border border-amber-400/30">
+              수동 가격 잠금
+            </span>
+          )}
+        </div>
         <input
-          type="range" min={10} max={80} step={5} value={margin}
-          onChange={e => setMargin(Number(e.target.value))}
+          type="range" min={10} max={80} step={1} value={margin}
+          onChange={e => onMarginChange(Number(e.target.value))}
           className="w-full mt-1 accent-yellow-400"
           data-testid="margin-slider"
         />
@@ -160,9 +160,21 @@ function ProfitabilityCalculator({
           <span className="text-gray-300">Stripe 수수료 (1.75% + $0.30)</span>
           <span className="text-red-300">${stripeFee.toFixed(2)}</span>
         </div>
-        <div className="flex justify-between font-bold border-t border-white/20 pt-1 mt-1">
+        <div className="flex justify-between items-center font-bold border-t border-white/20 pt-1 mt-1">
           <span className="text-yellow-400">권장 판매가</span>
-          <span className="text-yellow-400 text-lg">${rounded.toFixed(2)}</span>
+          <div className="flex items-center gap-2">
+            <span className="text-yellow-400 text-lg">${rounded.toFixed(2)}</span>
+            {onApplyPrice && (
+              <button
+                type="button"
+                onClick={() => onApplyPrice(Math.round(rounded * 100))}
+                className="text-[10px] px-2 py-0.5 rounded bg-yellow-400/20 hover:bg-yellow-400/30 text-yellow-200 border border-yellow-400/40"
+                data-testid="apply-suggested-price"
+              >
+                판매가에 적용
+              </button>
+            )}
+          </div>
         </div>
         <div className="flex justify-between text-xs text-gray-300">
           <span>실제 마진</span>
@@ -209,6 +221,8 @@ const emptyForm = {
   supplierName: "", supplierProductId: "", supplierUrl: "",
   sourcingCostAud: "", shippingCostAud: "",
   tier: "smart_choice", sourcingStatus: "researching", notes: "",
+  marginPct: "" as string,
+  useAutoPrice: true,
 };
 
 function slugify(s: string) {
@@ -289,6 +303,62 @@ export default function AdminProducts() {
     },
     onError: (e: any) => toast({ title: "AI 이름 변경 실패", description: e.message, variant: "destructive" }),
     onSettled: () => { setRenamingId(null); },
+  });
+
+  const { data: pricing } = useQuery<{
+    defaultMargin: number;
+    autoCount: number;
+    manualCount: number;
+    total: number;
+  }>({
+    queryKey: ["/api/admin/pricing/default-margin"],
+    queryFn: () => apiRequest("GET", "/api/admin/pricing/default-margin").then(r => r.json()),
+  });
+  const defaultMargin = pricing?.defaultMargin ?? 40;
+
+  const [draftDefaultMargin, setDraftDefaultMargin] = useState<string>("");
+  useEffect(() => { setDraftDefaultMargin(String(defaultMargin)); }, [defaultMargin]);
+
+  const saveDefaultMargin = useMutation({
+    mutationFn: (value: number) =>
+      apiRequest("PUT", "/api/admin/pricing/default-margin", { defaultMargin: value }).then(async r => {
+        if (!r.ok) {
+          const err = await r.json();
+          throw new Error(err.error || "저장 실패");
+        }
+        return r.json();
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/pricing/default-margin"] });
+      toast({ title: "전역 마진율 저장됨" });
+    },
+    onError: (e: any) => toast({ title: "오류", description: e.message, variant: "destructive" }),
+  });
+
+  const recalcAllMutation = useMutation({
+    mutationFn: () =>
+      apiRequest("POST", "/api/admin/pricing/recalculate", { onlyAuto: true }).then(async r => {
+        if (!r.ok) {
+          const err = await r.json();
+          throw new Error(err.error || "재계산 실패");
+        }
+        return r.json() as Promise<{
+          updated: number;
+          skippedManual: number;
+          skippedNoCost: number;
+          skippedUnreachable: number;
+        }>;
+      }),
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/products"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/pricing/default-margin"] });
+      const skipped = data.skippedManual + data.skippedNoCost + data.skippedUnreachable;
+      toast({
+        title: `일괄 재계산 완료`,
+        description: `${data.updated}개 갱신 · ${skipped}개 건너뜀 (수동잠금 ${data.skippedManual}, 원가없음 ${data.skippedNoCost}, 마진불가 ${data.skippedUnreachable})`,
+      });
+    },
+    onError: (e: any) => toast({ title: "재계산 실패", description: e.message, variant: "destructive" }),
   });
 
   const [polishingForm, setPolishingForm] = useState(false);
@@ -372,6 +442,8 @@ export default function AdminProducts() {
       sourcingCostAud: f.sourcingCostAud ? Math.round(parseFloat(f.sourcingCostAud) * 100) : 0,
       shippingCostAud: f.shippingCostAud ? Math.round(parseFloat(f.shippingCostAud) * 100) : 0,
       tier: f.tier, sourcingStatus: f.sourcingStatus, notes: f.notes || null,
+      marginPct: f.marginPct === "" ? null : Math.round(parseFloat(f.marginPct)),
+      useAutoPrice: f.useAutoPrice,
     };
   }
 
@@ -398,6 +470,8 @@ export default function AdminProducts() {
       tier: p.sourcing?.tier || "smart_choice",
       sourcingStatus: p.sourcing?.sourcingStatus || "researching",
       notes: p.sourcing?.notes || "",
+      marginPct: p.sourcing?.marginPct != null ? String(p.sourcing.marginPct) : "",
+      useAutoPrice: p.sourcing?.useAutoPrice !== false,
     });
     setShowForm(true);
   }
@@ -420,7 +494,7 @@ export default function AdminProducts() {
     const profitCalc = calcProfitability(
       sp.sourcingCostAud / 100,
       sp.shippingCostAud / 100,
-      50,
+      defaultMargin,
     );
     const suggestedPrice = profitCalc ? profitCalc.rounded.toFixed(2) : "";
     const suggestedTier = profitCalc
@@ -443,6 +517,8 @@ export default function AdminProducts() {
       shippingCostAud: (sp.shippingCostAud / 100).toString(),
       tier: suggestedTier,
       sourcingStatus: "researching",
+      marginPct: "",
+      useAutoPrice: true,
     }));
     setShowImport(false);
     setShowForm(true);
@@ -588,6 +664,62 @@ export default function AdminProducts() {
           >
             <Plus className="w-4 h-4 mr-1" /> 직접 등록
           </Button>
+        </div>
+      </div>
+
+      <div className="px-6 py-3 bg-white border-b">
+        <div className="flex flex-wrap items-center gap-3 text-sm">
+          <div className="flex items-center gap-1.5 text-[#1a3a2e] font-semibold">
+            <TrendingUp className="w-4 h-4 text-[#4B9073]" />
+            가격 정책
+          </div>
+          <span className="text-xs text-gray-500">전역 마진율</span>
+          <div className="relative">
+            <Input
+              type="number"
+              min={1}
+              max={99}
+              value={draftDefaultMargin}
+              onChange={e => setDraftDefaultMargin(e.target.value)}
+              className="w-20 h-8 text-sm pr-6"
+              data-testid="default-margin-input"
+            />
+            <span className="absolute right-2 top-1.5 text-xs text-gray-400">%</span>
+          </div>
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={saveDefaultMargin.isPending || draftDefaultMargin === String(defaultMargin)}
+            onClick={() => {
+              const n = Number(draftDefaultMargin);
+              if (!Number.isFinite(n) || n < 1 || n > 99) {
+                toast({ title: "1–99 사이 값을 입력하세요", variant: "destructive" });
+                return;
+              }
+              saveDefaultMargin.mutate(n);
+            }}
+            className="h-8 text-xs"
+            data-testid="save-default-margin"
+          >
+            저장
+          </Button>
+          <span className="text-xs text-gray-500">
+            자동 가격 <strong>{pricing?.autoCount ?? 0}</strong>개 · 수동 잠금 <strong>{pricing?.manualCount ?? 0}</strong>개
+          </span>
+          <Button
+            size="sm"
+            disabled={recalcAllMutation.isPending}
+            onClick={() => recalcAllMutation.mutate()}
+            className="h-8 text-xs bg-[#4B9073] hover:bg-[#3d7760] text-white ml-auto"
+            data-testid="recalculate-all"
+          >
+            {recalcAllMutation.isPending
+              ? <><Loader2 className="w-3 h-3 mr-1 animate-spin" /> 재계산 중...</>
+              : <><RefreshCw className="w-3 h-3 mr-1" /> 자동 가격 일괄 재계산</>}
+          </Button>
+        </div>
+        <div className="text-[11px] text-gray-400 mt-1">
+          전역 마진율을 바꾸고 "일괄 재계산"을 누르면 자동 가격 상품의 판매가가 .X9.90 매력가로 갱신됩니다. 수동 잠금된 상품은 건너뜁니다.
         </div>
       </div>
 
@@ -807,7 +939,16 @@ export default function AdminProducts() {
                             </SelectContent>
                           </Select>
                         </td>
-                        <td className="px-3 py-2.5 align-middle text-right font-medium tabular-nums whitespace-nowrap">{fmtAud(p.priceAud)}</td>
+                        <td className="px-3 py-2.5 align-middle text-right font-medium tabular-nums whitespace-nowrap">
+                          <span className="inline-flex items-center justify-end gap-1">
+                            {fmtAud(p.priceAud)}
+                            {s && (
+                              s.useAutoPrice === false
+                                ? <span title="수동 잠금 — 일괄 재계산에서 제외" className="text-amber-500 text-[10px]">🔒</span>
+                                : <span title="자동 가격 — 일괄 재계산에 포함" className="text-emerald-500 text-[10px]">🤖</span>
+                            )}
+                          </span>
+                        </td>
                         <td className="px-3 py-2.5 align-middle whitespace-nowrap">
                           {s ? (
                             <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs border font-medium ${TIER_COLORS[s.tier] || "bg-gray-100 text-gray-600"}`}>
@@ -1005,7 +1146,7 @@ export default function AdminProducts() {
                 <div className="text-xs text-gray-500">{importResults.length}개 검색됨</div>
                 <div className="space-y-2 max-h-96 overflow-y-auto pr-1">
                   {importResults.map(sp => {
-                    const profCalc = calcProfitability(sp.sourcingCostAud / 100, sp.shippingCostAud / 100, 50);
+                    const profCalc = calcProfitability(sp.sourcingCostAud / 100, sp.shippingCostAud / 100, defaultMargin);
                     const matched = matchSupplierCategory(sp.category);
                     return (
                       <div
@@ -1131,11 +1272,28 @@ export default function AdminProducts() {
                     />
                   </div>
                   <div>
-                    <Label className="text-xs font-medium">판매가 (AUD) *</Label>
+                    <div className="flex items-center justify-between">
+                      <Label className="text-xs font-medium">판매가 (AUD) *</Label>
+                      <label className="flex items-center gap-1 text-[11px] text-gray-500 cursor-pointer">
+                        <Switch
+                          checked={form.useAutoPrice}
+                          onCheckedChange={v => setForm(f => ({ ...f, useAutoPrice: v }))}
+                          data-testid="switch-auto-price"
+                        />
+                        자동
+                      </label>
+                    </div>
                     <div className="relative mt-1">
                       <span className="absolute left-3 top-2.5 text-gray-400 text-sm">$</span>
-                      <Input value={form.priceAud} onChange={e => setForm(f => ({ ...f, priceAud: e.target.value }))}
-                        placeholder="29.90" className="pl-6 text-sm" type="number" step="0.01" data-testid="input-price" />
+                      <Input
+                        value={form.priceAud}
+                        onChange={e => setForm(f => ({ ...f, priceAud: e.target.value, useAutoPrice: false }))}
+                        placeholder="29.90"
+                        className="pl-6 text-sm"
+                        type="number"
+                        step="0.01"
+                        data-testid="input-price"
+                      />
                     </div>
                   </div>
                   <div>
@@ -1277,6 +1435,21 @@ export default function AdminProducts() {
                   sourcingCost={sourcingCostNum}
                   shippingCost={shippingCostNum}
                   supplierName={form.supplierName}
+                  margin={form.marginPct === "" ? defaultMargin : Number(form.marginPct)}
+                  onMarginChange={v =>
+                    setForm(f => {
+                      const next = { ...f, marginPct: String(v) };
+                      if (f.useAutoPrice) {
+                        const calc = calcProfitability(sourcingCostNum, shippingCostNum, v);
+                        if (calc) next.priceAud = calc.rounded.toFixed(2);
+                      }
+                      return next;
+                    })
+                  }
+                  onApplyPrice={(cents) =>
+                    setForm(f => ({ ...f, priceAud: (cents / 100).toFixed(2), useAutoPrice: true }))
+                  }
+                  autoPrice={form.useAutoPrice}
                 />
               ) : (
                 <div className="bg-gray-100 rounded-xl p-4 text-center text-sm text-gray-500">

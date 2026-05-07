@@ -10,7 +10,38 @@ import OpenAI from "openai";
 import Anthropic from "@anthropic-ai/sdk";
 import { sourcingService, type SupplierName } from "./services/sourcingService";
 import { polishProductCopy } from "./services/productNameService";
+import { suggestPriceCents } from "@shared/pricing";
 import multer from "multer";
+
+const PRICING_CONTEXT_TYPE = "pricing";
+const DEFAULT_MARGIN_TITLE = "default_margin";
+const FALLBACK_DEFAULT_MARGIN = 40;
+
+async function readDefaultMargin(): Promise<number> {
+  const rows = await storage.getBrandContextByType(PRICING_CONTEXT_TYPE);
+  const row = rows.find(r => r.title === DEFAULT_MARGIN_TITLE);
+  if (!row) return FALLBACK_DEFAULT_MARGIN;
+  const parsed = parseInt(row.content, 10);
+  if (!Number.isFinite(parsed) || parsed < 1 || parsed > 99) return FALLBACK_DEFAULT_MARGIN;
+  return parsed;
+}
+
+async function writeDefaultMargin(value: number): Promise<number> {
+  const clamped = Math.max(1, Math.min(99, Math.round(value)));
+  const rows = await storage.getBrandContextByType(PRICING_CONTEXT_TYPE);
+  const existing = rows.find(r => r.title === DEFAULT_MARGIN_TITLE);
+  if (existing) {
+    await storage.updateBrandContextItem(existing.id, { content: String(clamped) });
+  } else {
+    await storage.createBrandContextItem({
+      type: PRICING_CONTEXT_TYPE,
+      title: DEFAULT_MARGIN_TITLE,
+      content: String(clamped),
+      isActive: true,
+    });
+  }
+  return clamped;
+}
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 50 * 1024 * 1024, files: 100 } });
 const musicUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 50 * 1024 * 1024, files: 1 } });
@@ -590,6 +621,73 @@ Respond in JSON format:
     }
   });
 
+  app.get("/api/admin/pricing/default-margin", requireAdmin, async (_req, res) => {
+    try {
+      const value = await readDefaultMargin();
+      const sourcing = await storage.getSourcingEntries();
+      const autoCount = sourcing.filter(s => s.useAutoPrice !== false).length;
+      const manualCount = sourcing.length - autoCount;
+      res.json({ defaultMargin: value, autoCount, manualCount, total: sourcing.length });
+    } catch (error: any) {
+      console.error("Get default margin error:", error);
+      res.status(500).json({ error: "Failed to load pricing policy" });
+    }
+  });
+
+  app.put("/api/admin/pricing/default-margin", requireAdmin, async (req, res) => {
+    try {
+      const { defaultMargin } = req.body || {};
+      const num = Number(defaultMargin);
+      if (!Number.isFinite(num) || num < 1 || num > 99) {
+        return res.status(400).json({ error: "defaultMargin must be between 1 and 99" });
+      }
+      const saved = await writeDefaultMargin(num);
+      res.json({ defaultMargin: saved });
+    } catch (error: any) {
+      console.error("Set default margin error:", error);
+      res.status(500).json({ error: error.message || "Failed to save pricing policy" });
+    }
+  });
+
+  app.post("/api/admin/pricing/recalculate", requireAdmin, async (req, res) => {
+    try {
+      const onlyAuto = req.body?.onlyAuto !== false;
+      const defaultMargin = await readDefaultMargin();
+      const sourcing = await storage.getSourcingEntries();
+      let updated = 0;
+      let skippedManual = 0;
+      let skippedNoCost = 0;
+      let skippedUnreachable = 0;
+
+      for (const s of sourcing) {
+        if (onlyAuto && s.useAutoPrice === false) {
+          skippedManual += 1;
+          continue;
+        }
+        if (!s.productId) continue;
+        if (s.sourcingCostAud <= 0 && s.shippingCostAud <= 0) {
+          skippedNoCost += 1;
+          continue;
+        }
+        const margin = s.marginPct ?? defaultMargin;
+        const cents = suggestPriceCents(s.sourcingCostAud, s.shippingCostAud, margin);
+        if (cents === null) {
+          skippedUnreachable += 1;
+          continue;
+        }
+        await storage.updateProduct(s.productId, { priceAud: cents });
+        if (s.useAutoPrice === false) {
+          await storage.updateSourcing(s.id, { useAutoPrice: true });
+        }
+        updated += 1;
+      }
+      res.json({ updated, skippedManual, skippedNoCost, skippedUnreachable, defaultMargin });
+    } catch (error: any) {
+      console.error("Recalculate prices error:", error);
+      res.status(500).json({ error: error.message || "Failed to recalculate prices" });
+    }
+  });
+
   app.post("/api/admin/ai/polish-name", requireAdmin, async (req, res) => {
     try {
       const { name, description, supplierCategory, supplierName } = req.body || {};
@@ -749,6 +847,8 @@ Respond in JSON format:
         tier,
         sourcingStatus,
         notes,
+        marginPct,
+        useAutoPrice,
       } = req.body;
 
       if (!name || !slug || priceAud === undefined) {
@@ -784,6 +884,10 @@ Respond in JSON format:
           shippingCostAud: Math.round(Number(shippingCostAud || 0)),
           tier: tier || "smart_choice",
           sourcingStatus: sourcingStatus || "researching",
+          marginPct: marginPct === undefined || marginPct === null || marginPct === ""
+            ? null
+            : Math.round(Number(marginPct)),
+          useAutoPrice: useAutoPrice === undefined ? true : !!useAutoPrice,
           notes: notes || null,
         });
       }
@@ -819,6 +923,9 @@ Respond in JSON format:
         tier,
         sourcingStatus,
         notes,
+        marginPct,
+        useAutoPrice,
+        manualPriceEdit,
       } = req.body;
 
       const productData: Record<string, any> = {};
@@ -853,6 +960,15 @@ Respond in JSON format:
       if (sourcingStatus !== undefined)
         sourcingData.sourcingStatus = sourcingStatus;
       if (notes !== undefined) sourcingData.notes = notes;
+      if (marginPct !== undefined) {
+        sourcingData.marginPct = marginPct === null || marginPct === ""
+          ? null
+          : Math.round(Number(marginPct));
+      }
+      if (useAutoPrice !== undefined) sourcingData.useAutoPrice = !!useAutoPrice;
+      if (manualPriceEdit === true && useAutoPrice === undefined) {
+        sourcingData.useAutoPrice = false;
+      }
 
       let sourcing = null;
       if (Object.keys(sourcingData).length > 0) {
@@ -869,6 +985,8 @@ Respond in JSON format:
             shippingCostAud: sourcingData.shippingCostAud ?? 0,
             tier: sourcingData.tier || "smart_choice",
             sourcingStatus: sourcingData.sourcingStatus || "researching",
+            marginPct: sourcingData.marginPct ?? null,
+            useAutoPrice: sourcingData.useAutoPrice ?? true,
             notes: sourcingData.notes || null,
           });
         }

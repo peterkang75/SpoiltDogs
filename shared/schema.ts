@@ -90,6 +90,8 @@ export const productSourcing = pgTable("product_sourcing", {
   shippingCostAud: integer("shipping_cost_aud").notNull().default(0),
   tier: text("tier").notNull().default("smart_choice"),
   sourcingStatus: text("sourcing_status").notNull().default("researching"),
+  marginPct: integer("margin_pct"),
+  useAutoPrice: boolean("use_auto_price").notNull().default(true),
   notes: text("notes"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
