@@ -634,7 +634,7 @@ export default function AdminProducts() {
   const shippingCostNum = parseFloat(form.shippingCostAud || "0") || 0;
 
   const filteredProducts = useMemo(() => {
-    return products.filter(p => {
+    const filtered = products.filter(p => {
       const matchTier = filterTier === "all" || p.sourcing?.tier === filterTier;
       const matchStatus = filterStatus === "all" || p.sourcing?.sourcingStatus === filterStatus;
       const matchSupplier = filterSupplier === "all" || p.sourcing?.supplierName === filterSupplier;
@@ -643,6 +643,11 @@ export default function AdminProducts() {
       const matchSearch = !searchQuery || p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
         p.slug.includes(searchQuery.toLowerCase());
       return matchTier && matchStatus && matchSupplier && matchCategory && matchSearch;
+    });
+    return filtered.sort((a, b) => {
+      const ta = a.sourcing?.createdAt ? new Date(a.sourcing.createdAt).getTime() : 0;
+      const tb = b.sourcing?.createdAt ? new Date(b.sourcing.createdAt).getTime() : 0;
+      return tb - ta;
     });
   }, [products, filterTier, filterStatus, filterSupplier, filterCategory, searchQuery]);
 

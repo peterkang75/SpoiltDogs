@@ -820,6 +820,11 @@ Respond in JSON format:
         ...p,
         sourcing: sourcingMap.get(p.id) || null,
       }));
+      result.sort((a, b) => {
+        const ta = a.sourcing?.createdAt ? new Date(a.sourcing.createdAt).getTime() : 0;
+        const tb = b.sourcing?.createdAt ? new Date(b.sourcing.createdAt).getTime() : 0;
+        return tb - ta;
+      });
       res.json(result);
     } catch (error: any) {
       res.status(500).json({ error: "Failed to fetch products" });
