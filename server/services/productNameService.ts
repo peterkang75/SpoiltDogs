@@ -1,15 +1,23 @@
 import Anthropic from "@anthropic-ai/sdk";
 
+export interface CategoryChoice {
+  id: string;
+  name: string;
+  slug: string;
+}
+
 export interface PolishInput {
   rawName: string;
   rawDescription?: string | null;
   supplierCategory?: string | null;
   supplierName?: string | null;
+  availableCategories?: CategoryChoice[];
 }
 
 export interface PolishOutput {
   name: string;
   description: string;
+  categoryId: string | null;
 }
 
 const SYSTEM = `You rewrite raw dropshipping product titles and descriptions in the SpoiltDogs voice.
@@ -33,8 +41,15 @@ Rules for the description:
 - No emojis. No exclamation marks. No "perfect for", "must-have", "amazing".
 - Keep one concrete spec (capacity, material, size) if available.
 
+Rules for the category:
+- If the user provides a "Categories" list, choose exactly one whose product clearly fits.
+- Match by what the product *is*, not what it's made of (a wool dog bed is "Beds & Furniture", not "Apparel").
+- If no listed category is a clear fit, return null. Never invent a category.
+- Use the categoryId value (UUID) from the list, not the name.
+- If no Categories list is provided, return null for categoryId.
+
 Return ONLY valid JSON in this exact shape, no prose, no code fences:
-{"name": "...", "description": "..."}`;
+{"name": "...", "description": "...", "categoryId": "<uuid-or-null>"}`;
 
 const MODEL = "claude-sonnet-4-5";
 const MAX_TOKENS = 400;
@@ -54,14 +69,21 @@ function buildUserPrompt(input: PolishInput): string {
       : input.rawDescription;
     parts.push(`Original description: ${trimmed}`);
   }
-  if (input.supplierCategory) parts.push(`Supplier category: ${input.supplierCategory}`);
+  if (input.supplierCategory) parts.push(`Supplier category hint: ${input.supplierCategory}`);
   if (input.supplierName) parts.push(`Supplier: ${input.supplierName}`);
+  if (input.availableCategories && input.availableCategories.length > 0) {
+    parts.push("");
+    parts.push("Categories (choose one categoryId or null):");
+    for (const c of input.availableCategories) {
+      parts.push(`- ${c.id}  ${c.name}  (slug: ${c.slug})`);
+    }
+  }
   parts.push("");
-  parts.push("Rewrite name and description per the rules. Return JSON only.");
+  parts.push("Rewrite name and description per the rules and classify into one of the listed categories. Return JSON only.");
   return parts.join("\n");
 }
 
-function extractJson(text: string): { name?: unknown; description?: unknown } | null {
+function extractJson(text: string): { name?: unknown; description?: unknown; categoryId?: unknown } | null {
   const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/);
   const candidate = (fenced ? fenced[1] : text).trim();
   const start = candidate.indexOf("{");
@@ -118,5 +140,30 @@ export async function polishProductCopy(input: PolishInput): Promise<PolishOutpu
     ? clampDescription(parsed.description, fallbackDesc)
     : fallbackDesc;
 
-  return { name, description };
+  let categoryId: string | null = null;
+  if (typeof parsed.categoryId === "string" && input.availableCategories) {
+    const valid = input.availableCategories.some(c => c.id === parsed.categoryId);
+    if (valid) categoryId = parsed.categoryId;
+  }
+
+  return { name, description, categoryId };
+}
+
+// Last-resort matcher used when the AI call fails. Mirrors the client's
+// matchSupplierCategory: case-insensitive name/slug/token containment.
+export function matchCategoryByName(
+  supplierCat: string | null | undefined,
+  categories: CategoryChoice[],
+): CategoryChoice | null {
+  const raw = (supplierCat || "").toLowerCase().trim();
+  if (!raw) return null;
+  const tokens = raw.split(/[^a-z0-9]+/).filter(t => t.length >= 3);
+  for (const c of categories) {
+    const name = c.name.toLowerCase();
+    const slug = c.slug.toLowerCase();
+    if (raw.includes(name) || name.includes(raw)) return c;
+    if (raw.includes(slug) || slug.includes(raw)) return c;
+    if (tokens.some(t => name.includes(t) || slug.includes(t))) return c;
+  }
+  return null;
 }

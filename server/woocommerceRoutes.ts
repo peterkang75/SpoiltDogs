@@ -23,7 +23,7 @@
 
 import type { Express, Request, Response, NextFunction } from "express";
 import { storage } from "./storage";
-import { polishProductCopy } from "./services/productNameService";
+import { polishProductCopy, matchCategoryByName } from "./services/productNameService";
 import { suggestPriceCents } from "@shared/pricing";
 
 const STORE_URL =
@@ -97,6 +97,7 @@ function mapWcProductToOurs(body: any): {
   shippingCostAud: number;
   suggestedSellPrice: number;
   synceeProductId: string;
+  supplierCategoryHint: string | null;
 } {
   // Syncee sends regular_price as the RETAIL price already in AUD
   // (Australian suppliers via dropshipzone.com.au price in AUD; Syncee applies profit margin)
@@ -126,6 +127,12 @@ function mapWcProductToOurs(body: any): {
   const stockQty = body.stock_quantity != null ? parseInt(String(body.stock_quantity), 10) : null;
   const inStock = body.stock_status !== "outofstock" && body.in_stock !== false && (stockQty === null || stockQty > 0);
 
+  const wcCategories = Array.isArray(body.categories) ? body.categories : [];
+  const supplierCategoryHint = wcCategories
+    .map((c: any) => (c?.name || c?.slug || "").toString().trim())
+    .filter(Boolean)
+    .join(", ") || (body.product_type ? String(body.product_type).trim() : null) || null;
+
   const product = {
     name,
     slug,
@@ -139,7 +146,7 @@ function mapWcProductToOurs(body: any): {
     categoryId: null,
   };
 
-  return { product, sourcingCostAud, shippingCostAud, suggestedSellPrice, synceeProductId };
+  return { product, sourcingCostAud, shippingCostAud, suggestedSellPrice, synceeProductId, supplierCategoryHint };
 }
 
 function detectSupplierName(userAgent?: string): string {
@@ -166,32 +173,68 @@ async function readDefaultMarginFromContext(): Promise<number> {
 }
 
 // Fire-and-forget background enrichment: rewrite the supplier-stuffed
-// title in the SpoiltDogs voice and re-price the product against the
-// current pricing policy. Runs after the push response is already sent
-// so Syncee/AutoDS see fast 2xx responses.
-async function autoEnrichPushedProduct(productId: string): Promise<void> {
+// title in the SpoiltDogs voice, classify into one of our categories,
+// and re-price the product against the current pricing policy. Runs
+// after the push response is already sent so Syncee/AutoDS see fast
+// 2xx responses.
+async function autoEnrichPushedProduct(
+  productId: string,
+  opts: { supplierCategoryHint?: string | null } = {},
+): Promise<void> {
   try {
     const product = await storage.getProductById(productId);
     if (!product) return;
     const sourcing = await storage.getSourcingByProductId(productId);
     const supplierName = sourcing?.supplierName || null;
+    const categories = await storage.getCategories();
+    const categoryChoices = categories.map(c => ({ id: c.id, name: c.name, slug: c.slug }));
 
-    // 1. Polish name + description in the brand voice.
+    // 1. Polish name + description + classify into our category in one AI call.
     try {
       const polished = await polishProductCopy({
         rawName: product.name,
         rawDescription: product.description || null,
         supplierName,
+        supplierCategory: opts.supplierCategoryHint || null,
+        availableCategories: categoryChoices,
       });
+      const updates: Record<string, any> = {};
       if (polished.name && polished.name !== product.name) {
-        await storage.updateProduct(productId, {
-          name: polished.name,
-          description: polished.description,
-        });
-        console.log(`[WC-Enrich] Polished name for ${productId}: "${product.name.slice(0, 40)}…" → "${polished.name}"`);
+        updates.name = polished.name;
+        updates.description = polished.description;
+      }
+      let chosenCategoryId = polished.categoryId;
+      if (!chosenCategoryId && opts.supplierCategoryHint) {
+        const fallback = matchCategoryByName(opts.supplierCategoryHint, categoryChoices);
+        if (fallback) chosenCategoryId = fallback.id;
+      }
+      if (chosenCategoryId && chosenCategoryId !== product.categoryId) {
+        updates.categoryId = chosenCategoryId;
+      }
+      if (Object.keys(updates).length > 0) {
+        await storage.updateProduct(productId, updates);
+        if (updates.name) {
+          console.log(`[WC-Enrich] Polished name for ${productId}: "${product.name.slice(0, 40)}…" → "${updates.name}"`);
+        }
+        if (updates.categoryId) {
+          const matched = categories.find(c => c.id === updates.categoryId);
+          console.log(`[WC-Enrich] Categorized ${productId} → ${matched?.name || updates.categoryId}`);
+        }
       }
     } catch (e: any) {
       console.warn(`[WC-Enrich] Polish failed for ${productId}: ${e.message}`);
+      // AI failure: still try string-based category matching if we have a hint
+      if (opts.supplierCategoryHint) {
+        try {
+          const fallback = matchCategoryByName(opts.supplierCategoryHint, categoryChoices);
+          if (fallback && fallback.id !== product.categoryId) {
+            await storage.updateProduct(productId, { categoryId: fallback.id });
+            console.log(`[WC-Enrich] Categorized via fallback ${productId} → ${fallback.name}`);
+          }
+        } catch (e2: any) {
+          console.warn(`[WC-Enrich] Fallback match failed: ${e2.message}`);
+        }
+      }
     }
 
     // 2. Auto-price using global default (or per-product override) and
@@ -217,16 +260,16 @@ async function autoEnrichPushedProduct(productId: string): Promise<void> {
   }
 }
 
-function scheduleEnrich(productId: string) {
+function scheduleEnrich(productId: string, supplierCategoryHint?: string | null) {
   setImmediate(() => {
-    autoEnrichPushedProduct(productId).catch(err =>
+    autoEnrichPushedProduct(productId, { supplierCategoryHint }).catch(err =>
       console.error(`[WC-Enrich] Unhandled rejection for ${productId}:`, err),
     );
   });
 }
 
 async function saveWcProduct(body: any, supplierName = "Syncee"): Promise<{ id: string; [key: string]: any }> {
-  const { product, sourcingCostAud, shippingCostAud, suggestedSellPrice, synceeProductId } = mapWcProductToOurs(body);
+  const { product, sourcingCostAud, shippingCostAud, suggestedSellPrice, synceeProductId, supplierCategoryHint } = mapWcProductToOurs(body);
 
   // Deduplication — if this SKU/supplier_product_id already exists, update instead of create
   if (synceeProductId) {
@@ -242,7 +285,7 @@ async function saveWcProduct(body: any, supplierName = "Syncee"): Promise<{ id: 
           ...(product.imageUrl ? { imageUrl: product.imageUrl } : {}),
         });
         console.log(`[WC-Emulator] Product UPDATED (duplicate prevented): "${product.name}" SKU=${synceeProductId}`);
-        scheduleEnrich(existingProduct.id);
+        scheduleEnrich(existingProduct.id, supplierCategoryHint);
         return toWcFormat(updated || existingProduct, sourcingCostAud, suggestedSellPrice, synceeProductId, body.images);
       }
     }
@@ -264,7 +307,7 @@ async function saveWcProduct(body: any, supplierName = "Syncee"): Promise<{ id: 
 
   console.log(`[WC-Emulator] Product imported from ${supplierName}: "${created.name}" — cost $${sourcingCostAud.toFixed(2)} AUD → sell $${suggestedSellPrice.toFixed(2)} AUD`);
 
-  scheduleEnrich(created.id);
+  scheduleEnrich(created.id, supplierCategoryHint);
 
   return toWcFormat(created, sourcingCostAud, suggestedSellPrice, synceeProductId, body.images);
 }

@@ -694,11 +694,13 @@ Respond in JSON format:
       if (!name || typeof name !== "string") {
         return res.status(400).json({ error: "name is required" });
       }
+      const cats = await storage.getCategories();
       const polished = await polishProductCopy({
         rawName: name,
         rawDescription: description || null,
         supplierCategory: supplierCategory || null,
         supplierName: supplierName || null,
+        availableCategories: cats.map(c => ({ id: c.id, name: c.name, slug: c.slug })),
       });
       res.json(polished);
     } catch (error: any) {
@@ -714,22 +716,28 @@ Respond in JSON format:
       if (!product) return res.status(404).json({ error: "Product not found" });
 
       const sourcing = await storage.getSourcingByProductId(id);
+      const cats = await storage.getCategories();
       const polished = await polishProductCopy({
         rawName: product.name,
         rawDescription: product.description || null,
         supplierCategory: null,
         supplierName: sourcing?.supplierName || null,
+        availableCategories: cats.map(c => ({ id: c.id, name: c.name, slug: c.slug })),
       });
 
-      const updated = await storage.updateProduct(id, {
+      const updateData: Record<string, any> = {
         name: polished.name,
         description: polished.description,
-      });
+      };
+      if (polished.categoryId && polished.categoryId !== product.categoryId) {
+        updateData.categoryId = polished.categoryId;
+      }
+      const updated = await storage.updateProduct(id, updateData);
       if (!updated) return res.status(404).json({ error: "Product not found after update" });
 
       res.json({
         product: updated,
-        before: { name: product.name, description: product.description },
+        before: { name: product.name, description: product.description, categoryId: product.categoryId },
         after: polished,
       });
     } catch (error: any) {
